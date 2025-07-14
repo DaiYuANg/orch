@@ -1,0 +1,6 @@
+[package]
+name = "dnsbridge"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

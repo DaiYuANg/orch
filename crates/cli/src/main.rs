@@ -6,7 +6,7 @@ use tracing::debug;
 #[command(name = "warden")]
 #[command(author = "你的名字 <you@example.com>")]
 #[command(version = "0.1.0")]
-#[command(about = "分布式服务部署与管理工具", long_about = None)]
+#[command(about = "warden", long_about = None)]
 struct Cli {
   /// 指定集群节点地址（默认从配置文件加载）
   #[arg(short, long)]
@@ -29,19 +29,19 @@ enum Commands {
     #[arg(short, long)]
     file: String,
   },
-  /// 查看服务状态
+  /// checkout service status
   Status {
     /// 服务名称（不填则显示所有）
     #[arg(short, long)]
     service: Option<String>,
   },
-  /// 启动服务
+  /// start service
   Start {
-    /// 服务名称
+    /// service name
     #[arg(short, long)]
     service: String,
   },
-  /// 停止服务
+  /// stop service
   Stop {
     /// 服务名称
     #[arg(short, long)]

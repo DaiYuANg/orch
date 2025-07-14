@@ -1,12 +1,21 @@
+mod http;
+mod config;
+
+use crate::http::ApiDoc;
 use axum::{
-  Json, Router,
-  http::StatusCode,
-  routing::{get, post},
+  http::StatusCode, routing::{get, post},
+  Json,
+  Router,
 };
+use axum_prometheus::PrometheusMetricLayer;
 use dotenvy::dotenv;
+use nject::provider;
 use serde::{Deserialize, Serialize};
+use tower_http::trace::TraceLayer;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 fn init() {
   dotenv().ok();
@@ -16,16 +25,25 @@ fn init() {
     .with_ansi(true)
     .init();
 }
-
+#[provider]
+struct Provider;
 #[tokio::main]
 async fn main() {
   init();
+  let (prom_layer, metric_handle) = PrometheusMetricLayer::pair();
   // build our application with a route
   let app = Router::new()
     // `GET /` goes to `root`
     .route("/", get(root))
     // `POST /users` goes to `create_user`
-    .route("/users", post(create_user));
+    .route("/users", post(create_user))
+    .route(
+      "/metrics",
+      get(move || async move { metric_handle.render() }),
+    )
+    .merge(SwaggerUi::new("/swagger").url("/api-doc/openapi.json", ApiDoc::openapi()))
+    .layer(prom_layer)
+    .layer(TraceLayer::new_for_http());
 
   // run our app with hyper, listening globally on port 3000
   let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

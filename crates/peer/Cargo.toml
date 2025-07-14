@@ -8,10 +8,11 @@ tokio = { workspace = true, features = ["full"] }
 axum = "0.8.4"
 tracing = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-tracing-subscriber = { workspace = true, version = "1.0.0", features = ["env-filter"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 utoipa = { version = "5", features = ["axum_extras", "debug", 'indexmap'] }
 utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
 utoipa-axum = { version = "0.2", features = ["debug"] }
+tower-http = { version = "0.6.6", features = ["trace"] }
 axum-prometheus = "0.8"
 figment = { workspace = true, features = ["env", 'toml', 'serde_json'] }
 uuid = { workspace = true, features = ["v7", "v4", "zerocopy"] }
@@ -19,3 +20,4 @@ dotenvy = { workspace = true }
 rand = { version = "0.9" }
 runner = { path = "../runner" }
 maud = "*"
+nject = { workspace = true }

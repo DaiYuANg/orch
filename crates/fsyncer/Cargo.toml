@@ -1,6 +1,0 @@
-[package]
-name = "fsyncer"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]

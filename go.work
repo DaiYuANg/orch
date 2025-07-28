@@ -1,0 +1,15 @@
+go 1.24
+
+use (
+	.
+	cli
+	controller
+	task
+	agent
+	store
+	logger
+	executor
+	docker
+	firecracker
+	systemd
+)

@@ -1,4 +1,3 @@
-/target
 .idea/**/workspace.xml
 .idea/**/tasks.xml
 .idea/**/usage.statistics.xml
@@ -29,11 +28,6 @@ crashlytics-build.properties
 fabric.properties
 .idea/httpRequests
 .idea/caches/build_file_checksums.ser
-debug/
-target/
-Cargo.lock
-**/*.rs.bk
-*.pdb
 *~
 .fuse_hidden*
 .directory
@@ -43,7 +37,14 @@ Cargo.lock
 *.iml
 out
 gen
-rust-project.json
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+!go.work
 Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
@@ -74,3 +75,4 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+*.etcd

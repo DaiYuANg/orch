@@ -3,9 +3,6 @@ module github.com/DaiYuANg/warden/controller
 go 1.24
 
 require (
-	github.com/DaiYuANg/warden/logger v0.0.0-00010101000000-000000000000
-	github.com/DaiYuANg/warden/pkg v0.0.0-00010101000000-000000000000
-	github.com/DaiYuANg/warden/raft v0.0.0-00010101000000-000000000000
 	github.com/adrg/xdg v0.5.3
 	github.com/ansrivas/fiberprometheus/v2 v2.13.0
 	github.com/danielgtaylor/huma/v2 v2.34.1
@@ -27,9 +24,9 @@ require (
 )
 
 replace (
-	github.com/DaiYuANg/warden/logger => ./../modules/logger
-	github.com/DaiYuANg/warden/pkg => ./../modules/pkg
-	github.com/DaiYuANg/warden/raft => ./../modules/raft
+	github.com/DaiYuANg/warden/logger => ../../modules/logger
+	github.com/DaiYuANg/warden/pkg => ./../../libs/pkg
+	github.com/DaiYuANg/warden/raft => ./../../libs/raft
 )
 
 require (

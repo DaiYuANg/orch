@@ -51,8 +51,6 @@ func (b *BadgerDB) Read(key []byte) ([]byte, error) {
 }
 
 // Close 关闭数据库连接
-func (b *BadgerDB) Close() {
-	if err := b.db.Close(); err != nil {
-		b.logger.Fatal("Failed to close BadgerDB:", err)
-	}
+func (b *BadgerDB) Close() error {
+	return b.db.Close()
 }

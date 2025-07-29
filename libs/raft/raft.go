@@ -1,6 +1,7 @@
 package store
 
 import (
+	"go.uber.org/zap"
 	"net"
 	"os"
 	"path/filepath"
@@ -9,7 +10,7 @@ import (
 
 import (
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb"
+	raftwal "github.com/hashicorp/raft-wal"
 )
 
 // RaftManager 用于管理 Raft 集群
@@ -18,13 +19,21 @@ type RaftManager struct {
 }
 
 // NewRaftManager 初始化 Raft 集群
-func NewRaftManager(nodeID, raftDir string) (*RaftManager, error) {
+func NewRaftManager(nodeID, raftDir string, logger *zap.SugaredLogger) (*RaftManager, error) {
 	// 创建 Raft 配置
+	log := newZapLogger(logger)
 	raftConfig := raft.DefaultConfig()
 	raftConfig.LocalID = raft.ServerID(nodeID)
+	raftConfig.Logger = log
 	// 创建 Raft 存储
-	boltPath := filepath.Join(raftDir, "warden.db")
-	raftStorage, err := raftboltdb.NewBoltStore(boltPath)
+	storagePath := filepath.Join(raftDir, "warden.wal")
+	if err := os.MkdirAll(storagePath, 0700); err != nil {
+		return nil, err
+	}
+	raftStorage, err := raftwal.Open(storagePath, raftwal.WithLogger(log))
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(raftDir, 0700); err != nil {
 		return nil, err
 	}

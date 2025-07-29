@@ -2,21 +2,22 @@ go 1.24
 
 use (
 	.
-	agent
-	cli
-	controller
-	pack
-	./modules/docker
-	./modules/config
-	./modules/dsl
-	./modules/executor
-	./modules/firecracker
-	./modules/ingress
-	./modules/kubernetes
-	./modules/logger
-	./modules/pkg
-	./modules/systemd
-	./modules/win-svc
-	./modules/raft
-    ./modules/volume
+	apps/agent
+	apps/cli
+	apps/controller
+	apps/pack
+	modules/logger
+	modules/container
+	libs/config
+	libs/docker
+	libs/dsl
+	libs/executor
+	libs/firecracker
+	libs/ingress
+	libs/kubernetes
+	libs/pkg
+	libs/raft
+	libs/systemd
+	libs/volume
+	libs/win-svc
 )

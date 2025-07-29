@@ -99,7 +99,7 @@ func (m *Manager) StopVM(ctx context.Context, id VMID) error {
 	return nil
 }
 
-// 获取全部 VM 状态（方便 Web UI 展示）
+// ListVMs 获取全部 VM 状态（方便 Web UI 展示）
 func (m *Manager) ListVMs() []VMInstance {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -26,8 +26,8 @@ func newService(logger *zap.SugaredLogger) (*store.RaftBadgerService, error) {
 
 func lifecycle(lc fx.Lifecycle, service *store.RaftBadgerService) {
 	lc.Append(
-		fx.StopHook(func() {
-			service.Close()
+		fx.StopHook(func() error {
+			return service.Close()
 		}),
 	)
 }

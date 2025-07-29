@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"go.uber.org/zap"
 )
@@ -14,7 +15,7 @@ type RaftBadgerService struct {
 
 // NewRaftBadgerService 初始化服务
 func NewRaftBadgerService(nodeID, raftDir, dbDir string, zapLogger *zap.SugaredLogger) (*RaftBadgerService, error) {
-	raftMgr, err := NewRaftManager(nodeID, raftDir)
+	raftMgr, err := NewRaftManager(nodeID, raftDir, zapLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +49,8 @@ func (s *RaftBadgerService) Read(key []byte) ([]byte, error) {
 }
 
 // Close 关闭服务
-func (s *RaftBadgerService) Close() {
-	s.db.Close()
+func (s *RaftBadgerService) Close() error {
+	err1 := s.raft.raftNode.Shutdown()
+	err2 := s.db.Close()
+	return errors.Join(err1.Error(), err2)
 }

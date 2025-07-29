@@ -12,7 +12,7 @@ require (
 	go.uber.org/zap v1.27.0
 )
 
-replace github.com/DaiYuANg/warden/logger => ./../modules/logger
+replace github.com/DaiYuANg/warden/logger => ../../modules/logger
 
 require (
 	github.com/ebitengine/purego v0.8.4 // indirect

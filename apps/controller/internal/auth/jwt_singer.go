@@ -14,7 +14,7 @@ type Singer struct {
 
 func (s *Singer) sign() (string, error) {
 	claims := jwt.MapClaims{
-		"name":  "John Doe",
+		"name":  "root",
 		"admin": true,
 		"exp":   time.Now().Add(time.Hour * 72).Unix(),
 	}

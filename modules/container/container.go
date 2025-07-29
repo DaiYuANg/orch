@@ -2,6 +2,7 @@ package container
 
 import (
 	"github.com/DaiYuANg/warden/logger"
+	"github.com/DaiYuANg/warden/schedule"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
@@ -10,6 +11,7 @@ import (
 
 var commonOption = fx.Options(
 	logger.Module,
+	schedule.Module,
 	fx.WithLogger(func(log *zap.Logger) fxevent.Logger {
 		fxLogger := &fxevent.ZapLogger{Logger: log}
 		fxLogger.UseLogLevel(zapcore.DebugLevel)

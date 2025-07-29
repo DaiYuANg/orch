@@ -1,6 +1,11 @@
 package store
 
-import "os"
+import (
+	"net"
+	"os"
+	"path/filepath"
+	"time"
+)
 
 import (
 	"github.com/hashicorp/raft"
@@ -17,19 +22,30 @@ func NewRaftManager(nodeID, raftDir string) (*RaftManager, error) {
 	// 创建 Raft 配置
 	raftConfig := raft.DefaultConfig()
 	raftConfig.LocalID = raft.ServerID(nodeID)
-
 	// 创建 Raft 存储
-	raftStorage, err := raftboltdb.NewBoltStore(raftDir)
+	boltPath := filepath.Join(raftDir, "warden.db")
+	raftStorage, err := raftboltdb.NewBoltStore(boltPath)
 	if err := os.MkdirAll(raftDir, 0700); err != nil {
 		return nil, err
 	}
-
-	// 创建 Raft 节点
-	raftNode, err := raft.NewRaft(raftConfig, nil, raftStorage, nil, nil, nil)
+	// 创建快照存储
+	snapshotStore, err := raft.NewFileSnapshotStore(raftDir, 1, os.Stdout)
 	if err != nil {
 		return nil, err
 	}
-
+	// 创建网络传输
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:12000")
+	if err != nil {
+		return nil, err
+	}
+	transport, err := raft.NewTCPTransport(addr.String(), addr, 3, 10*time.Second, os.Stdout)
+	if err != nil {
+		return nil, err
+	}
+	raftNode, err := raft.NewRaft(raftConfig, &FSM{}, raftStorage, raftStorage, snapshotStore, transport)
+	if err != nil {
+		return nil, err
+	}
 	return &RaftManager{raftNode: raftNode}, nil
 }
 

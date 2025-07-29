@@ -5,10 +5,7 @@ import (
 )
 
 type Executor struct {
-	Runtime string
-	Image   string
-	Name    string
-	client  *docker.Client
+	client *docker.Client
 }
 
 func NewExecutor() (*Executor, error) {
@@ -17,4 +14,8 @@ func NewExecutor() (*Executor, error) {
 		return nil, err
 	}
 	return &Executor{client: client}, nil
+}
+
+func (e *Executor) ListImage() ([]docker.APIImages, error) {
+	return e.client.ListImages(docker.ListImagesOptions{})
 }

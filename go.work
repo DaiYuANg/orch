@@ -2,18 +2,19 @@ go 1.24
 
 use (
 	.
-
 	agent
 	cli
 	controller
 	pack
 	./modules/docker
+	./modules/config
 	./modules/dsl
 	./modules/executor
 	./modules/firecracker
 	./modules/ingress
 	./modules/kubernetes
 	./modules/logger
+	./modules/pkg
 	./modules/systemd
 	./modules/win-svc
 	./modules/raft

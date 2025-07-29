@@ -7,6 +7,8 @@ import (
 	"github.com/DaiYuANg/warden/controller/internal/dns"
 	"github.com/DaiYuANg/warden/controller/internal/endpoint"
 	"github.com/DaiYuANg/warden/controller/internal/http"
+	"github.com/DaiYuANg/warden/controller/internal/mdns"
+	"github.com/DaiYuANg/warden/controller/internal/raft"
 	"github.com/DaiYuANg/warden/logger"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -19,7 +21,8 @@ func container() *fx.App {
 		config.Module,
 		auth.Module,
 		logger.Module,
-		//raft.Module,
+		mdns.Module,
+		raft.Module,
 		common.Module,
 		endpoint.Module,
 		http.Module,

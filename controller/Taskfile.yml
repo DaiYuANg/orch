@@ -3,10 +3,27 @@
 version: '3'
 
 vars:
-  GREETING: Hello, World!
+  BIN_NAME: controller
+  DIST_DIR: dist
+  # 默认平台
+  DEFAULT_GOOS: linux
+  DEFAULT_GOARCH: amd64
 
 tasks:
   default:
     cmds:
       - echo "{{.GREETING}}"
     silent: true
+
+  build:
+    desc: 构建当前平台（默认启用 CGO）
+    cmds:
+      - go build -o {{.DIST_DIR}}/{{.BIN_NAME}} .
+
+  check:
+    cmds:
+      - go tool staticcheck ./...
+
+  lint:
+    cmds:
+      - go tool golangci-lint run

@@ -31,14 +31,12 @@ func NewRaftBadgerService(nodeID, raftDir, dbDir string, zapLogger *zap.SugaredL
 	}, nil
 }
 
-// Write 写入数据到 BadgerDB 和 Raft
 func (s *RaftBadgerService) Write(key, value []byte) error {
 	// 1. 写入 BadgerDB
 	err := s.db.Write(key, value)
 	if err != nil {
 		return err
 	}
-
 	// 2. 提交 Raft 日志（模拟）
 	logData := fmt.Sprintf("Write Operation: Key=%s, Value=%s", key, value)
 	return s.raft.ApplyLog([]byte(logData))

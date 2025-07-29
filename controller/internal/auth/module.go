@@ -12,7 +12,7 @@ func newRsaKey() (*rsa.PrivateKey, error) {
 	var privateKey *rsa.PrivateKey
 	rng := rand.Reader
 	var err error
-	privateKey, err = rsa.GenerateKey(rng, 8192)
+	privateKey, err = rsa.GenerateKey(rng, 2048)
 	if err != nil {
 		return nil, err
 	}

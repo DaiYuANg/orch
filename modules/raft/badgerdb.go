@@ -14,9 +14,11 @@ type BadgerDB struct {
 // NewBadgerDB 初始化 BadgerDB 存储
 func NewBadgerDB(path string, logger *zap.SugaredLogger) (*BadgerDB, error) {
 
-	option := badger.DefaultOptions(path)
-	option.WithLogger(&badgerLogger{logger: logger})
-	option.WithMetricsEnabled(true)
+	option :=
+		badger.DefaultOptions(path).
+			WithLogger(&badgerLogger{logger: logger}).
+			WithMetricsEnabled(true)
+
 	db, err := badger.Open(option)
 	if err != nil {
 		return nil, err

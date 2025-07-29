@@ -4,14 +4,18 @@ go 1.24
 
 require (
 	github.com/DaiYuANg/warden/logger v0.0.0-00010101000000-000000000000
+	github.com/DaiYuANg/warden/pkg v0.0.0-00010101000000-000000000000
 	github.com/DaiYuANg/warden/raft v0.0.0-00010101000000-000000000000
+	github.com/adrg/xdg v0.5.3
 	github.com/ansrivas/fiberprometheus/v2 v2.13.0
 	github.com/danielgtaylor/huma/v2 v2.34.1
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/gofiber/contrib/fiberzap/v2 v2.1.6
 	github.com/gofiber/contrib/jwt v1.1.2
+	github.com/gofiber/contrib/websocket v1.3.4
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/hashicorp/mdns v1.0.6
 	github.com/joho/godotenv v1.5.1
 	github.com/knadh/koanf/v2 v2.2.2
 	github.com/miekg/dns v1.1.67
@@ -24,6 +28,7 @@ require (
 
 replace (
 	github.com/DaiYuANg/warden/logger => ./../modules/logger
+	github.com/DaiYuANg/warden/pkg => ./../modules/pkg
 	github.com/DaiYuANg/warden/raft => ./../modules/raft
 )
 
@@ -38,6 +43,7 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dgraph-io/ristretto v0.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/fasthttp/websocket v1.5.8 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -73,6 +79,7 @@ require (
 	github.com/prometheus/common v0.65.0 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/savsgio/gotils v0.0.0-20240303185622-093b76447511 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.64.0 // indirect

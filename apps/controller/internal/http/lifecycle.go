@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"github.com/gofiber/fiber/v2"
+	"github.com/panjf2000/ants/v2"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )
@@ -13,13 +14,14 @@ type LifecycleDependency struct {
 	App *fiber.App
 	//Config *config.Config
 	Logger *zap.SugaredLogger
+	Pool   *ants.Pool
 }
 
 func lifecycle(dep LifecycleDependency) {
-	lc, app, log := dep.Lc, dep.App, dep.Logger
+	lc, app, log, pool := dep.Lc, dep.App, dep.Logger, dep.Pool
 	lc.Append(fx.StartStopHook(
-		func() {
-			go func() {
+		func() error {
+			return pool.Submit(func() {
 				//localAddress := "http://127.0.0.1:" + cfg.Http.GetPort()
 				//log.Debugf("Http Listening on %s", localAddress)
 				err := app.Listen(
@@ -32,10 +34,9 @@ func lifecycle(dep LifecycleDependency) {
 					//},
 				)
 				if err != nil {
-					log.Errorf("spack start fail: %v", err) // 打印原始错误
-					panic(err)
+					log.Errorf("spack start fail: %v", err)
 				}
-			}()
+			})
 		},
 		func(ctx context.Context) error {
 			return app.ShutdownWithContext(ctx)

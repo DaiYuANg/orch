@@ -1,13 +1,13 @@
-go 1.24
+go 1.24.0
+
+toolchain go1.24.5
 
 use (
 	.
 	apps/agent
 	apps/controller
+	apps/ctl
 	apps/pack
-	modules/logger
-	modules/container
-	modules/schedule
 	libs/config
 	libs/docker
 	libs/dsl
@@ -15,9 +15,14 @@ use (
 	libs/firecracker
 	libs/ingress
 	libs/kubernetes
+	libs/metadata_db
 	libs/pkg
 	libs/raft
 	libs/systemd
 	libs/volume
 	libs/win-svc
+	libs/workload_db
+	modules/container
+	modules/logger
+	modules/schedule
 )

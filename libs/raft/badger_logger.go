@@ -1,4 +1,4 @@
-package store
+package raft
 
 import "go.uber.org/zap"
 

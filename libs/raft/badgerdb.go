@@ -1,18 +1,17 @@
-package store
+package raft
 
 import (
 	"github.com/dgraph-io/badger/v3"
 	"go.uber.org/zap"
 )
 
-// BadgerDB 包装器
-type BadgerDB struct {
+// badgerDB 包装器
+type badgerDB struct {
 	db     *badger.DB
 	logger *zap.SugaredLogger
 }
 
-// NewBadgerDB 初始化 BadgerDB 存储
-func NewBadgerDB(path string, logger *zap.SugaredLogger) (*BadgerDB, error) {
+func newBadgerDB(path string, logger *zap.SugaredLogger) (*badgerDB, error) {
 
 	option :=
 		badger.DefaultOptions(path).
@@ -23,18 +22,18 @@ func NewBadgerDB(path string, logger *zap.SugaredLogger) (*BadgerDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &BadgerDB{db: db, logger: logger}, nil
+	return &badgerDB{db: db, logger: logger}, nil
 }
 
 // Write 存储数据
-func (b *BadgerDB) Write(key, value []byte) error {
+func (b *badgerDB) Write(key, value []byte) error {
 	return b.db.Update(func(txn *badger.Txn) error {
 		return txn.Set(key, value)
 	})
 }
 
 // Read 读取数据
-func (b *BadgerDB) Read(key []byte) ([]byte, error) {
+func (b *badgerDB) Read(key []byte) ([]byte, error) {
 	var valCopy []byte
 	err := b.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
@@ -51,6 +50,6 @@ func (b *BadgerDB) Read(key []byte) ([]byte, error) {
 }
 
 // Close 关闭数据库连接
-func (b *BadgerDB) Close() error {
+func (b *badgerDB) Close() error {
 	return b.db.Close()
 }

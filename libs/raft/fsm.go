@@ -1,14 +1,18 @@
-package store
+package raft
 
 import (
+	"errors"
 	"github.com/hashicorp/raft"
+	"go.etcd.io/bbolt"
 	"io"
 )
 
-type FSM struct{}
+type FSM struct {
+	badger *badgerDB
+	bblot  *bbolt.DB
+}
 
 func (f *FSM) Apply(log *raft.Log) interface{} {
-	// 这里写应用状态变更逻辑
 	return nil
 }
 func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
@@ -16,6 +20,12 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	return nil, nil
 }
 func (f *FSM) Restore(rc io.ReadCloser) error {
-	// 从快照恢复
+
 	return nil
+}
+
+func (f *FSM) close() error {
+	err1 := f.bblot.Close()
+	err2 := f.badger.Close()
+	return errors.Join(err1, err2)
 }

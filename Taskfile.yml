@@ -10,3 +10,9 @@ tasks:
     cmds:
       - echo "{{.GREETING}}"
     silent: true
+  format:
+    desc: "Run golines recursively on all go files"
+    cmds:
+      - |
+        find . -name '*.go' -print0 | xargs -0 -n 10 golines -w -m 120
+    silent: true

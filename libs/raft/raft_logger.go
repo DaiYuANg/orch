@@ -1,4 +1,4 @@
-package store
+package raft
 
 import (
 	"github.com/hashicorp/go-hclog"

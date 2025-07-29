@@ -2,14 +2,20 @@ go 1.24
 
 use (
 	.
+
+	agent
 	cli
 	controller
-	task
-	agent
-	store
-	logger
-	executor
-	docker
-	firecracker
-	systemd
+	pack
+	./modules/docker
+	./modules/dsl
+	./modules/executor
+	./modules/firecracker
+	./modules/ingress
+	./modules/kubernetes
+	./modules/logger
+	./modules/systemd
+	./modules/win-svc
+	./modules/raft
+    ./modules/volume
 )

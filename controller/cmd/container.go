@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"github.com/DaiYuANg/warden/controller/internal/auth"
+	"github.com/DaiYuANg/warden/controller/internal/common"
 	"github.com/DaiYuANg/warden/controller/internal/config"
 	"github.com/DaiYuANg/warden/controller/internal/dns"
 	"github.com/DaiYuANg/warden/controller/internal/endpoint"
@@ -15,7 +17,10 @@ import (
 func container() *fx.App {
 	return fx.New(
 		config.Module,
+		auth.Module,
 		logger.Module,
+		//raft.Module,
+		common.Module,
 		endpoint.Module,
 		http.Module,
 		dns.Module,

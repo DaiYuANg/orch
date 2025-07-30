@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/DaiYuANg/warden/pack/cmd"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/spf13/cobra"
 )
 

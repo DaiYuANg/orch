@@ -1,6 +1,6 @@
 baseURL: https://example.org/
 languageCode: en-us
-title: My New Hugo Site
+title: Warden Documentation
 defaultContentLanguage: en
 languages:
   en:
@@ -22,6 +22,20 @@ menu:
       name: Blog
       pageRef: /blog
       weight: 2
+enableGitInfo: true
+params:
+  displayUpdatedDate: true
+  dateFormat: "January 2, 2006"
+  search:
+    enable: true
+    type: flexsearch
+
+    flexsearch:
+      # index page by: content | summary | heading | title
+      index: content
+  theme:
+    default: system
+    displayToggle: true
 module:
   imports:
     - path: github.com/imfing/hextra

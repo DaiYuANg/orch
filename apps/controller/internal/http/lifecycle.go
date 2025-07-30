@@ -25,7 +25,7 @@ func lifecycle(dep LifecycleDependency) {
 				//localAddress := "http://127.0.0.1:" + cfg.Http.GetPort()
 				//log.Debugf("Http Listening on %s", localAddress)
 				err := app.Listen(
-					":3000",
+					":0",
 					//fiber.ListenConfig{
 					//	DisableStartupMessage: true,
 					//	EnablePrintRoutes:     false,

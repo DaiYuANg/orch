@@ -8,12 +8,21 @@ vars:
   # 默认平台
   DEFAULT_GOOS: linux
   DEFAULT_GOARCH: amd64
+  PROVIDER:
+    windows: hyperv
+    linux: virtualbox
+    darwin: virtualbox
 
 tasks:
   default:
     cmds:
       - echo "{{.GREETING}}"
     silent: true
+
+  dev:vm:
+    desc: start in vm
+    cmds:
+      - vagrant up --provider={{.PROVIDER}}
 
   build:
     desc: 构建当前平台（默认启用 CGO）

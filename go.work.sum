@@ -320,6 +320,8 @@ github.com/Sereal/Sereal/Go/sereal v0.0.0-20231009093132-b9187f1a92c6/go.mod h1:
 github.com/Shopify/logrus-bugsnag v0.0.0-20171204204709-577dee27f20d h1:UrqY+r/OJnIp5u0s1SbQ8dVfLCZJsnvazdBP5hS4iRs=
 github.com/ThalesIgnite/crypto11 v1.2.5 h1:1IiIIEqYmBvUYFeMnHqRft4bwf/O36jryEUpY+9ef8E=
 github.com/ThalesIgnite/crypto11 v1.2.5/go.mod h1:ILDKtnCKiQ7zRoNxcp36Y1ZR8LBPmR2E23+wTQe/MlE=
+github.com/akedrou/textdiff v0.0.0-20230423230343-2ebdcebdccc1 h1:XfKKiQL7irIGI7nfu4a6IKhrgUHvKwhH/AnuHgZy/+U=
+github.com/akedrou/textdiff v0.0.0-20230423230343-2ebdcebdccc1/go.mod h1:PJwvxBpzqjdeomc0r8Hgc+xJC7k6z+k371tffCGXR2M=
 github.com/alecthomas/kingpin/v2 v2.4.0 h1:f48lwail6p8zpO1bC4TxtqACaGqHYA22qkHjHpqDjYY=
 github.com/alecthomas/kingpin/v2 v2.4.0/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
 github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d h1:UQZhZ2O0vMHr2cI+DC1Mbh0TJxzA3RcLoMsFw+aXw7E=

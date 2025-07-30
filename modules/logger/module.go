@@ -1,8 +1,6 @@
 package logger
 
 import (
-	"errors"
-	"fmt"
 	"github.com/samber/mo"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -10,7 +8,6 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
 	"path/filepath"
-	"syscall"
 )
 
 var Module = fx.Module("logger_module", fx.Provide(newLogger, sugaredLogger), fx.Invoke(deferLogger))

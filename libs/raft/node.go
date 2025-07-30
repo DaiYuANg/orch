@@ -48,6 +48,7 @@ func newNode(nodeID, raftDir string, logger *zap.SugaredLogger) (*raft.Raft, err
 	if err != nil {
 		return nil, fmt.Errorf("resolve raft address: %w", err)
 	}
+
 	transport, err := raft.NewTCPTransport(addr.String(), addr, 3, 10*time.Second, os.Stdout)
 	if err != nil {
 		return nil, fmt.Errorf("create raft transport: %w", err)

@@ -16,6 +16,7 @@ use (
 	libs/pkg
 	libs/raft
 	libs/systemd
+	libs/uds
 	libs/volume
 	libs/win-svc
 	libs/workload_db

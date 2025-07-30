@@ -3,8 +3,10 @@ module github.com/DaiYuANg/warden/logger
 go 1.24
 
 require (
+	github.com/samber/mo v1.14.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.27.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (

@@ -16,6 +16,7 @@ use (
 	libs/pkg
 	libs/raft
 	libs/systemd
+	libs/dns
 	libs/uds
 	libs/volume
 	libs/win-svc

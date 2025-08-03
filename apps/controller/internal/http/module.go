@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/DaiYuANg/warden/controller/internal/config"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
 	"github.com/gofiber/fiber/v2"
@@ -22,13 +23,15 @@ var Module = fx.Module("http",
 func newFiber() *fiber.App {
 	app := fiber.New(
 		fiber.Config{
-			EnablePrintRoutes: true,
+			DisableStartupMessage: true,
+			ReduceMemoryUsage:     true,
+			EnablePrintRoutes:     false,
 		},
 	)
 
 	return app
 }
 
-func newOpenapi(app *fiber.App) huma.API {
+func newOpenapi(app *fiber.App, config *config.Config) huma.API {
 	return humafiber.New(app, huma.DefaultConfig("warden", "0.1"))
 }

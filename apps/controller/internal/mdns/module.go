@@ -11,7 +11,7 @@ var Module = fx.Module("mdns", fx.Provide(newMdns), fx.Invoke(lifecycle))
 
 func newMdns() (*mdns.MDNSService, error) {
 	host, _ := os.Hostname()
-	info := []string{"My awesome service"}
+	info := []string{"warnden service"}
 	return mdns.NewMDNSService(host, "_foobar._tcp", "", "", 8000, nil, info)
 }
 

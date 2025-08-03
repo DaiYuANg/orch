@@ -3,7 +3,7 @@ module github.com/DaiYuANg/warden/schedule
 go 1.24
 
 require (
-	github.com/go-co-op/gocron/v2 v2.16.2
+	github.com/go-co-op/gocron/v2 v2.16.3
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.27.0
 )

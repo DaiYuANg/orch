@@ -3,6 +3,7 @@ package raft
 import (
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/hashicorp/memberlist"
 	"go.uber.org/zap"
 )
@@ -15,13 +16,18 @@ type Service struct {
 	logger *zap.SugaredLogger
 }
 
+type MemberListLogger struct {
+}
+
 // NewRaftBadgerService 初始化服务
 func NewRaftBadgerService(nodeID, raftDir string, logger *zap.SugaredLogger) (*Service, error) {
 	raftMgr, err := NewRaftManager(nodeID, raftDir, logger)
 	if err != nil {
 		return nil, err
 	}
-	list, err := memberlist.Create(memberlist.DefaultLocalConfig())
+	mblistconfig := memberlist.DefaultLANConfig()
+	mblistconfig.Name = uuid.New().String()
+	list, err := memberlist.Create(mblistconfig)
 	if err != nil {
 		return nil, err
 	}

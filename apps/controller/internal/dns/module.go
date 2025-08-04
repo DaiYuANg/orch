@@ -8,7 +8,7 @@ import (
 
 var Module = fx.Module("dns", fx.Provide(newDns), fx.Invoke(lifecycle))
 
-func newDns(logger *zap.SugaredLogger) *dns.DNSServer {
+func newDns(logger *zap.SugaredLogger) (*dns.DNSServer, error) {
 	return dns.NewDNSServer(logger)
 }
 

@@ -1,54 +1,49 @@
 package dns
 
 import (
-	"github.com/dgraph-io/ristretto"
+	metadata_db "github.com/DaiYuANg/warden/metadata"
 	"github.com/eko/gocache/lib/v4/cache"
-	"github.com/eko/gocache/lib/v4/store"
-	ristretto_store "github.com/eko/gocache/store/ristretto/v4"
 	"github.com/miekg/dns"
 	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 	"sync"
 )
 
 // DNS服务器结构体，存储域名和IP的映射
 type DNSServer struct {
-	records map[string]string
-	cm      *cache.Cache[string]
 	mu      sync.RWMutex
-	db      *bbolt.DB
+	records map[string]Record
+	repo    *metadata_db.Repository[Record]
+	cm      *cache.Cache[string]
 	logger  *zap.SugaredLogger
 }
 
-func NewDNSServer(logger *zap.SugaredLogger) *DNSServer {
-	ristrettoCache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 1000,
-		MaxCost:     100,
-		BufferItems: 64,
-	})
+func NewDNSServer(logger *zap.SugaredLogger) (*DNSServer, error) {
+	db, err := bbolt.Open("dns.db", 0700, nil)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	ristrettoStore := ristretto_store.NewRistretto(ristrettoCache)
-
-	cacheManager := cache.New[string](ristrettoStore)
-	err = cacheManager.Set(context.Background(), "my-key", "my-value", store.WithCost(2))
-	if err != nil {
-		panic(err)
-	}
-	return &DNSServer{
-		records: make(map[string]string),
+	repo := metadata_db.NewRepository[Record](db, "dns_records")
+	svr := &DNSServer{
+		records: map[string]Record{},
+		repo:    repo,
 		logger:  logger,
-		cm:      cacheManager,
 	}
+
+	// 启动时加载已存储记录
+	_ = repo.ForEach(func(key string, rec Record) error {
+		svr.records[rec.Domain] = rec
+		return nil
+	})
+
+	return svr, nil
 }
 
 // 添加或修改解析记录
 func (d *DNSServer) SetRecord(domain, ip string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.records[domain] = ip
+	d.records[domain] = Record{}
 }
 
 // 删除解析记录
@@ -67,12 +62,11 @@ func (d *DNSServer) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	for _, q := range r.Question {
 		switch q.Qtype {
 		case dns.TypeA:
-			domain := q.Name
 			d.mu.RLock()
-			ip, ok := d.records[domain]
+			ip, ok := d.records[q.Name]
 			d.mu.RUnlock()
 			if ok {
-				rr, err := dns.NewRR(domain + " A " + ip)
+				rr, err := dns.NewRR(ip.Domain + " A " + ip.Value)
 				if err == nil {
 					msg.Answer = append(msg.Answer, rr)
 				}

@@ -6,7 +6,6 @@ use (
 	apps/controller
 	apps/ctl
 	apps/pack
-	libs/config
 	libs/dns
 	libs/docker
 	libs/dsl

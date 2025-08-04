@@ -1,8 +1,15 @@
 package cmd
 
 import (
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 )
+
+var commands = []*cobra.Command{
+	tokenCmd,
+	serviceCmd,
+	serverCmd,
+}
 
 var rootCmd = cobra.Command{
 	Use: "cmd",
@@ -16,6 +23,7 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.AddCommand(tokenCmd)
-	rootCmd.AddCommand(serverCmd)
+	lo.ForEach(commands, func(item *cobra.Command, _ int) {
+		rootCmd.AddCommand(item)
+	})
 }

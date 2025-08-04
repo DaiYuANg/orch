@@ -20,7 +20,7 @@ func NewRepository[T any](db *bbolt.DB, bucket string) *Repository[T] {
 }
 
 func (r *Repository[T]) Set(key string, value T) error {
-	bts, err := json.Marshal(value)
+	bts, err := r.encode(value)
 	if err != nil {
 		return err
 	}
@@ -32,21 +32,25 @@ func (r *Repository[T]) Set(key string, value T) error {
 		return b.Put([]byte(key), bts)
 	})
 }
-
 func (r *Repository[T]) Get(key string) (T, error) {
-	var out T
+	var zero T
+	var value T
 	err := r.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte(r.bucket))
-		if b == nil {
-			return fmt.Errorf("bucket not found")
+		b, err := r.getBucket(tx)
+		if err != nil {
+			return err
 		}
 		v := b.Get([]byte(key))
 		if v == nil {
 			return fmt.Errorf("key not found")
 		}
-		return json.Unmarshal(v, &out)
+		value, err = r.decode(v)
+		return err
 	})
-	return out, err
+	if err != nil {
+		return zero, err
+	}
+	return value, nil
 }
 
 func (r *Repository[T]) Delete(key string) error {
@@ -76,9 +80,9 @@ func (r *Repository[T]) Exists(key string) (bool, error) {
 func (r *Repository[T]) ListKeys() ([]string, error) {
 	var keys []string
 	err := r.db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte(r.bucket))
-		if b == nil {
-			return fmt.Errorf("bucket not found")
+		b, err := r.getBucket(tx)
+		if err != nil {
+			return err
 		}
 		return b.ForEach(func(k, v []byte) error {
 			keys = append(keys, string(k))
@@ -208,4 +212,22 @@ func (r *Repository[T]) ListByPrefix(prefix string) ([]T, error) {
 		return nil
 	})
 	return result, err
+}
+
+func (r *Repository[T]) encode(v T) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func (r *Repository[T]) decode(data []byte) (T, error) {
+	var v T
+	err := json.Unmarshal(data, &v)
+	return v, err
+}
+
+func (r *Repository[T]) getBucket(tx *bbolt.Tx) (*bbolt.Bucket, error) {
+	b := tx.Bucket([]byte(r.bucket))
+	if b == nil {
+		return nil, fmt.Errorf("bucket %q not found", r.bucket)
+	}
+	return b, nil
 }

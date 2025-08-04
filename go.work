@@ -2,10 +2,12 @@ go 1.24.5
 
 use (
 	.
+	apps/access-client
 	apps/controller
 	apps/ctl
 	apps/pack
 	libs/config
+	libs/dns
 	libs/docker
 	libs/dsl
 	libs/executor
@@ -16,7 +18,6 @@ use (
 	libs/pkg
 	libs/raft
 	libs/systemd
-	libs/dns
 	libs/uds
 	libs/volume
 	libs/win-svc

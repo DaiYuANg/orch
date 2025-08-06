@@ -1,11 +1,12 @@
-package firecracker
+package runtime_engine
 
 import (
 	"fmt"
+	"os"
+
 	sdk "github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 	"golang.org/x/net/context"
-	"os"
 )
 
 type VMOptions struct {

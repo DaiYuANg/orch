@@ -7,20 +7,16 @@ use (
 	apps/ctl
 	apps/pack
 	libs/dns
-	libs/docker
 	libs/dsl
-	libs/executor
-	libs/firecracker
 	libs/ingress
 	libs/kubernetes
 	libs/metadata_db
 	libs/pkg
 	libs/raft
-	libs/systemd
 	libs/uds
 	libs/volume
-	libs/win-svc
 	libs/workload_db
+	libs/runtime_engine
 	modules/container
 	modules/logger
 	modules/schedule

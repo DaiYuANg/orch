@@ -1,11 +1,12 @@
-package firecracker
+package runtime_engine
 
 import (
 	"fmt"
-	sdk "github.com/firecracker-microvm/firecracker-go-sdk"
-	"golang.org/x/net/context"
 	"sync"
 	"time"
+
+	sdk "github.com/firecracker-microvm/firecracker-go-sdk"
+	"golang.org/x/net/context"
 )
 
 type VMInstance struct {

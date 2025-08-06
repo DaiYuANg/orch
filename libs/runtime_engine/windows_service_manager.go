@@ -1,10 +1,11 @@
-package win_svc
+package runtime_engine
 
 import (
 	"fmt"
+	"time"
+
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
-	"time"
 )
 
 func CreateService() {

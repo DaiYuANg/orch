@@ -1,26 +1,27 @@
-package docker
+package runtime_engine
 
 import (
-	docker "github.com/fsouza/go-dockerclient"
 	"os"
+
+	docker "github.com/fsouza/go-dockerclient"
 )
 
-type Executor struct {
+type DockerExecutor struct {
 	client *docker.Client
 }
 
-func NewExecutor() (*Executor, error) {
+func NewExecutor() (*DockerExecutor, error) {
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
 		return nil, err
 	}
-	return &Executor{client: client}, nil
+	return &DockerExecutor{client: client}, nil
 }
 
-func (e *Executor) ListImage() ([]docker.APIImages, error) {
+func (e *DockerExecutor) ListImage() ([]docker.APIImages, error) {
 	return e.client.ListImages(docker.ListImagesOptions{})
 }
-func (e *Executor) runContainer() (*docker.Container, error) {
+func (e *DockerExecutor) runContainer() (*docker.Container, error) {
 	imageName := "postgres:latest"
 	// 拉取镜像
 	err := e.client.PullImage(docker.PullImageOptions{

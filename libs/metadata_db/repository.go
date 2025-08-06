@@ -3,6 +3,7 @@ package metadata_db
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/goccy/go-json"
 	"github.com/samber/lo"
 	"go.etcd.io/bbolt"

@@ -23,11 +23,13 @@ require (
 	github.com/knadh/koanf/parsers/yaml v1.1.0
 	github.com/knadh/koanf/providers/env v1.1.0
 	github.com/knadh/koanf/providers/file v1.2.0
+	github.com/knadh/koanf/providers/posflag v1.0.1
 	github.com/knadh/koanf/providers/structs v1.0.0
 	github.com/knadh/koanf/v2 v2.2.2
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/samber/lo v1.51.0
 	github.com/spf13/cobra v1.9.1
+	github.com/spf13/pflag v1.0.7
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/net v0.42.0
@@ -37,6 +39,7 @@ replace (
 	github.com/DaiYuANg/warden/container => ./../../modules/container
 	github.com/DaiYuANg/warden/dns => ./../../libs/dns
 	github.com/DaiYuANg/warden/logger => ../../modules/logger
+	github.com/DaiYuANg/warden/metadata => ./../../libs/metadata_db
 	github.com/DaiYuANg/warden/pkg => ./../../libs/pkg
 	github.com/DaiYuANg/warden/raft => ./../../libs/raft
 	github.com/DaiYuANg/warden/schedule => ./../../modules/schedule
@@ -44,6 +47,7 @@ replace (
 
 require (
 	github.com/DaiYuANg/warden/logger v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DaiYuANg/warden/metadata v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DaiYuANg/warden/schedule v0.0.0-00010101000000-000000000000 // indirect
 	github.com/MicahParks/keyfunc/v2 v2.1.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
@@ -59,7 +63,6 @@ require (
 	github.com/dgraph-io/ristretto v0.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/eko/gocache/lib/v4 v4.2.0 // indirect
-	github.com/eko/gocache/store/ristretto/v4 v4.2.2 // indirect
 	github.com/fasthttp/websocket v1.5.12 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
@@ -69,9 +72,9 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
@@ -111,7 +114,6 @@ require (
 	github.com/samber/mo v1.14.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20250408102913-196191ec6287 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
-	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.64.0 // indirect
 	go.etcd.io/bbolt v1.4.2 // indirect

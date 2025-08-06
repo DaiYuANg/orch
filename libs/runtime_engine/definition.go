@@ -1,17 +1,19 @@
-package kubernetes
+package runtime_engine
 
 import "time"
-
-type ResourceID string
 
 type ResourceStatus string
 
 const (
 	StatusCreating ResourceStatus = "creating"
+	StatusCreated  ResourceStatus = "created"
 	StatusRunning  ResourceStatus = "running"
 	StatusStopped  ResourceStatus = "stopped"
 	StatusFailed   ResourceStatus = "failed"
+	StatusErrored  ResourceStatus = "errored"
 )
+
+type ResourceID string
 
 type ResourceInfo struct {
 	ID        ResourceID
@@ -21,7 +23,6 @@ type ResourceInfo struct {
 	Error     string
 }
 
-// 通用资源操作接口（Firecracker、K8s都实现）
 type ResourceDriver interface {
 	Start(name string, options map[string]string) (ResourceID, error)
 	Stop(id ResourceID) error

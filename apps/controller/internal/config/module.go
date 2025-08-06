@@ -1,17 +1,20 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/DaiYuANg/warden/controller/internal/constant"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/providers/posflag"
 	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
+	flag "github.com/spf13/pflag"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
-	"strings"
 )
 
 var Module = fx.Module("config", fx.Provide(
@@ -44,7 +47,10 @@ func loadConfig(k *koanf.Koanf, logger *zap.SugaredLogger) (*Config, error) {
 	if err != nil {
 		logger.Warnf("error loading config: %v", err)
 	}
-
+	f := flag.NewFlagSet("config", flag.ContinueOnError)
+	if err := k.Load(posflag.Provider(f, ".", k), nil); err != nil {
+		logger.Warnf("error loading config: %v", err)
+	}
 	// 使用 lo.Ternary 优化字符串映射函数
 	mapEnvKey := func(s string) string {
 		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, constant.EnvPrefix)), "_", ".")

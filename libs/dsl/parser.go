@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"fmt"
+
 	"github.com/expr-lang/expr"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"

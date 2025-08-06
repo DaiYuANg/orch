@@ -14,3 +14,7 @@ tasks:
   serve:
     cmds:
       - go tool hugo server --buildDrafts --disableFastRender
+
+  new:docs:
+    cmds:
+      - go tool hugo new content/docs/{{.CLI_ARGS}}

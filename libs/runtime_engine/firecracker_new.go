@@ -32,15 +32,6 @@ func defaultVMOptions() VMOptions {
 
 type VMID string
 
-type Status string
-
-const (
-	StatusCreated Status = "created"
-	StatusRunning Status = "running"
-	StatusStopped Status = "stopped"
-	StatusErrored Status = "errored"
-)
-
 func New(opts VMOptions) (*VM, error) {
 	ctx := context.Background()
 

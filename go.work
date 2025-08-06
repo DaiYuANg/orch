@@ -9,7 +9,6 @@ use (
 	libs/dns
 	libs/dsl
 	libs/ingress
-	libs/kubernetes
 	libs/metadata_db
 	libs/pkg
 	libs/raft

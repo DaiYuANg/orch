@@ -8,7 +8,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
-	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"go.uber.org/fx"
@@ -18,7 +17,6 @@ import (
 var middleware = fx.Module("middleware",
 	fx.Invoke(
 		registerFavicon,
-		registerMonitor,
 		registerPrometheus,
 		registerHealthcheck,
 		registerRequestId,
@@ -29,15 +27,11 @@ var middleware = fx.Module("middleware",
 	),
 )
 
-func registerMonitor(app *fiber.App) {
-	app.Get("/metrics", monitor.New())
-}
-
 func registerPrometheus(app *fiber.App) {
-	prometheus := fiberprometheus.New("my-service-name")
+	prometheus := fiberprometheus.New("warden")
 	prometheus.RegisterAt(app, "/metrics")
-	prometheus.SetSkipPaths([]string{"/ping"})            // Optional: Remove some paths from metrics
-	prometheus.SetIgnoreStatusCodes([]int{401, 403, 404}) // Optional: Skip metrics for these status codes
+	prometheus.SetSkipPaths([]string{"/ping"})
+	prometheus.SetIgnoreStatusCodes([]int{401, 403, 404})
 	app.Use(prometheus.Middleware)
 }
 

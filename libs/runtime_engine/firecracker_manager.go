@@ -1,3 +1,6 @@
+//go:build linux
+// +build linux
+
 package runtime_engine
 
 import (
@@ -13,27 +16,27 @@ type VMInstance struct {
 	ID       VMID
 	Options  VMOptions
 	Machine  *sdk.Machine
-	Status   Status
+	Status   ResourceStatus
 	StartAt  time.Time
 	ErrorMsg string
 }
 
-type Manager struct {
+type FirecrackerManager struct {
 	mu       sync.RWMutex
 	vms      map[VMID]*VMInstance
 	nextID   int64
-	basePath string // 如 /tmp/fc-vm-xx.sock、fc-vm-xx.log 统一路径前缀
+	basePath string
 }
 
-func NewManager(basePath string) *Manager {
-	return &Manager{
+func NewManager(basePath string) *FirecrackerManager {
+	return &FirecrackerManager{
 		vms:      make(map[VMID]*VMInstance),
 		basePath: basePath,
 	}
 }
 
 // 创建并启动一个 VM
-func (m *Manager) StartVM(ctx context.Context, opts VMOptions) (VMID, error) {
+func (m *FirecrackerManager) StartVM(ctx context.Context, opts VMOptions) (VMID, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -66,7 +69,7 @@ func (m *Manager) StartVM(ctx context.Context, opts VMOptions) (VMID, error) {
 }
 
 // 查询状态
-func (m *Manager) GetStatus(id VMID) (Status, error) {
+func (m *FirecrackerManager) GetStatus(id VMID) (ResourceStatus, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -78,7 +81,7 @@ func (m *Manager) GetStatus(id VMID) (Status, error) {
 }
 
 // 停止 VM（同步）
-func (m *Manager) StopVM(ctx context.Context, id VMID) error {
+func (m *FirecrackerManager) StopVM(ctx context.Context, id VMID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -101,7 +104,7 @@ func (m *Manager) StopVM(ctx context.Context, id VMID) error {
 }
 
 // ListVMs 获取全部 VM 状态（方便 Web UI 展示）
-func (m *Manager) ListVMs() []VMInstance {
+func (m *FirecrackerManager) ListVMs() []VMInstance {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

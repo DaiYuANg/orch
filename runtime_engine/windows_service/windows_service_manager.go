@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package runtime_engine
+package windows_service
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ type WindowsServiceManager struct {
 	mgr *mgr.Mgr
 }
 
-// 初始化 WindowsServiceManager
+// NewWindowsServiceManager 初始化 WindowsServiceManager
 func NewWindowsServiceManager() (*WindowsServiceManager, error) {
 	if runtime.GOOS != "windows" {
 		return nil, fmt.Errorf("当前系统不支持 Windows 服务")

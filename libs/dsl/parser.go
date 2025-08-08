@@ -1,42 +1,34 @@
 package dsl
 
 import (
-	"fmt"
+	"os"
 
-	"github.com/expr-lang/expr"
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/wkhere/bcl"
+	"github.com/hashicorp/hcl/v2/hclsimple"
 	"gopkg.in/yaml.v3"
 )
 
 type Parser struct {
 }
 
-func (p *Parser) ParseBcl(body []byte) error {
-	var config Config
-	err := bcl.Unmarshal(body, config)
+func ParseYAML(path string) (*Workload, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, _ = hclsyntax.ParseExpression(body, "", hcl.Pos{Line: 1, Column: 1})
-	return nil
+
+	var w Workload
+	if err := yaml.Unmarshal(data, &w); err != nil {
+		return nil, err
+	}
+
+	return &w, nil
 }
 
-func (p *Parser) parse(body []byte) error {
-	var config Config
-	env := map[string]interface{}{
-		"greet":   "Hello, %v!",
-		"names":   []string{"world", "you"},
-		"sprintf": fmt.Sprintf,
-	}
-
-	code := `sprintf(greet, names[0])`
-
-	_, err := expr.Compile(code, expr.Env(env))
-	err = yaml.Unmarshal(body, &config)
+func ParseHCL(path string) (*Workload, error) {
+	var w Workload
+	err := hclsimple.DecodeFile(path, nil, &w)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &w, nil
 }

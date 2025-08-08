@@ -15,9 +15,12 @@ use (
 	libs/uds
 	libs/volume
 	libs/workload_db
-	libs/runtime_engine
 	modules/container
 	modules/logger
 	modules/schedule
+	runtime_engine/containerd
 	runtime_engine/docker
+	runtime_engine/engine
+	runtime_engine/systemd
+	runtime_engine/windows_service
 )

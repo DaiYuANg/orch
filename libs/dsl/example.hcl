@@ -1,0 +1,46 @@
+name        = "my-app"
+description = "Sample workload for testing"
+datacenters = ["dc1", "dc2"]
+
+units = [
+  {
+    name = "backend"
+    resources = {
+      cpu    = 2000
+      memory = 2048
+    }
+
+    tasks = [
+      {
+        name     = "api"
+        type     = "service"
+        driver   = "docker"
+        image    = "ghcr.io/example/api:latest"
+        replicas = 2
+
+        env = {
+          PORT = "8080"
+        }
+
+        resources = {
+          cpu    = 1000
+          memory = 1024
+        }
+
+        network = {
+          name = "api-net"
+          port = {
+            http = 8080
+          }
+        }
+
+        check = {
+          type     = "http"
+          path     = "/health"
+          interval = "10s"
+          retries  = 3
+        }
+      }
+    ]
+  }
+]

@@ -6,22 +6,22 @@ import (
 	docker "github.com/fsouza/go-dockerclient"
 )
 
-type DockerExecutor struct {
+type Executor struct {
 	client *docker.Client
 }
 
-func NewExecutor() (*DockerExecutor, error) {
+func NewExecutor() (*Executor, error) {
 	client, err := docker.NewClientFromEnv()
 	if err != nil {
 		return nil, err
 	}
-	return &DockerExecutor{client: client}, nil
+	return &Executor{client: client}, nil
 }
 
-func (e *DockerExecutor) ListImage() ([]docker.APIImages, error) {
+func (e *Executor) ListImage() ([]docker.APIImages, error) {
 	return e.client.ListImages(docker.ListImagesOptions{})
 }
-func (e *DockerExecutor) runContainer() (*docker.Container, error) {
+func (e *Executor) runContainer() (*docker.Container, error) {
 	imageName := "postgres:latest"
 	// 拉取镜像
 	err := e.client.PullImage(docker.PullImageOptions{

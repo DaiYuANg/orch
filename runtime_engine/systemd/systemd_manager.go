@@ -1,4 +1,7 @@
-package runtime_engine
+//go:build linux
+// +build linux
+
+package systemd
 
 import (
 	"github.com/coreos/go-systemd/v22/dbus"

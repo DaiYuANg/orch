@@ -1,75 +1,60 @@
 package dsl
 
-// 定义 Task 结构体
+type Workload struct {
+	Name        string    `yaml:"name" hcl:"name"`
+	Description string    `yaml:"description,omitempty" hcl:"description,optional"`
+	Datacenters []string  `yaml:"datacenters,omitempty" hcl:"datacenters,optional"`
+	Units       []Unit    `yaml:"units" hcl:"units,block"`
+	Resources   Resources `yaml:"resources,omitempty" hcl:"resources,block"`
+}
+
+type Unit struct {
+	Name      string    `yaml:"name" hcl:"name"`
+	Tasks     []Task    `yaml:"tasks" hcl:"tasks,block"`
+	Resources Resources `yaml:"resources,omitempty" hcl:"resources,block"`
+}
+
 type Task struct {
-	Name      string            `yaml:"name"`
-	Driver    string            `yaml:"driver"`
-	Config    map[string]string `yaml:"config"`
-	Env       map[string]string `yaml:"env"`
-	Runtime   string            `yaml:"runtime"`
-	Service   Service           `yaml:"service"`
-	Resources Resources         `yaml:"resources"`
+	Name      string            `yaml:"name" hcl:"name"`
+	Type      string            `yaml:"type" hcl:"type"`
+	Driver    string            `yaml:"driver" hcl:"driver"`
+	Command   []string          `yaml:"command,omitempty" hcl:"command,optional"`
+	Image     string            `yaml:"image,omitempty" hcl:"image,optional"`
+	Schedule  string            `yaml:"schedule,omitempty" hcl:"schedule,optional"`
+	Replicas  int               `yaml:"replicas,omitempty" hcl:"replicas,optional"`
+	Env       map[string]string `yaml:"env,omitempty" hcl:"env,optional"`
+	Tags      []string          `yaml:"tags,omitempty" hcl:"tags,optional"`
+	Check     *HealthCheck      `yaml:"check,omitempty" hcl:"check,block"`
+	Resources Resources         `yaml:"resources,omitempty" hcl:"resources,block"`
+	Network   *NetworkConfig    `yaml:"network,omitempty" hcl:"network,block"`
+	DNS       *DNSConfig        `yaml:"dns,omitempty" hcl:"dns,block"`
 }
 
-// 定义 Service 结构体
-type Service struct {
-	Name  string      `yaml:"name"`
-	Tags  []string    `yaml:"tags"`
-	Port  string      `yaml:"port"`
-	Check HealthCheck `yaml:"check"`
-}
-
-// 定义 HealthCheck 结构体
 type HealthCheck struct {
-	Name     string `yaml:"name"`
-	Type     string `yaml:"type"`
-	Path     string `yaml:"path"`
-	Interval string `yaml:"interval"`
-	Retries  int    `yaml:"retries"`
+	Type     string `yaml:"type" hcl:"type"`
+	Path     string `yaml:"path,omitempty" hcl:"path,optional"`
+	Command  string `yaml:"command,omitempty" hcl:"command,optional"`
+	Interval string `yaml:"interval" hcl:"interval"`
+	Retries  int    `yaml:"retries,omitempty" hcl:"retries,optional"`
+	Timeout  string `yaml:"timeout,omitempty" hcl:"timeout,optional"`
 }
 
-// 定义 Resources 结构体
 type Resources struct {
-	CPU     int     `yaml:"cpu"`
-	Memory  int     `yaml:"memory"`
-	Network Network `yaml:"network"`
+	CPU     int     `yaml:"cpu" hcl:"cpu"`
+	Memory  int     `yaml:"memory" hcl:"memory"`
+	Network Network `yaml:"network" hcl:"network,block"`
 }
 
-// 定义 Network 结构体
 type Network struct {
-	Mbits int `yaml:"mbits"`
+	Mbits int `yaml:"mbits" hcl:"mbits"`
 }
 
-// 定义 Group 结构体
-type Group struct {
-	Name  string `yaml:"name"`
-	Count int    `yaml:"count"`
-	Task  []Task `yaml:"dsl"`
-}
-
-// 定义 Job 结构体
-type Job struct {
-	Name        string   `yaml:"name"`
-	Datacenters []string `yaml:"datacenters"`
-	Type        string   `yaml:"type"`
-	Groups      []Group  `yaml:"group"`
-}
-
-// 定义 Network 配置
 type NetworkConfig struct {
-	Name string         `yaml:"name"`
-	Port map[string]int `yaml:"port"`
+	Name string         `yaml:"name" hcl:"name"`
+	Port map[string]int `yaml:"port" hcl:"port"`
 }
 
-// 定义 DNS 配置
 type DNSConfig struct {
-	Resolver string   `yaml:"resolver"`
-	Domains  []string `yaml:"domains"`
-}
-
-// 定义整个配置结构体
-type Config struct {
-	Job      Job             `yaml:"dsl"`
-	Networks []NetworkConfig `yaml:"network"`
-	DNS      DNSConfig       `yaml:"dns"`
+	Resolver string   `yaml:"resolver" hcl:"resolver"`
+	Domains  []string `yaml:"domains" hcl:"domains"`
 }

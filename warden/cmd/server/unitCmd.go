@@ -13,3 +13,7 @@ var unitCmd = &cobra.Command{
 		fmt.Println("unit called")
 	},
 }
+
+func init() {
+	unitCmd.AddCommand(taskCmd)
+}

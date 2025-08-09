@@ -2,14 +2,14 @@ package cmd
 
 import (
 	"github.com/DaiYuANg/warden/container"
-	"github.com/DaiYuANg/warden/controller/internal/auth"
-	"github.com/DaiYuANg/warden/controller/internal/common"
-	"github.com/DaiYuANg/warden/controller/internal/config"
-	"github.com/DaiYuANg/warden/controller/internal/dns"
-	"github.com/DaiYuANg/warden/controller/internal/endpoint"
-	"github.com/DaiYuANg/warden/controller/internal/http"
-	"github.com/DaiYuANg/warden/controller/internal/mdns"
-	"github.com/DaiYuANg/warden/controller/internal/raft"
+	"github.com/DaiYuANg/warden/server/internal/auth"
+	"github.com/DaiYuANg/warden/server/internal/common"
+	"github.com/DaiYuANg/warden/server/internal/config"
+	"github.com/DaiYuANg/warden/server/internal/dns"
+	"github.com/DaiYuANg/warden/server/internal/endpoint"
+	"github.com/DaiYuANg/warden/server/internal/http"
+	"github.com/DaiYuANg/warden/server/internal/mdns"
+	"github.com/DaiYuANg/warden/server/internal/raft"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 )

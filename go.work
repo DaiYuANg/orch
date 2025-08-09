@@ -3,7 +3,7 @@ go 1.24.5
 use (
 	.
 	apps/access-client
-	apps/controller
+	apps/server
 	apps/ctl
 	apps/pack
 	libs/dns

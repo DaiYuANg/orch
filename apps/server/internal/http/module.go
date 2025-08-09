@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/DaiYuANg/warden/controller/internal/config"
+	"github.com/DaiYuANg/warden/server/internal/config"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
 	"github.com/gofiber/fiber/v2"

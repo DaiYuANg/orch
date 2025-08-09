@@ -3,7 +3,7 @@
 version: '3'
 
 vars:
-  BIN_NAME: controller
+  BIN_NAME: server
   DIST_DIR: dist
   # 默认平台
   DEFAULT_GOOS: linux

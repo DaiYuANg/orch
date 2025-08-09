@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
-var serviceCmd = &cobra.Command{
-	Use:   "service",
-	Short: "service",
+var unitCmd = &cobra.Command{
+	Use:   "unit",
+	Short: "Run a unit",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("service called")
+		fmt.Println("unit called")
 	},
 }

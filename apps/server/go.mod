@@ -1,4 +1,4 @@
-module github.com/DaiYuANg/warden/controller
+module github.com/DaiYuANg/warden/server
 
 go 1.24
 

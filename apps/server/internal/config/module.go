@@ -3,7 +3,7 @@ package config
 import (
 	"strings"
 
-	"github.com/DaiYuANg/warden/controller/internal/constant"
+	"github.com/DaiYuANg/warden/server/internal/constant"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/parsers/yaml"

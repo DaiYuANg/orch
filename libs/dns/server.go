@@ -1,19 +1,20 @@
 package dns
 
 import (
-	metadata_db "github.com/DaiYuANg/warden/metadata"
+	"sync"
+
+	metadatadb "github.com/DaiYuANg/warden/metadata"
 	"github.com/eko/gocache/lib/v4/cache"
 	"github.com/miekg/dns"
 	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
-	"sync"
 )
 
 // DNS服务器结构体，存储域名和IP的映射
 type DNSServer struct {
 	mu      sync.RWMutex
 	records map[string]Record
-	repo    *metadata_db.Repository[Record]
+	repo    *metadatadb.Repository[Record]
 	cm      *cache.Cache[string]
 	logger  *zap.SugaredLogger
 }
@@ -23,7 +24,7 @@ func NewDNSServer(logger *zap.SugaredLogger) (*DNSServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	repo := metadata_db.NewRepository[Record](db, "dns_records")
+	repo := metadatadb.NewRepository[Record](db, "dns_records")
 	svr := &DNSServer{
 		records: map[string]Record{},
 		repo:    repo,

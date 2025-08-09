@@ -2,10 +2,7 @@ go 1.24.5
 
 use (
 	.
-	apps/access-client
-	apps/server
-	apps/ctl
-	apps/pack
+	warden
 	libs/dns
 	libs/dsl
 	libs/ingress
@@ -15,12 +12,9 @@ use (
 	libs/uds
 	libs/volume
 	libs/workload_db
-	modules/container
-	modules/logger
-	modules/schedule
-	runtime_engine/containerd
-	runtime_engine/docker
-	runtime_engine/engine
-	runtime_engine/systemd
-	runtime_engine/windows_service
+	libs/runtime_engine/containerd
+	libs/runtime_engine/docker
+	libs/runtime_engine/engine
+	libs/runtime_engine/systemd
+	libs/runtime_engine/windows_service
 )

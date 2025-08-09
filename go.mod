@@ -1,4 +1,4 @@
-module github.com/DaiYuANg/warden
+module github.com/DaiYuANg/warden/monorepo
 
 go 1.24.0
 

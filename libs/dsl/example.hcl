@@ -1,3 +1,4 @@
+include = ["common.hcl", "test.hcl"]
 name        = "my-app"
 description = "Sample workload for testing"
 datacenters = ["dc1", "dc2"]

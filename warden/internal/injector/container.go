@@ -19,11 +19,16 @@ var commonOption = fx.Options(
 	}),
 )
 
-func CreateContainer(option ...fx.Option) *fx.App {
+func CreateContainer(option ...fx.Option) (*fx.App, error) {
+	options := append(option, commonOption)
+	err := fx.ValidateApp(options...)
+	if err != nil {
+		return nil, err
+	}
 	app := fx.New(
 		commonOption,
 		fx.Options(option...),
 	)
 
-	return app
+	return app, nil
 }

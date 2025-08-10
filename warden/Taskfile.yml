@@ -3,7 +3,8 @@
 version: '3'
 
 vars:
-  BIN_NAME: server
+  SERVER_BINARY_NAME: server
+  PACK_BINARY_NAME: pack
   DIST_DIR: dist
   # 默认平台
   DEFAULT_GOOS: linux
@@ -15,10 +16,16 @@ tasks:
     cmds:
       - vagrant up --provider={{.PROVIDER}}
 
-  build:
+  build:server:
     desc: 构建当前平台（默认启用 CGO）
     cmds:
-      - go build -o {{.DIST_DIR}}/{{.BIN_NAME}} .
+      - go build -o {{.DIST_DIR}}/{{.SERVER_BINARY_NAME}} ./cmd/server
+
+  build:pack:
+    desc: 构建当前平台（默认启用 CGO）
+    cmds:
+      - go build -o {{.DIST_DIR}}/{{.PACK_BINARY_NAME}} ./cmd/pack
+
 
   check:
     cmds:

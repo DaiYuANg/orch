@@ -1,14 +1,18 @@
+//go:build linux
+// +build linux
+
 package uds
 
 import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/panjf2000/ants/v2"
-	"go.uber.org/zap"
 	"net"
 	"os"
 	"sync"
+
+	"github.com/panjf2000/ants/v2"
+	"go.uber.org/zap"
 )
 
 // HandlerFunc 定义服务器端处理函数，接收客户端消息，返回响应

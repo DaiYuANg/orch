@@ -16,11 +16,23 @@ import (
 
 var app *fx.App
 
+var modules = []fx.Option{
+	config.Module,
+	auth.Module,
+	mdns.Module,
+	raft.Module,
+	common.Module,
+	endpoint.Module,
+	http.Module,
+	dns.Module,
+}
+
 var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start the server",
-	PreRun: func(cmd *cobra.Command, args []string) {
-		app = injector.CreateContainer(
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		var err error
+		app, err = injector.CreateContainer(
 			config.Module,
 			auth.Module,
 			mdns.Module,
@@ -30,6 +42,10 @@ var serverCmd = &cobra.Command{
 			http.Module,
 			dns.Module,
 		)
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		app.Run()

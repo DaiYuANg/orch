@@ -3,6 +3,7 @@ package dsl
 type Workload struct {
 	Name        string    `yaml:"name" hcl:"name"`
 	Description string    `yaml:"description,omitempty" hcl:"description,optional"`
+	Includes    []string  `yaml:"includes,omitempty" hcl:"includes,optional"`
 	Datacenters []string  `yaml:"datacenters,omitempty" hcl:"datacenters,optional"`
 	Units       []Unit    `yaml:"units" hcl:"units,block"`
 	Resources   Resources `yaml:"resources,omitempty" hcl:"resources,block"`

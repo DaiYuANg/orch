@@ -1,3 +1,7 @@
+include:
+  - tasks.yml
+  - tasks.example.yml
+  - tasks.example2.yml
 name: my-app
 description: Sample workload for testing
 datacenters:

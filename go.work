@@ -2,19 +2,19 @@ go 1.24.5
 
 use (
 	.
-	warden
 	libs/dns
 	libs/dsl
 	libs/ingress
 	libs/metadata_db
 	libs/pkg
 	libs/raft
-	libs/uds
-	libs/volume
-	libs/workload_db
 	libs/runtime_engine/containerd
 	libs/runtime_engine/docker
 	libs/runtime_engine/engine
 	libs/runtime_engine/systemd
 	libs/runtime_engine/windows_service
+	libs/uds
+	libs/volume
+	libs/workload_db
+	warden
 )

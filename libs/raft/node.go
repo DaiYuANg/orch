@@ -2,15 +2,19 @@ package raft
 
 import (
 	"fmt"
-	"github.com/DaiYuANg/warden/pkg"
-	"github.com/hashicorp/raft"
-	raftwal "github.com/hashicorp/raft-wal"
-	"go.uber.org/zap"
 	"net"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/DaiYuANg/warden/pkg"
+	"github.com/hashicorp/raft"
+	raftwal "github.com/hashicorp/raft-wal"
+	"go.uber.org/zap"
 )
+
+type Option struct {
+}
 
 func newNode(nodeID, raftDir string, logger *zap.SugaredLogger) (*raft.Raft, error) {
 	log := newZapLogger(logger)

@@ -5,17 +5,15 @@ package systemd
 
 import (
 	"github.com/coreos/go-systemd/v22/dbus"
-	"golang.org/x/net/context"
 )
 
 type SystemdManager struct {
 	conn *dbus.Conn
 }
 
-func NewSystemdManager() (*SystemdManager, error) {
-	conn, err := dbus.NewWithContext(context.Background())
-	if err != nil {
-		return nil, err
+func (m *SystemdManager) Close() {
+	if m.conn != nil {
+		m.conn.Close()
+		m.conn = nil
 	}
-	return &SystemdManager{conn: conn}, nil
 }

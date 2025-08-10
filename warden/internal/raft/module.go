@@ -1,13 +1,14 @@
 package raft
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/DaiYuANg/warden/pkg"
 	"github.com/DaiYuANg/warden/raft"
 	"github.com/adrg/xdg"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
-	"os"
-	"path/filepath"
 )
 
 var Module = fx.Module("raft", fx.Provide(newService), fx.Invoke(lifecycle))
@@ -18,7 +19,11 @@ func newService(logger *zap.SugaredLogger) (*raft.Service, error) {
 		logger.Errorf("mkdir error:%e", err)
 	}
 	logger.Infof("data path: %s", raftDir)
-	nodeId := pkg.GenerateNodeID()
+	nodeId, err := pkg.MachineID()
+
+	if err != nil {
+		return nil, err
+	}
 
 	return raft.NewRaftBadgerService(nodeId, raftDir, logger)
 }

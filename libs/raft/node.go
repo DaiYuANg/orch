@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DaiYuANg/warden/pkg"
+	"github.com/DaiYuANg/warden/libs/pkg"
 	"github.com/hashicorp/raft"
 	raftwal "github.com/hashicorp/raft-wal"
 	"go.uber.org/zap"

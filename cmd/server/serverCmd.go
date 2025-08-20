@@ -33,14 +33,7 @@ var serverCmd = &cobra.Command{
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
 		app, err = injector.CreateContainer(
-			config.Module,
-			auth.Module,
-			mdns.Module,
-			raft.Module,
-			common.Module,
-			endpoint.Module,
-			http.Module,
-			dns.Module,
+			modules...,
 		)
 		if err != nil {
 			return err

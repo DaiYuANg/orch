@@ -1,7 +1,7 @@
 package dns
 
 import (
-	"github.com/DaiYuANg/warden/dns"
+	"github.com/DaiYuANg/warden/libs/dns"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 )

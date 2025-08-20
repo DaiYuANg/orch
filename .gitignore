@@ -1,3 +1,4 @@
+# Added by goreleaser init:
 .idea/**/workspace.xml
 .idea/**/tasks.xml
 .idea/**/usage.statistics.xml
@@ -78,3 +79,4 @@ Temporary Items
 *.etcd
 .vagrant
 *.db
+dist

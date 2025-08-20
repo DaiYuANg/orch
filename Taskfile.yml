@@ -3,16 +3,33 @@
 version: '3'
 
 vars:
-  GREETING: Hello, World!
+  SERVER_BINARY_NAME: server
+  PACK_BINARY_NAME: pack
+  DIST_DIR: dist
+  # 默认平台
+  DEFAULT_GOOS: linux
+  DEFAULT_GOARCH: amd64
 
 tasks:
-  default:
+  dev:vm:
+    desc: start in vm
     cmds:
-      - echo "{{.GREETING}}"
-    silent: true
-  format:
-    desc: "Run golines recursively on all go files"
+      - vagrant up --provider={{.PROVIDER}}
+
+  build:server:
+    desc: 构建当前平台（默认启用 CGO）
     cmds:
-      - |
-        find . -name '*.go' -print0 | xargs -0 -n 10 golines -w -m 120
-    silent: true
+      - go build -o {{.DIST_DIR}}/{{.SERVER_BINARY_NAME}} ./cmd/server
+
+  build:pack:
+    desc: 构建当前平台（默认启用 CGO）
+    cmds:
+      - go build -o {{.DIST_DIR}}/{{.PACK_BINARY_NAME}} ./cmd/pack
+
+  check:
+    cmds:
+      - go tool staticcheck ./...
+
+  lint:
+    cmds:
+      - go tool golangci-lint run

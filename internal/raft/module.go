@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DaiYuANg/warden/pkg"
-	"github.com/DaiYuANg/warden/raft"
+	"github.com/DaiYuANg/warden/libs/pkg"
+	"github.com/DaiYuANg/warden/libs/raft"
 	"github.com/adrg/xdg"
 	"go.uber.org/fx"
 	"go.uber.org/zap"

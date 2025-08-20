@@ -9,6 +9,6 @@ type Config struct {
 func defaultConfig() Config {
 
 	return Config{
-		Http: Http{Port: -1},
+		Http: Http{Port: 7443},
 	}
 }

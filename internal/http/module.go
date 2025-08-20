@@ -14,6 +14,7 @@ var Module = fx.Module("http",
 		newOpenapi,
 	),
 	middleware,
+	socketIOModule,
 	jwt,
 	fx.Invoke(
 		lifecycle,
@@ -33,5 +34,12 @@ func newFiber() *fiber.App {
 }
 
 func newOpenapi(app *fiber.App, config *config.Config) huma.API {
-	return humafiber.New(app, huma.DefaultConfig("warden", "0.1"))
+	humaCfg := huma.DefaultConfig("warden", "0.1")
+	humaCfg.Servers = []*huma.Server{{
+		URL: "http://localhost:" + config.Http.GetPort(),
+	}, {
+		URL: "http://127.0.0.1:" + config.Http.GetPort(),
+	}}
+	humaCfg.DocsPath = "/"
+	return humafiber.New(app, humaCfg)
 }

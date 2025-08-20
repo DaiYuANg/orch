@@ -10,5 +10,6 @@ func NewTaskEndpoint(validator *validator.Validate) *Endpoint {
 }
 
 func (e Endpoint) Register(openapi huma.API) {
-	huma.Get[Input, Output](openapi, "/dsl", e.submitTask)
+	tag := huma.OperationTags("task")
+	huma.Get(openapi, "/dsl", e.submitTask, tag)
 }

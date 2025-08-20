@@ -1,6 +1,8 @@
 package endpoint
 
 import (
+	"github.com/DaiYuANg/warden/internal/endpoint/merics"
+	"github.com/DaiYuANg/warden/internal/endpoint/system"
 	"github.com/DaiYuANg/warden/internal/endpoint/task"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/samber/lo"
@@ -10,6 +12,8 @@ import (
 var Module = fx.Module("endpoint",
 	fx.Provide(
 		annotation(task.NewTaskEndpoint),
+		annotation(system.NewSystemEndpoint),
+		annotation(merics.NewMetricsEndpoint),
 	),
 	fx.Invoke(registerEndpoint),
 )

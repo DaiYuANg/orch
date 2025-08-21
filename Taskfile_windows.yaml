@@ -1,0 +1,7 @@
+version: '3'
+
+tasks:
+  vm:
+    desc: start in vm
+    cmds:
+      - vagrant up --provider=hyperv

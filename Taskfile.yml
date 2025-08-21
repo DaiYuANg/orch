@@ -2,6 +2,9 @@
 
 version: '3'
 
+includes:
+  dev: ./Taskfile_{{OS}}.yaml
+
 vars:
   SERVER_BINARY_NAME: server
   PACK_BINARY_NAME: pack
@@ -11,11 +14,6 @@ vars:
   DEFAULT_GOARCH: amd64
 
 tasks:
-  dev:vm:
-    desc: start in vm
-    cmds:
-      - vagrant up --provider={{.PROVIDER}}
-
   build:server:
     desc: 构建当前平台（默认启用 CGO）
     cmds:

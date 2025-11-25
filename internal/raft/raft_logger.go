@@ -1,13 +1,14 @@
 package raft
 
 import (
-	"github.com/hashicorp/go-hclog"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"io"
 	"log"
 	"strings"
 	"sync"
+
+	"github.com/hashicorp/go-hclog"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type zapLogger struct {

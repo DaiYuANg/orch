@@ -4,8 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DaiYuANg/warden/libs/pkg"
-	"github.com/DaiYuANg/warden/libs/raft"
+	"github.com/DaiYuANg/warden/pkg"
 	"github.com/adrg/xdg"
 	"go.uber.org/fx"
 	"go.uber.org/zap"
@@ -13,7 +12,7 @@ import (
 
 var Module = fx.Module("raft", fx.Provide(newService), fx.Invoke(lifecycle))
 
-func newService(logger *zap.SugaredLogger) (*raft.Service, error) {
+func newService(logger *zap.SugaredLogger) (*Service, error) {
 	raftDir := filepath.Join(xdg.DataHome, "warden")
 	if err := os.MkdirAll(raftDir, 0700); err != nil {
 		logger.Errorf("mkdir error:%e", err)
@@ -25,10 +24,10 @@ func newService(logger *zap.SugaredLogger) (*raft.Service, error) {
 		return nil, err
 	}
 
-	return raft.NewRaftBadgerService(nodeId, raftDir, logger)
+	return NewRaftBadgerService(nodeId, raftDir, logger)
 }
 
-func lifecycle(lc fx.Lifecycle, service *raft.Service) {
+func lifecycle(lc fx.Lifecycle, service *Service) {
 	lc.Append(
 		fx.StopHook(func() error {
 			return service.Close()

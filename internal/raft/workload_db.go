@@ -1,7 +1,8 @@
-package workload_db
+package raft
 
 import (
 	"errors"
+
 	"github.com/dgraph-io/badger/v3"
 	"github.com/goccy/go-json"
 )

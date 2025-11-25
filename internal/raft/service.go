@@ -3,6 +3,7 @@ package raft
 import (
 	"errors"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/memberlist"
 	"go.uber.org/zap"

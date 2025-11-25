@@ -2,9 +2,10 @@ package raft
 
 import (
 	"errors"
+	"io"
+
 	"github.com/hashicorp/raft"
 	"go.etcd.io/bbolt"
-	"io"
 )
 
 type FSM struct {

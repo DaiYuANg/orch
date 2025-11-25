@@ -3,7 +3,7 @@ package dns
 import (
 	"sync"
 
-	"github.com/DaiYuANg/warden/libs/metadata_db"
+	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/eko/gocache/lib/v4/cache"
 	"github.com/miekg/dns"
 	"go.etcd.io/bbolt"
@@ -14,7 +14,7 @@ import (
 type DNSServer struct {
 	mu      sync.RWMutex
 	records map[string]Record
-	repo    *metadata_db.Repository[Record]
+	repo    *raft.Repository[Record]
 	cm      *cache.Cache[string]
 	logger  *zap.SugaredLogger
 }
@@ -24,7 +24,7 @@ func NewDNSServer(logger *zap.SugaredLogger) (*DNSServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	repo := metadata_db.NewRepository[Record](db, "dns_records")
+	repo := raft.NewRepository[Record](db, "dns_records")
 	svr := &DNSServer{
 		records: map[string]Record{},
 		repo:    repo,

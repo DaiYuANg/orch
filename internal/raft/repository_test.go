@@ -1,11 +1,11 @@
-package metadata_db
+package raft
 
 import (
 	"fmt"
-	"github.com/brianvoe/gofakeit/v7"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
-	"testing"
 )
 
 // User 结构体定义

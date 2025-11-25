@@ -1,4 +1,4 @@
-package metadata_db
+package raft
 
 import (
 	"bytes"

@@ -2,11 +2,12 @@ package ingress
 
 import (
 	"fmt"
-	"github.com/valyala/fasthttp"
 	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/valyala/fasthttp"
 )
 
 type Protocol string

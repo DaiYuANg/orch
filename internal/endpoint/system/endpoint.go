@@ -1,7 +1,7 @@
 package system
 
 import (
-	"github.com/DaiYuANg/warden/libs/model"
+	"github.com/DaiYuANg/warden/internal/http/model"
 	"github.com/samber/lo"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"

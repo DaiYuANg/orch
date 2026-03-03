@@ -1,13 +1,13 @@
 package dns
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/eko/gocache/lib/v4/cache"
 	"github.com/miekg/dns"
 	"go.etcd.io/bbolt"
-	"go.uber.org/zap"
 )
 
 // DNS服务器结构体，存储域名和IP的映射
@@ -16,10 +16,10 @@ type DNSServer struct {
 	records map[string]Record
 	repo    *raft.Repository[Record]
 	cm      *cache.Cache[string]
-	logger  *zap.SugaredLogger
+	logger  *slog.Logger
 }
 
-func NewDNSServer(logger *zap.SugaredLogger) (*DNSServer, error) {
+func NewDNSServer(logger *slog.Logger) (*DNSServer, error) {
 	db, err := bbolt.Open("dns.db", 0700, nil)
 	if err != nil {
 		return nil, err
@@ -89,13 +89,13 @@ func (d *DNSServer) Serve(addr string) error {
 	// 并发启动 UDP 和 TCP 服务器
 	go func() {
 		if err := udpServer.ListenAndServe(); err != nil {
-			d.logger.Fatalf("Failed to start UDP server: %v", err)
+			d.logger.Error("failed to start UDP server", "error", err)
 		}
 	}()
 
 	go func() {
 		if err := tcpServer.ListenAndServe(); err != nil {
-			d.logger.Fatalf("Failed to start TCP server: %v", err)
+			d.logger.Error("failed to start TCP server", "error", err)
 		}
 	}()
 

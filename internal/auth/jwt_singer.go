@@ -2,14 +2,15 @@ package auth
 
 import (
 	"crypto/rsa"
-	"github.com/golang-jwt/jwt/v5"
-	"go.uber.org/zap"
+	"log/slog"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Singer struct {
 	privateKey *rsa.PrivateKey
-	logger     *zap.SugaredLogger
+	logger     *slog.Logger
 }
 
 func (s *Singer) sign() (string, error) {
@@ -21,7 +22,7 @@ func (s *Singer) sign() (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	t, err := token.SignedString(s.privateKey)
 	if err != nil {
-		s.logger.Errorf("token.SignedString: %v", err)
+		s.logger.Error("token signed string error", "error", err)
 		return "", err
 	}
 	return t, nil

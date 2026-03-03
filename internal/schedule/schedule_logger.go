@@ -1,23 +1,23 @@
 package schedule
 
-import "go.uber.org/zap"
+import "log/slog"
 
-type scheduleZapLogger struct {
-	logger *zap.SugaredLogger
+type scheduleSlogLogger struct {
+	logger *slog.Logger
 }
 
-func (l *scheduleZapLogger) Debug(msg string, args ...any) {
-	l.logger.Debugw(msg, args)
+func (l *scheduleSlogLogger) Debug(msg string, args ...any) {
+	l.logger.Debug(msg, args...)
 }
 
-func (l *scheduleZapLogger) Error(msg string, args ...any) {
-	l.logger.Errorw(msg, args)
+func (l *scheduleSlogLogger) Error(msg string, args ...any) {
+	l.logger.Error(msg, args...)
 }
 
-func (l *scheduleZapLogger) Info(msg string, args ...any) {
-	l.logger.Infow(msg, args)
+func (l *scheduleSlogLogger) Info(msg string, args ...any) {
+	l.logger.Info(msg, args...)
 }
 
-func (l *scheduleZapLogger) Warn(msg string, args ...any) {
-	l.logger.Warnw(msg, args)
+func (l *scheduleSlogLogger) Warn(msg string, args ...any) {
+	l.logger.Warn(msg, args...)
 }

@@ -1,20 +1,14 @@
 package logger
 
 import (
-	"errors"
-	"fmt"
+	"github.com/DaiYuANg/toolkit4go/logx"
 	"go.uber.org/fx"
-	"go.uber.org/zap"
-	"syscall"
 )
 
-func deferLogger(lc fx.Lifecycle, logger *zap.Logger) {
+func deferLogger(lc fx.Lifecycle, logger *logx.Logger) {
 	lc.Append(
 		fx.StopHook(func() error {
-			if err := logger.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) {
-				return fmt.Errorf("logger sync failed: %v", err)
-			}
-			return nil
+			return logger.Close()
 		}),
 	)
 }

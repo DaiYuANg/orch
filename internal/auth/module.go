@@ -3,9 +3,9 @@ package auth
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"log/slog"
 
 	"go.uber.org/fx"
-	"go.uber.org/zap"
 )
 
 var Module = fx.Module("auth", fx.Provide(newRsaKey, newSigner), fx.Invoke(generateRootToken))
@@ -21,7 +21,7 @@ func newRsaKey() (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-func newSigner(privateKey *rsa.PrivateKey, logger *zap.SugaredLogger) *Singer {
+func newSigner(privateKey *rsa.PrivateKey, logger *slog.Logger) *Singer {
 	return &Singer{
 		privateKey: privateKey,
 		logger:     logger,

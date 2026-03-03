@@ -1,14 +1,15 @@
 package raft
 
 import (
-	"go.etcd.io/bbolt"
-	"go.uber.org/zap"
+	"log/slog"
 	"path/filepath"
+
+	"go.etcd.io/bbolt"
 )
 
-func newBblot(raftDir string, logger *zap.SugaredLogger) (*bbolt.DB, error) {
+func newBblot(raftDir string, logger *slog.Logger) (*bbolt.DB, error) {
 	path := filepath.Join(raftDir, "metadata_db.db")
-	logger.Debugf("Bblot path:%s", path)
+	logger.Debug("bbolt path", "path", path)
 	options := bbolt.DefaultOptions
 	db, err := bbolt.Open(path, 0600, options)
 	if err != nil {

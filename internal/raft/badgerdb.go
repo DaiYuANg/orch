@@ -1,17 +1,18 @@
 package raft
 
 import (
+	"log/slog"
+
 	"github.com/dgraph-io/badger/v3"
-	"go.uber.org/zap"
 )
 
 // badgerDB 包装器
 type badgerDB struct {
 	db     *badger.DB
-	logger *zap.SugaredLogger
+	logger *slog.Logger
 }
 
-func newBadgerDB(path string, logger *zap.SugaredLogger) (*badgerDB, error) {
+func newBadgerDB(path string, logger *slog.Logger) (*badgerDB, error) {
 
 	option :=
 		badger.DefaultOptions(path).

@@ -1,71 +1,57 @@
 package config
 
 import (
-	"strings"
+	"log/slog"
+	"os"
 
+	"github.com/DaiYuANg/toolkit4go/configx"
 	"github.com/DaiYuANg/warden/internal/constant"
-	"github.com/knadh/koanf/parsers/json"
-	"github.com/knadh/koanf/parsers/toml"
-	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/env"
-	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/providers/posflag"
-	"github.com/knadh/koanf/providers/structs"
-	"github.com/knadh/koanf/v2"
-	flag "github.com/spf13/pflag"
 	"go.uber.org/fx"
-	"go.uber.org/zap"
 )
 
 var Module = fx.Module("config", fx.Provide(
-	newKoanf,
 	loadConfig,
 ))
 
-func newKoanf() *koanf.Koanf {
-	return koanf.New(".")
+func loadConfig(logger *slog.Logger) (*Config, error) {
+	def := defaultConfig()
+	candidates := []string{
+		"config.yaml",
+		"config.yml",
+		"config.toml",
+		"config.json",
+		"mock/mock.json",
+		"mock/mock.yml",
+		"mock/mock.toml",
+	}
+	files := existingFiles(candidates)
+	opts := []configx.Option{
+		configx.WithDotenv(),
+		configx.WithDefaultsStruct(def),
+		configx.WithEnvPrefix(constant.EnvPrefix),
+	}
+	if len(files) > 0 {
+		opts = append(opts, configx.WithFiles(files...))
+	}
+
+	cfg, err := configx.LoadConfig(opts...)
+	if err != nil {
+		return nil, err
+	}
+	if err := cfg.Unmarshal("", &def); err != nil {
+		return nil, err
+	}
+
+	logger.Debug("config loaded", "keys", cfg.All())
+	return &def, nil
 }
 
-func loadConfig(k *koanf.Koanf, logger *zap.SugaredLogger) (*Config, error) {
-	def := defaultConfig()
-
-	// 加载默认配置
-	if err := k.Load(structs.Provider(def, "koanf"), nil); err != nil {
-		return nil, err
+func existingFiles(candidates []string) []string {
+	files := make([]string, 0, len(candidates))
+	for _, file := range candidates {
+		if _, err := os.Stat(file); err == nil {
+			files = append(files, file)
+		}
 	}
-	// Load JSON config.
-	if err := k.Load(file.Provider("mock/mock.json"), json.Parser()); err != nil {
-		logger.Warnf("error loading config: %v", err)
-	}
-
-	// Load YAML config and merge into the previously loaded config (because we can).
-	err := k.Load(file.Provider("mock/mock.yml"), yaml.Parser())
-	if err != nil {
-		logger.Warnf("error loading config: %v", err)
-	}
-	err = k.Load(file.Provider("mock/mock.toml"), toml.Parser())
-	if err != nil {
-		logger.Warnf("error loading config: %v", err)
-	}
-	f := flag.NewFlagSet("config", flag.ContinueOnError)
-	if err := k.Load(posflag.Provider(f, ".", k), nil); err != nil {
-		logger.Warnf("error loading config: %v", err)
-	}
-	// 使用 lo.Ternary 优化字符串映射函数
-	mapEnvKey := func(s string) string {
-		return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, constant.EnvPrefix)), "_", ".")
-	}
-	if err := k.Load(env.Provider(constant.EnvPrefix, ".", mapEnvKey), nil); err != nil {
-		return nil, err
-	}
-
-	allKeys := k.All()
-	logger.Debugf("all key: %v", allKeys)
-
-	if err := k.Unmarshal("", &def); err != nil {
-		return nil, err
-	}
-
-	logger.Infof("loaded config: %+v", def)
-	return &def, nil
+	return files
 }

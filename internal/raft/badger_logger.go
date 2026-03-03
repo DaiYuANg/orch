@@ -1,23 +1,26 @@
 package raft
 
-import "go.uber.org/zap"
+import (
+	"fmt"
+	"log/slog"
+)
 
 type badgerLogger struct {
-	logger *zap.SugaredLogger
+	logger *slog.Logger
 }
 
 func (b *badgerLogger) Errorf(s string, i ...interface{}) {
-	b.logger.Errorf(s, i...)
+	b.logger.Error(fmt.Sprintf(s, i...))
 }
 
 func (b *badgerLogger) Warningf(s string, i ...interface{}) {
-	b.logger.Warnf(s, i...)
+	b.logger.Warn(fmt.Sprintf(s, i...))
 }
 
 func (b *badgerLogger) Infof(s string, i ...interface{}) {
-	b.logger.Infof(s, i...)
+	b.logger.Info(fmt.Sprintf(s, i...))
 }
 
 func (b *badgerLogger) Debugf(s string, i ...interface{}) {
-	b.logger.Debugf(s, i...)
+	b.logger.Debug(fmt.Sprintf(s, i...))
 }

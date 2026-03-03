@@ -1,9 +1,10 @@
 package mdns
 
 import (
+	"log/slog"
+
 	"github.com/hashicorp/mdns"
 	"go.uber.org/fx"
-	"go.uber.org/zap"
 	"os"
 )
 
@@ -15,13 +16,13 @@ func newMdns() (*mdns.MDNSService, error) {
 	return mdns.NewMDNSService(host, "_foobar._tcp", "", "", 8000, nil, info)
 }
 
-func lifecycle(lc fx.Lifecycle, service *mdns.MDNSService, logger *zap.SugaredLogger) {
+func lifecycle(lc fx.Lifecycle, service *mdns.MDNSService, logger *slog.Logger) {
 	lc.Append(fx.StartHook(func() {
 		server, _ := mdns.NewServer(&mdns.Config{Zone: service})
 		defer func(server *mdns.Server) {
 			err := server.Shutdown()
 			if err != nil {
-				logger.Errorf("mdns server error%e", err)
+				logger.Error("mdns server shutdown error", "error", err)
 			}
 		}(server)
 	}))

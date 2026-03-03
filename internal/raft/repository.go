@@ -7,13 +7,11 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/samber/lo"
 	"go.etcd.io/bbolt"
-	"go.uber.org/zap"
 )
 
 type Repository[T any] struct {
 	db     *bbolt.DB
 	bucket string
-	log    *zap.SugaredLogger
 }
 
 func NewRepository[T any](db *bbolt.DB, bucket string) *Repository[T] {

@@ -1,10 +1,10 @@
 package raft
 
 import (
-	"go.uber.org/zap"
+	"log/slog"
 )
 
-func newFsm(raftDir string, logger *zap.SugaredLogger) (*FSM, error) {
+func newFsm(raftDir string, logger *slog.Logger) (*FSM, error) {
 
 	badger, err := newBadgerDB(raftDir, logger)
 	if err != nil {

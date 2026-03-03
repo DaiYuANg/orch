@@ -2,6 +2,7 @@ package raft
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,13 +11,12 @@ import (
 	"github.com/DaiYuANg/warden/pkg"
 	"github.com/hashicorp/raft"
 	raftwal "github.com/hashicorp/raft-wal"
-	"go.uber.org/zap"
 )
 
 type Option struct {
 }
 
-func newNode(nodeID, raftDir string, logger *zap.SugaredLogger) (*raft.Raft, error) {
+func newNode(nodeID, raftDir string, logger *slog.Logger) (*raft.Raft, error) {
 	log := newZapLogger(logger)
 	raftConfig := raft.DefaultConfig()
 	raftConfig.LocalID = raft.ServerID(nodeID)

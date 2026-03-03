@@ -7,12 +7,12 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
-	"go.uber.org/zap"
 )
 
 // HandlerFunc 定义服务器端处理函数，接收客户端消息，返回响应
@@ -27,11 +27,11 @@ type Server struct {
 	closed     bool
 	mu         sync.Mutex
 	pool       *ants.Pool
-	logger     *zap.SugaredLogger
+	logger     *slog.Logger
 }
 
 // NewServer 创建服务器
-func NewServer(socketPath string, handler HandlerFunc, pool *ants.Pool, logger *zap.SugaredLogger) *Server {
+func NewServer(socketPath string, handler HandlerFunc, pool *ants.Pool, logger *slog.Logger) *Server {
 	return &Server{
 		socketPath: socketPath,
 		handler:    handler,
@@ -82,7 +82,7 @@ func (s *Server) acceptLoop() {
 			s.handleConn(conn)
 		})
 		if err != nil {
-			s.logger.Errorf("submit conn %e", err)
+			s.logger.Error("submit conn", "error", err)
 		}
 	}
 }

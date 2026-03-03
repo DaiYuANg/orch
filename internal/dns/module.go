@@ -1,13 +1,14 @@
 package dns
 
 import (
+	"log/slog"
+
 	"go.uber.org/fx"
-	"go.uber.org/zap"
 )
 
 var Module = fx.Module("dns", fx.Provide(newDns), fx.Invoke(lifecycle))
 
-func newDns(logger *zap.SugaredLogger) (*DNSServer, error) {
+func newDns(logger *slog.Logger) (*DNSServer, error) {
 	return NewDNSServer(logger)
 }
 

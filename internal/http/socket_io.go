@@ -34,7 +34,7 @@ func newClientMap() cmap.ConcurrentMap[string, string] {
 }
 
 func registerSocketIOMiddleware(app *fiber.App) {
-	app.Use(func(c *fiber.Ctx) error {
+	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			c.Locals("allowed", true)
 			return c.Next()

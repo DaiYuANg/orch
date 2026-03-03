@@ -1,15 +1,16 @@
 package http
 
 import (
-	"github.com/DaiYuANg/warden/internal/config"
+	"github.com/DaiYuANg/toolkit4go/httpx/adapter"
+	httpxfiber "github.com/DaiYuANg/toolkit4go/httpx/adapter/fiber"
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humafiber"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/fx"
 )
 
 var Module = fx.Module("http",
 	fx.Provide(
+		newFiberAdapter,
 		newFiber,
 		newOpenapi,
 	),
@@ -21,7 +22,7 @@ var Module = fx.Module("http",
 	),
 )
 
-func newFiber() *fiber.App {
+func newFiberAdapter() *httpxfiber.Adapter {
 	app := fiber.New(
 		fiber.Config{
 			DisableStartupMessage: true,
@@ -29,17 +30,21 @@ func newFiber() *fiber.App {
 			EnablePrintRoutes:     false,
 		},
 	)
-
-	return app
+	humaOpts := adapter.HumaOptions{
+		Enabled:     true,
+		Title:       "warden",
+		Version:     "0.1",
+		Description: "warden api",
+		DocsPath:    "/",
+		OpenAPIPath: "/openapi.json",
+	}
+	return httpxfiber.New(app).WithHuma(humaOpts)
 }
 
-func newOpenapi(app *fiber.App, config *config.Config) huma.API {
-	humaCfg := huma.DefaultConfig("warden", "0.1")
-	humaCfg.Servers = []*huma.Server{{
-		URL: "http://localhost:" + config.Http.GetPort(),
-	}, {
-		URL: "http://127.0.0.1:" + config.Http.GetPort(),
-	}}
-	humaCfg.DocsPath = "/"
-	return humafiber.New(app, humaCfg)
+func newFiber(fiberAdapter *httpxfiber.Adapter) *fiber.App {
+	return fiberAdapter.App()
+}
+
+func newOpenapi(fiberAdapter *httpxfiber.Adapter) huma.API {
+	return fiberAdapter.HumaAPI()
 }

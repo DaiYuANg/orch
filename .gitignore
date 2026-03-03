@@ -80,3 +80,4 @@ Temporary Items
 .vagrant
 *.db
 dist
+.gocache

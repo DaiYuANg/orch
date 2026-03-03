@@ -1,15 +1,16 @@
 package raft
 
 import (
+	"log/slog"
+
 	"github.com/hashicorp/raft"
-	"go.uber.org/zap"
 )
 
 type Manager struct {
 	raftNode *raft.Raft
 }
 
-func NewRaftManager(nodeID, raftDir string, logger *zap.SugaredLogger) (*Manager, error) {
+func NewRaftManager(nodeID, raftDir string, logger *slog.Logger) (*Manager, error) {
 	node, err := newNode(nodeID, raftDir, logger)
 	if err != nil {
 		return nil, err

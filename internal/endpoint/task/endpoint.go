@@ -1,23 +1,91 @@
 package task
 
-import "golang.org/x/net/context"
+import (
+	"context"
+	"fmt"
+
+	"github.com/DaiYuANg/warden/internal/http/model"
+	tasksvc "github.com/DaiYuANg/warden/internal/task"
+)
 
 type Endpoint struct {
+	service *tasksvc.Service
 }
 
-type Input struct {
+type deployInput struct {
 	Body struct {
-		DeployFile []byte
+		Filename string `json:"filename,omitempty" doc:"optional source file name, used to auto detect format"`
+		Format   string `json:"format,omitempty" enum:"yaml,hcl" doc:"optional, if empty will detect by filename"`
+		Content  string `json:"content" doc:"dsl content"`
 	}
 }
 
-type Output struct {
-	Body struct {
-		Message string `json:"message"`
-	}
+type deploymentPathInput struct {
+	ID string `path:"id"`
 }
 
-func (e Endpoint) submitTask(context context.Context, Input *Input) (*Output, error) {
+type instanceLogsPathInput struct {
+	ID   string `path:"id"`
+	Tail int    `query:"tail" default:"200"`
+}
 
-	return &Output{}, nil
+func (e *Endpoint) submitTask(ctx context.Context, input *deployInput) (*struct {
+	Body model.Response[tasksvc.DeployResult]
+}, error) {
+	result, err := e.service.Deploy(ctx, tasksvc.DeployRequest{
+		Filename: input.Body.Filename,
+		Format:   input.Body.Format,
+		Content:  input.Body.Content,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(*result), nil
+}
+
+func (e *Endpoint) getDeployment(ctx context.Context, input *deploymentPathInput) (*struct {
+	Body model.Response[tasksvc.DeploymentDetail]
+}, error) {
+	detail, ok := e.service.GetDeployment(input.ID)
+	if !ok {
+		return nil, fmt.Errorf("deployment not found: %s", input.ID)
+	}
+	return model.WrapResponse(detail), nil
+}
+
+func (e *Endpoint) listDeployment(ctx context.Context, input *struct{}) (*struct {
+	Body model.Response[[]tasksvc.DeploymentInfo]
+}, error) {
+	return model.WrapResponse(e.service.ListDeployments()), nil
+}
+
+func (e *Endpoint) stopDeployment(ctx context.Context, input *deploymentPathInput) (*struct {
+	Body model.Response[struct {
+		Stopped bool `json:"stopped"`
+	}]
+}, error) {
+	if err := e.service.StopDeployment(ctx, input.ID); err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(struct {
+		Stopped bool `json:"stopped"`
+	}{
+		Stopped: true,
+	}), nil
+}
+
+func (e *Endpoint) getInstanceLogs(ctx context.Context, input *instanceLogsPathInput) (*struct {
+	Body model.Response[struct {
+		Logs string `json:"logs"`
+	}]
+}, error) {
+	logs, err := e.service.Logs(ctx, input.ID, input.Tail)
+	if err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(struct {
+		Logs string `json:"logs"`
+	}{
+		Logs: logs,
+	}), nil
 }

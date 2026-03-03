@@ -26,6 +26,7 @@ var socketIOModule = fx.Module("socket.io",
 	),
 	fx.Invoke(
 		registerSocketIOMiddleware,
+		socketIOEventRegister,
 	),
 )
 

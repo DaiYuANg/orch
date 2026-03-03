@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/DaiYuANg/toolkit4go/httpx/adapter"
 	httpxfiber "github.com/DaiYuANg/toolkit4go/httpx/adapter/fiber"
+	"github.com/DaiYuANg/warden/internal/config"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/fx"
@@ -22,21 +23,22 @@ var Module = fx.Module("http",
 	),
 )
 
-func newFiberAdapter() *httpxfiber.Adapter {
+func newFiberAdapter(cfg *config.Config) *httpxfiber.Adapter {
 	app := fiber.New(
 		fiber.Config{
-			DisableStartupMessage: true,
-			ReduceMemoryUsage:     true,
-			EnablePrintRoutes:     false,
+			DisableStartupMessage: cfg.Http.DisableStartupMessage,
+			ReduceMemoryUsage:     cfg.Http.ReduceMemoryUsage,
+			EnablePrintRoutes:     cfg.Http.PrintRoutes,
 		},
 	)
+	apiDocCfg := cfg.Http.APIDoc
 	humaOpts := adapter.HumaOptions{
-		Enabled:     true,
-		Title:       "warden",
-		Version:     "0.1",
-		Description: "warden api",
-		DocsPath:    "/",
-		OpenAPIPath: "/openapi.json",
+		Enabled:     apiDocCfg.Enable,
+		Title:       apiDocCfg.Title,
+		Version:     apiDocCfg.Version,
+		Description: apiDocCfg.Description,
+		DocsPath:    apiDocCfg.Path,
+		OpenAPIPath: apiDocCfg.OpenAPIPath,
 	}
 	return httpxfiber.New(app).WithHuma(humaOpts)
 }

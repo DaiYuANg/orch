@@ -3,10 +3,8 @@ package http
 import (
 	"io"
 	"log/slog"
-	"os"
 
 	"github.com/ansrivas/fiberprometheus/v2"
-	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
@@ -26,7 +24,6 @@ var middleware = fx.Module("middleware",
 		registerPprof,
 		registerCompress,
 		registerLogger,
-		websocketUpgrader,
 	),
 )
 
@@ -73,14 +70,4 @@ func registerLogger(app *fiber.App, logger *slog.Logger) {
 
 func registerFavicon(app *fiber.App) {
 	app.Use(favicon.New())
-}
-
-func websocketUpgrader(app *fiber.App) {
-	app.Use("/ws", func(c *fiber.Ctx) error {
-		if websocket.IsWebSocketUpgrade(c) {
-			c.Locals("allowed", true)
-			return c.Next()
-		}
-		return fiber.ErrUpgradeRequired
-	})
 }

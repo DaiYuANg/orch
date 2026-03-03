@@ -3,6 +3,7 @@ package dsl
 type Workload struct {
 	Name        string    `yaml:"name" hcl:"name"`
 	Description string    `yaml:"description,omitempty" hcl:"description,optional"`
+	Include     []string  `yaml:"include,omitempty" hcl:"include,optional"`
 	Includes    []string  `yaml:"includes,omitempty" hcl:"includes,optional"`
 	Datacenters []string  `yaml:"datacenters,omitempty" hcl:"datacenters,optional"`
 	Units       []Unit    `yaml:"units" hcl:"units,block"`
@@ -25,6 +26,7 @@ type Task struct {
 	Replicas  int               `yaml:"replicas,omitempty" hcl:"replicas,optional"`
 	Env       map[string]string `yaml:"env,omitempty" hcl:"env,optional"`
 	Tags      []string          `yaml:"tags,omitempty" hcl:"tags,optional"`
+	Labels    map[string]string `yaml:"labels,omitempty" hcl:"labels,optional"`
 	Check     *HealthCheck      `yaml:"check,omitempty" hcl:"check,block"`
 	Resources Resources         `yaml:"resources,omitempty" hcl:"resources,block"`
 	Network   *NetworkConfig    `yaml:"network,omitempty" hcl:"network,block"`
@@ -58,4 +60,13 @@ type NetworkConfig struct {
 type DNSConfig struct {
 	Resolver string   `yaml:"resolver" hcl:"resolver"`
 	Domains  []string `yaml:"domains" hcl:"domains"`
+}
+
+func (w *Workload) normalize() {
+	if w == nil {
+		return
+	}
+	if len(w.Include) > 0 {
+		w.Includes = append(w.Includes, w.Include...)
+	}
 }

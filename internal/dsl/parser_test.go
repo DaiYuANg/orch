@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -48,4 +49,20 @@ func TestParseHCL(t *testing.T) {
 	assert.Equal(t, "docker", task.Driver)
 
 	fmt.Printf("%+v\n", workload)
+}
+
+func TestParseContent(t *testing.T) {
+	yamlBytes, err := os.ReadFile(filepath.Join("example.yaml"))
+	assert.NoError(t, err)
+
+	wy, err := ParseContent("yaml", yamlBytes)
+	assert.NoError(t, err)
+	assert.Equal(t, "my-app", wy.Name)
+
+	hclBytes, err := os.ReadFile(filepath.Join("example.hcl"))
+	assert.NoError(t, err)
+
+	wh, err := ParseContent("hcl", hclBytes)
+	assert.NoError(t, err)
+	assert.Equal(t, "my-app", wh.Name)
 }

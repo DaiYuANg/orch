@@ -1,9 +1,9 @@
-package task
+package registry
 
 import "go.uber.org/fx"
 
 var Module = fx.Module(
-	"task",
+	"registry",
 	fx.Provide(
 		NewService,
 	),
@@ -13,8 +13,9 @@ var Module = fx.Module(
 )
 
 func lifecycle(lc fx.Lifecycle, service *Service) {
-	lc.Append(fx.StartStopHook(
-		service.Start,
-		service.Stop,
-	))
+	lc.Append(
+		fx.StopHook(func() error {
+			return service.Close()
+		}),
+	)
 }

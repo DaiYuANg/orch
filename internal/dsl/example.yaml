@@ -19,6 +19,10 @@ units:
         driver: docker
         image: ghcr.io/example/api:latest
         replicas: 2
+        labels:
+          traefik.enable: "true"
+          traefik.http.routers.api.rule: "Host(`api.warden.local`) && PathPrefix(`/`)"
+          traefik.http.services.api.loadbalancer.server.port: "8080"
         env:
           PORT: "8080"
         resources:

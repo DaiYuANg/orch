@@ -1,5 +1,5 @@
 package config
 
 type Cluster struct {
-	AdviseAddress string
+	AdviseAddress string `koanf:"advise_address"`
 }

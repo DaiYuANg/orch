@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/DaiYuANg/toolkit4go/configx"
 	"github.com/DaiYuANg/warden/internal/constant"
@@ -13,18 +15,18 @@ var Module = fx.Module("config", fx.Provide(
 	loadConfig,
 ))
 
-func loadConfig(logger *slog.Logger) (*Config, error) {
+type loadConfigDependency struct {
+	fx.In
+	Files []string `name:"conf" optional:"true"`
+}
+
+func loadConfig(dep loadConfigDependency) (*Config, error) {
 	def := defaultConfig()
-	candidates := []string{
-		"config.yaml",
-		"config.yml",
-		"config.toml",
-		"config.json",
-		"mock/mock.json",
-		"mock/mock.yml",
-		"mock/mock.toml",
+	files, err := resolveConfigFiles(dep.Files)
+	if err != nil {
+		return nil, err
 	}
-	files := existingFiles(candidates)
+
 	opts := []configx.Option{
 		configx.WithDotenv(),
 		configx.WithDefaultsStruct(def),
@@ -42,8 +44,46 @@ func loadConfig(logger *slog.Logger) (*Config, error) {
 		return nil, err
 	}
 
-	logger.Debug("config loaded", "keys", cfg.All())
+	slog.Debug("config loaded", "keys", cfg.All(), "files", files)
 	return &def, nil
+}
+
+func resolveConfigFiles(input []string) ([]string, error) {
+	files := compactFiles(input)
+	if len(files) > 0 {
+		for _, file := range files {
+			if _, err := os.Stat(file); err != nil {
+				return nil, fmt.Errorf("config file %q: %w", file, err)
+			}
+		}
+		return files, nil
+	}
+
+	return existingFiles(defaultConfigCandidates()), nil
+}
+
+func defaultConfigCandidates() []string {
+	return []string{
+		"config.yaml",
+		"config.yml",
+		"config.toml",
+		"config.json",
+		"mock/mock.json",
+		"mock/mock.yml",
+		"mock/mock.toml",
+	}
+}
+
+func compactFiles(input []string) []string {
+	files := make([]string, 0, len(input))
+	for _, file := range input {
+		trimmed := strings.TrimSpace(file)
+		if trimmed == "" {
+			continue
+		}
+		files = append(files, trimmed)
+	}
+	return files
 }
 
 func existingFiles(candidates []string) []string {

@@ -77,6 +77,9 @@ pub struct DeployWorkloadRequest {
   pub name: String,
   pub runtime: String,
   pub image: Option<String>,
+  pub firecracker_config: Option<String>,
+  pub firecracker_kernel_image: Option<String>,
+  pub firecracker_rootfs: Option<String>,
   pub host: Option<String>,
   pub path_prefix: Option<String>,
   pub service_port: Option<u16>,
@@ -171,6 +174,8 @@ pub struct ClusterNodeInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ClusterInfo {
   pub raft_enabled: bool,
+  pub raft_is_leader: bool,
+  pub raft_applied_index: u64,
   pub raft_node_id: u64,
   pub raft_bind_addr: String,
   pub leader_node: Option<String>,

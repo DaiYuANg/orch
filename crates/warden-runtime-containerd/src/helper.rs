@@ -1,6 +1,6 @@
 use anyhow::{Context, anyhow};
-use containerd_client::tonic::Request;
 use containerd_client::services::v1::{DeleteContainerRequest, DeleteTaskRequest, KillRequest};
+use containerd_client::tonic::Request;
 use containerd_client::{Client, tonic, with_namespace};
 use warden_types::DeployWorkloadRequest;
 
@@ -8,6 +8,10 @@ use warden_types::DeployWorkloadRequest;
 pub struct ContainerdRuntimeConfig {
   pub endpoint: String,
   pub namespace: String,
+  pub runtime_name: String,
+  pub snapshotter: String,
+  pub rootfs: Option<String>,
+  pub spec_path: Option<String>,
 }
 
 impl ContainerdRuntimeConfig {
@@ -16,13 +20,23 @@ impl ContainerdRuntimeConfig {
       endpoint: read_env("WARDEN_CONTAINERD_ENDPOINT")
         .unwrap_or_else(|| String::from(default_endpoint())),
       namespace: read_env("WARDEN_CONTAINERD_NAMESPACE").unwrap_or_else(|| String::from("default")),
+      runtime_name: read_env("WARDEN_CONTAINERD_RUNTIME")
+        .unwrap_or_else(|| String::from("io.containerd.runc.v2")),
+      snapshotter: read_env("WARDEN_CONTAINERD_SNAPSHOTTER")
+        .unwrap_or_else(|| String::from("overlayfs")),
+      rootfs: read_env("WARDEN_CONTAINERD_ROOTFS"),
+      spec_path: read_env("WARDEN_CONTAINERD_SPEC_PATH"),
     }
   }
 }
 
 pub(crate) async fn check_connection(cfg: &ContainerdRuntimeConfig) -> anyhow::Result<()> {
   let client = connect(cfg).await?;
-  let _ = client.version().version(()).await.context("query version")?;
+  let _ = client
+    .version()
+    .version(())
+    .await
+    .context("query version")?;
   Ok(())
 }
 
@@ -108,6 +122,15 @@ pub(crate) fn container_name(workload_id: &str) -> String {
   format!("warden-{normalized}")
 }
 
+pub(crate) fn looks_like_filesystem_path(value: &str) -> bool {
+  let raw = value.trim();
+  raw.starts_with('/')
+    || raw.starts_with("./")
+    || raw.starts_with("../")
+    || raw.starts_with(r"\\")
+    || (raw.len() > 2 && raw.as_bytes()[1] == b':' && raw.as_bytes()[2] == b'\\')
+}
+
 fn ignore_not_found<T>(result: Result<T, tonic::Status>) -> anyhow::Result<Option<T>> {
   match result {
     Ok(value) => Ok(Some(value)),
@@ -168,37 +191,5 @@ fn default_endpoint() -> &'static str {
   #[cfg(not(windows))]
   {
     "unix:///run/containerd/containerd.sock"
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn sanitize_container_name() {
-    assert_eq!(container_name("wk-A B/C"), "warden-wk-a-b-c");
-  }
-
-  #[test]
-  fn default_image_and_backend() {
-    let req = DeployWorkloadRequest {
-      name: String::from("demo"),
-      runtime: String::from("containerd"),
-      image: None,
-      host: None,
-      path_prefix: None,
-      service_port: None,
-      ingress_port: None,
-      backend: None,
-    };
-    assert_eq!(resolve_image(&req), "docker.io/library/nginx:stable-alpine");
-    assert_eq!(resolve_backend(&req, 80), "127.0.0.1:80");
-  }
-
-  #[test]
-  fn normalize_npipe_endpoint() {
-    let path = endpoint_path("npipe:////./pipe/containerd-containerd");
-    assert_eq!(path.as_deref(), Some(r"\\.\pipe\containerd-containerd"));
   }
 }

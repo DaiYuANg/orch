@@ -16,6 +16,8 @@ type ClusterNode = {
 
 type ClusterInfo = {
   raft_enabled: boolean;
+  raft_is_leader: boolean;
+  raft_applied_index: number;
   raft_node_id: number;
   raft_bind_addr: string;
   leader_node?: string;
@@ -80,6 +82,9 @@ export function ClusterPage() {
           <CardContent className="space-y-1 text-sm">
             <div>{cluster?.leader_node || "n/a"}</div>
             <div className="text-xs text-muted-foreground">raft={cluster?.raft_enabled ? "enabled" : "disabled"}</div>
+            <div className="text-xs text-muted-foreground">
+              applied-index={cluster?.raft_applied_index ?? 0}
+            </div>
           </CardContent>
         </Card>
         <Card>

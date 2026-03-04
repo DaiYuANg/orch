@@ -77,6 +77,7 @@ pub struct RaftConfig {
   pub node_id: u64,
   #[validate(length(min = 1))]
   pub bind_addr: String,
+  pub worker_nodes: Vec<String>,
 }
 
 impl Default for Config {
@@ -120,6 +121,7 @@ impl Default for Config {
         enable: false,
         node_id: 1,
         bind_addr: String::from("127.0.0.1:12000"),
+        worker_nodes: Vec::new(),
       },
     }
   }

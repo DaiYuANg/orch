@@ -1,4 +1,7 @@
-use clap::{Parser, Subcommand};
+mod cli_args;
+
+use crate::cli_args::{Cli, Command, TaskArgs};
+use clap::Parser;
 use serde::Serialize;
 use std::time::Duration;
 use warden_client::{WardenClient, parse_endpoint};
@@ -6,102 +9,6 @@ use warden_types::{
   BatchActionResult, DeployWorkloadRequest, DnsRecord, EndpointRecord, FailoverRequest,
   MigrateWorkloadRequest, RebalanceRequest, RouteRecord, WorkloadSummary,
 };
-
-#[derive(Debug, Parser)]
-#[command(name = "warden-cli-rs", about = "Warden Rust CLI")]
-struct Cli {
-  #[arg(
-        long,
-        default_value_t = default_api(),
-        help = "api endpoint: auto | unix://... | npipe://... | http(s)://..."
-    )]
-  api: String,
-  #[arg(long)]
-  token: Option<String>,
-  #[arg(long, default_value_t = 10)]
-  timeout_sec: u64,
-  #[command(subcommand)]
-  cmd: Command,
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-  Workloads,
-  Endpoints,
-  Routes,
-  Dns,
-  Deploy(DeployArgs),
-  Stop(StopArgs),
-  Migrate(MigrateArgs),
-  Failover(FailoverArgs),
-  Rebalance(RebalanceArgs),
-  Task {
-    #[command(subcommand)]
-    cmd: TaskArgs,
-  },
-}
-
-#[derive(Debug, Parser)]
-struct DeployArgs {
-  #[arg(long)]
-  name: String,
-  #[arg(long, default_value = "docker")]
-  runtime: String,
-  #[arg(long)]
-  image: Option<String>,
-  #[arg(long)]
-  host: Option<String>,
-  #[arg(long, default_value = "/")]
-  path: String,
-  #[arg(long, default_value_t = 80)]
-  port: u16,
-  #[arg(long, default_value_t = 8088)]
-  ingress_port: u16,
-  #[arg(long)]
-  backend: Option<String>,
-}
-
-#[derive(Debug, Parser)]
-struct StopArgs {
-  id: String,
-}
-
-#[derive(Debug, Parser)]
-struct MigrateArgs {
-  id: String,
-  #[arg(long)]
-  target_node: String,
-  #[arg(long, default_value_t = false)]
-  force_stateful: bool,
-  #[arg(long, default_value_t = 1)]
-  max_unavailable: u32,
-}
-
-#[derive(Debug, Parser)]
-struct FailoverArgs {
-  #[arg(long)]
-  failed_node: String,
-  #[arg(long)]
-  target_node: Option<String>,
-  #[arg(long, default_value_t = false)]
-  force_stateful: bool,
-  #[arg(long, default_value_t = 1)]
-  max_unavailable: u32,
-  #[arg(long)]
-  max_migrations: Option<usize>,
-}
-
-#[derive(Debug, Parser)]
-struct RebalanceArgs {
-  #[arg(long, default_value_t = 1)]
-  max_migrations: usize,
-}
-
-#[derive(Debug, Subcommand)]
-enum TaskArgs {
-  List,
-  Get { id: String },
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -131,6 +38,9 @@ async fn main() -> anyhow::Result<()> {
         name: args.name,
         runtime: args.runtime,
         image: args.image,
+        firecracker_config: args.firecracker_config,
+        firecracker_kernel_image: args.firecracker_kernel_image,
+        firecracker_rootfs: args.firecracker_rootfs,
         host: args.host,
         path_prefix: Some(args.path),
         service_port: Some(args.port),
@@ -187,10 +97,6 @@ async fn main() -> anyhow::Result<()> {
   }
 
   Ok(())
-}
-
-fn default_api() -> String {
-  String::from("auto")
 }
 
 fn print_json<T: Serialize>(value: &T) -> anyhow::Result<()> {

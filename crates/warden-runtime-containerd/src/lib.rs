@@ -1,8 +1,13 @@
+mod deploy;
 mod helper;
+mod oci;
+mod oci_parent;
+mod oci_transfer;
+mod spec;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use tracing::{info, warn};
+use tracing::info;
 use warden_runtime::{RuntimeLaunchResult, RuntimeProvider};
 use warden_types::DeployWorkloadRequest;
 
@@ -49,31 +54,28 @@ impl RuntimeProvider for ContainerdRuntimeProvider {
     workload_id: &str,
     req: &DeployWorkloadRequest,
   ) -> anyhow::Result<RuntimeLaunchResult> {
-    let image = helper::resolve_image(req);
     let service_port = req.service_port.unwrap_or(80);
     let backend = helper::resolve_backend(req, service_port);
-    helper::check_connection(&self.cfg)
+    let image = deploy::deploy_workload(&self.cfg, workload_id, req)
       .await
-      .context("verify containerd grpc connectivity before deploy")?;
+      .with_context(|| format!("deploy containerd workload {workload_id}"))?;
 
-    warn!(
+    info!(
       target: "warden::runtime::containerd",
       workload_id = %workload_id,
       image = %image,
-      endpoint = %self.cfg.endpoint,
-      "containerd direct grpc deploy is not implemented yet"
+      container = %helper::container_name(workload_id),
+      backend = %backend,
+      "containerd workload deployed"
     );
-    Err(anyhow::anyhow!(
-      "containerd direct grpc deploy is not implemented yet: workload_id={} image={} backend={}",
-      workload_id,
-      image,
-      backend
-    ))
+    Ok(RuntimeLaunchResult {
+      backend_address: backend,
+    })
   }
 
   async fn stop(&self, workload_id: &str) -> anyhow::Result<()> {
     let container_name = helper::container_name(workload_id);
-    helper::remove_existing(&self.cfg, &container_name)
+    deploy::cleanup_container_and_snapshot(&self.cfg, &container_name)
       .await
       .with_context(|| format!("stop containerd workload {container_name}"))?;
     info!(

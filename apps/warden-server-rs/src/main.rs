@@ -64,8 +64,19 @@ async fn main() -> anyhow::Result<()> {
   runtime
     .register_provider(Arc::new(FirecrackerRuntimeProvider::new()))
     .await;
-  let task = TaskService::new(runtime, store.clone());
-  let raft = RaftService::new(false, 1, String::from("127.0.0.1:12000"))?;
+  let raft = RaftService::new(
+    cfg.raft.enable,
+    cfg.raft.node_id,
+    cfg.raft.bind_addr.clone(),
+  )?;
+  let local_node = format!("node-{}", cfg.raft.node_id);
+  let task = TaskService::with_raft(
+    runtime,
+    store.clone(),
+    raft.clone(),
+    local_node,
+    cfg.raft.worker_nodes.clone(),
+  );
 
   dns.start(&cfg.network.dns_listen).await?;
   ingress.start().await;
@@ -76,9 +87,7 @@ async fn main() -> anyhow::Result<()> {
     registry,
     dns,
     task,
-    raft_enabled: cfg.raft.enable,
-    raft_node_id: cfg.raft.node_id,
-    raft_bind_addr: cfg.raft.bind_addr.clone(),
+    raft,
   });
   warden_http::run(&cfg, app).await
 }

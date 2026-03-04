@@ -5,6 +5,7 @@ use axum::{
 use tower::ServiceExt;
 use warden_api::{ApiState, router};
 use warden_dns::DnsService;
+use warden_raft::RaftService;
 use warden_registry::RegistryService;
 use warden_runtime::RuntimeEngine;
 use warden_store::StateStore;
@@ -84,9 +85,7 @@ fn build_router() -> axum::Router {
     registry: RegistryService::new(store.clone()),
     dns: DnsService::new(store.clone()),
     task: TaskService::new(RuntimeEngine::new(), store),
-    raft_enabled: false,
-    raft_node_id: 1,
-    raft_bind_addr: String::from("127.0.0.1:12000"),
+    raft: RaftService::new(false, 1, String::from("127.0.0.1:12000")).unwrap(),
   };
   router(state)
 }

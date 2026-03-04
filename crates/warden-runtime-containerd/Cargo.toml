@@ -8,6 +8,9 @@ license.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 containerd-client = "0.6"
+prost = "0.13"
+prost-types = "0.13"
+serde_json.workspace = true
 tracing.workspace = true
 warden-runtime = { path = "../warden-runtime" }
 warden-types = { path = "../warden-types" }

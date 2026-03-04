@@ -4,6 +4,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn run_command(root: &Path, program: &str, args: &[&str]) -> anyhow::Result<()> {
+  let _ = run_command_capture(root, program, args)?;
+  Ok(())
+}
+
+pub fn run_command_capture(root: &Path, program: &str, args: &[&str]) -> anyhow::Result<String> {
   let output = cmd(program, args)
     .dir(root)
     .stderr_to_stdout()
@@ -21,7 +26,8 @@ pub fn run_command(root: &Path, program: &str, args: &[&str]) -> anyhow::Result<
       log
     );
   }
-  Ok(())
+
+  Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 pub fn copy_file(src: &Path, dst: &Path, name: &str) -> anyhow::Result<()> {

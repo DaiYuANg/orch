@@ -24,49 +24,55 @@ impl TaskService {
       .map(ToString::to_string)
       .unwrap_or_else(|| String::from("/"));
     let ingress_port = req.ingress_port.unwrap_or(8088);
+    let target_node = self.pick_deploy_node().await;
     let launched = self.runtime.deploy(&id, &req).await?;
 
-    let summary = WorkloadSummary {
-      id: id.clone(),
-      name: req.name.trim().to_string(),
-      runtime: runtime.clone(),
-      status: String::from("running"),
-      node_id: String::from("node-1"),
-      created_at: Utc::now(),
-    };
-    self.store.upsert_workload(summary.clone()).await?;
-    self
-      .store
-      .upsert_endpoint(EndpointRecord {
-        workload_id: id.clone(),
-        node_id: String::from("node-1"),
-        protocol: String::from("http"),
-        address: launched.backend_address.clone(),
-      })
-      .await?;
-    self
-      .store
-      .upsert_route(RouteRecord {
-        id: format!("route-{id}"),
-        protocol: String::from("http"),
-        host: host.clone(),
-        path_prefix,
-        listen_port: ingress_port,
-        backend: launched.backend_address.clone(),
-        enabled: true,
-      })
-      .await?;
+    let summary = self
+      .apply_write("task.deploy", || async {
+        let summary = WorkloadSummary {
+          id: id.clone(),
+          name: req.name.trim().to_string(),
+          runtime: runtime.clone(),
+          status: String::from("running"),
+          node_id: target_node.clone(),
+          created_at: Utc::now(),
+        };
+        self.store.upsert_workload(summary.clone()).await?;
+        self
+          .store
+          .upsert_endpoint(EndpointRecord {
+            workload_id: id.clone(),
+            node_id: target_node,
+            protocol: String::from("http"),
+            address: launched.backend_address.clone(),
+          })
+          .await?;
+        self
+          .store
+          .upsert_route(RouteRecord {
+            id: format!("route-{id}"),
+            protocol: String::from("http"),
+            host: host.clone(),
+            path_prefix,
+            listen_port: ingress_port,
+            backend: launched.backend_address.clone(),
+            enabled: true,
+          })
+          .await?;
 
-    if let Some(ip) = extract_host_ip(&launched.backend_address) {
-      self
-        .store
-        .upsert_dns_record(DnsRecord {
-          domain: host,
-          values: vec![ip],
-          ttl: 60,
-        })
-        .await?;
-    }
+        if let Some(ip) = extract_host_ip(&launched.backend_address) {
+          self
+            .store
+            .upsert_dns_record(DnsRecord {
+              domain: host,
+              values: vec![ip],
+              ttl: 60,
+            })
+            .await?;
+        }
+        Ok(summary)
+      })
+      .await?;
 
     info!(
       target: "warden::task",
@@ -85,17 +91,22 @@ impl TaskService {
     };
     self.runtime.stop(id).await?;
     workload.status = String::from("stopped");
-    self.store.upsert_workload(workload.clone()).await?;
+    let stopped = self
+      .apply_write("task.stop", || async {
+        self.store.upsert_workload(workload.clone()).await?;
 
-    let route = self.store.get_route_by_workload(id).await;
-    self.store.delete_endpoints_by_workload(id).await?;
-    self.store.delete_route_by_workload(id).await?;
-    if let Some(item) = route {
-      let _ = self.store.delete_dns_record_by_domain(&item.host).await;
-    }
+        let route = self.store.get_route_by_workload(id).await;
+        self.store.delete_endpoints_by_workload(id).await?;
+        self.store.delete_route_by_workload(id).await?;
+        if let Some(item) = route {
+          let _ = self.store.delete_dns_record_by_domain(&item.host).await;
+        }
+        Ok(workload)
+      })
+      .await?;
 
     info!(target: "warden::task", workload_id = %id, "workload stopped");
-    Ok(Some(workload))
+    Ok(Some(stopped))
   }
 }
 

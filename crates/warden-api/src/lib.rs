@@ -8,6 +8,7 @@ use axum::{
   routing::{get, post},
 };
 use warden_dns::DnsService;
+use warden_raft::RaftService;
 use warden_registry::RegistryService;
 use warden_task::TaskService;
 use warden_types::ApiEnvelope;
@@ -17,9 +18,7 @@ pub struct ApiState {
   pub registry: RegistryService,
   pub dns: DnsService,
   pub task: TaskService,
-  pub raft_enabled: bool,
-  pub raft_node_id: u64,
-  pub raft_bind_addr: String,
+  pub raft: RaftService,
 }
 
 pub(crate) type ApiErr = (axum::http::StatusCode, Json<ApiEnvelope<String>>);

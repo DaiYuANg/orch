@@ -12,6 +12,7 @@ sysinfo.workspace = true
 utoipa.workspace = true
 utoipa-swagger-ui = { workspace = true }
 warden-dns = { path = "../warden-dns" }
+warden-raft = { path = "../warden-raft" }
 warden-registry = { path = "../warden-registry" }
 warden-task = { path = "../warden-task" }
 warden-types = { path = "../warden-types" }

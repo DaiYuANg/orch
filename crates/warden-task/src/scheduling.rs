@@ -1,5 +1,4 @@
 use crate::TaskService;
-use std::collections::HashMap;
 use warden_types::{
   BatchActionResult, FailoverRequest, MigrateWorkloadRequest, RebalanceRequest, WorkloadSummary,
 };
@@ -25,12 +24,16 @@ impl TaskService {
     }
 
     workload.node_id = target.to_string();
-    self.store.upsert_workload(workload.clone()).await?;
-    let _ = self
-      .store
-      .replace_workload_endpoint_node(workload_id, target)
-      .await?;
-    Ok(Some(workload))
+    self
+      .apply_write("task.migrate", || async {
+        self.store.upsert_workload(workload.clone()).await?;
+        let _ = self
+          .store
+          .replace_workload_endpoint_node(workload_id, target)
+          .await?;
+        Ok(Some(workload))
+      })
+      .await
   }
 
   pub async fn failover(&self, req: &FailoverRequest) -> anyhow::Result<BatchActionResult> {
@@ -40,7 +43,19 @@ impl TaskService {
     }
     validate_availability_budget(req.max_unavailable)?;
 
-    let target_node = pick_target_node(failed_node, req.target_node.as_deref())?;
+    let target_node = match req.target_node.as_deref().map(str::trim) {
+      Some(node) if node.is_empty() => {
+        anyhow::bail!("target_node must not be empty when provided")
+      }
+      Some(node) if node == failed_node => {
+        anyhow::bail!("target_node must be different from failed_node")
+      }
+      Some(node) => node.to_string(),
+      None => self
+        .pick_failover_node(failed_node)
+        .await
+        .ok_or_else(|| anyhow::anyhow!("no available node for failover"))?,
+    };
     let workloads = self.store.list_workloads().await;
     let mut candidates = workloads
       .into_iter()
@@ -69,7 +84,7 @@ impl TaskService {
     let mut moved = Vec::new();
     let mut skipped = Vec::new();
     for _ in 0..limit {
-      let counts = node_counts(&workloads);
+      let counts = self.node_loads().await;
       let Some((source, source_count)) = most_loaded(&counts) else {
         break;
       };
@@ -134,17 +149,6 @@ async fn apply_migrations(
   })
 }
 
-fn pick_target_node(failed_node: &str, target_node: Option<&str>) -> anyhow::Result<String> {
-  let picked = target_node.map(str::trim).unwrap_or("node-1");
-  if picked.is_empty() {
-    anyhow::bail!("target_node is required when failover target is empty");
-  }
-  if picked == failed_node {
-    anyhow::bail!("target_node must be different from failed_node");
-  }
-  Ok(picked.to_string())
-}
-
 fn validate_availability_budget(max_unavailable: u32) -> anyhow::Result<()> {
   if max_unavailable == 1 {
     Ok(())
@@ -161,21 +165,14 @@ fn empty_result(message: &str) -> BatchActionResult {
   }
 }
 
-fn node_counts(workloads: &[WorkloadSummary]) -> HashMap<String, usize> {
-  workloads.iter().fold(HashMap::new(), |mut acc, item| {
-    *acc.entry(item.node_id.clone()).or_insert(0) += 1;
-    acc
-  })
-}
-
-fn most_loaded(counts: &HashMap<String, usize>) -> Option<(String, usize)> {
+fn most_loaded(counts: &std::collections::HashMap<String, usize>) -> Option<(String, usize)> {
   counts
     .iter()
     .max_by_key(|(_, count)| **count)
     .map(|(node, count)| (node.clone(), *count))
 }
 
-fn least_loaded(counts: &HashMap<String, usize>) -> Option<(String, usize)> {
+fn least_loaded(counts: &std::collections::HashMap<String, usize>) -> Option<(String, usize)> {
   counts
     .iter()
     .min_by_key(|(_, count)| **count)

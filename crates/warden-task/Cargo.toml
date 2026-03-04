@@ -9,6 +9,7 @@ anyhow.workspace = true
 chrono.workspace = true
 tracing.workspace = true
 warden-runtime = { path = "../warden-runtime" }
+warden-raft = { path = "../warden-raft" }
 warden-store = { path = "../warden-store" }
 warden-types = { path = "../warden-types" }
 

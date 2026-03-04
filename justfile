@@ -57,5 +57,5 @@ cluster-down:
 package:
     cargo xtask package
 
-e2e api="http://127.0.0.1:7443":
-    cargo xtask e2e --api {{api}}
+e2e api="http://127.0.0.1:7443" runtime="containerd" image="" port="18080" ingress_port="18088":
+    cargo xtask e2e --api {{api}} --runtime {{runtime}} --port {{port}} --ingress-port {{ingress_port}} --image {{image}}

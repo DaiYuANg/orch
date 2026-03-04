@@ -52,6 +52,8 @@ pub fn run_cluster(root: &Path, args: &ClusterRunArgs) -> anyhow::Result<()> {
 
     write_node_config(
       &config_path,
+      node,
+      args.nodes,
       http_port,
       1053 + idx,
       8088 + idx,
@@ -156,14 +158,21 @@ fn read_state(path: &Path) -> anyhow::Result<ClusterState> {
 
 fn write_node_config(
   path: &Path,
+  node_id: u16,
+  total_nodes: u16,
   http_port: u16,
   dns_port: u16,
   ingress_port: u16,
   unix_socket: Option<String>,
 ) -> anyhow::Result<()> {
   let socket = unix_socket.unwrap_or_default();
+  let worker_nodes = (1..=total_nodes)
+    .map(|id| format!("    - \"node-{id}\""))
+    .collect::<Vec<_>>()
+    .join("\n");
   let yaml = format!(
-    "http:\n  port: {http_port}\n  unix_socket: \"{socket}\"\nnetwork:\n  dns_listen: \":{dns_port}\"\n  ingress_http_listen: \":{ingress_port}\"\nlogger:\n  level: \"info\"\n  console: true\n"
+    "http:\n  port: {http_port}\n  unix_socket: \"{socket}\"\nnetwork:\n  dns_listen: \":{dns_port}\"\n  ingress_http_listen: \":{ingress_port}\"\nlogger:\n  level: \"info\"\n  console: true\nstore:\n  engine: \"memory\"\n  path: \"\"\nraft:\n  enable: true\n  node_id: {node_id}\n  bind_addr: \"127.0.0.1:{}\"\n  worker_nodes:\n{worker_nodes}\n",
+    12_000 + (node_id - 1)
   );
   fs::write(path, yaml).with_context(|| format!("write {}", path.display()))
 }

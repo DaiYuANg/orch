@@ -7,8 +7,13 @@ network:
 
 raft:
   enable: true
-  node_id: "127.0.0.1:12004"
+  node_id: 4
   bind_addr: "127.0.0.1:12004"
+  worker_nodes:
+    - "node-1"
+    - "node-2"
+    - "node-3"
+    - "node-4"
   api_addr: "http://127.0.0.1:7446"
   node_api:
     - "127.0.0.1:12001=http://127.0.0.1:7443"

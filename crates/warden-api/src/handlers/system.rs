@@ -25,7 +25,7 @@ pub(crate) async fn system_info() -> Json<ApiEnvelope<SystemInfo>> {
 pub(crate) async fn cluster_info(State(state): State<ApiState>) -> Json<ApiEnvelope<ClusterInfo>> {
   let workloads = state.registry.list_workloads().await;
   let endpoints = state.registry.list_endpoints().await;
-  let local_node = format!("node-{}", state.raft_node_id);
+  let local_node = format!("node-{}", state.raft.node_id);
 
   let mut workload_count: HashMap<String, usize> = HashMap::new();
   let mut endpoint_count: HashMap<String, usize> = HashMap::new();
@@ -68,14 +68,12 @@ pub(crate) async fn cluster_info(State(state): State<ApiState>) -> Json<ApiEnvel
   nodes.sort_by(|a, b| a.node_id.cmp(&b.node_id));
 
   let summary = ClusterInfo {
-    raft_enabled: state.raft_enabled,
-    raft_node_id: state.raft_node_id,
-    raft_bind_addr: state.raft_bind_addr,
-    leader_node: if state.raft_enabled {
-      Some(local_node)
-    } else {
-      None
-    },
+    raft_enabled: state.raft.enabled,
+    raft_is_leader: state.raft.is_leader(),
+    raft_applied_index: state.raft.applied_index(),
+    raft_node_id: state.raft.node_id,
+    raft_bind_addr: state.raft.bind_addr.clone(),
+    leader_node: state.raft.leader_node(),
     total_nodes: nodes.len(),
     total_workloads: workloads.len(),
     nodes,

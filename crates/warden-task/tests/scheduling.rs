@@ -120,7 +120,16 @@ async fn build_service() -> (TaskService, StateStore) {
   runtime
     .register_provider(Arc::new(MockRuntimeProvider))
     .await;
-  (TaskService::new(runtime, store.clone()), store)
+  (
+    TaskService::with_nodes(
+      runtime,
+      store.clone(),
+      None,
+      String::from("node-1"),
+      Vec::new(),
+    ),
+    store,
+  )
 }
 
 async fn deploy(
@@ -132,6 +141,9 @@ async fn deploy(
       name: name.to_string(),
       runtime: String::from("docker"),
       image: None,
+      firecracker_config: None,
+      firecracker_kernel_image: None,
+      firecracker_rootfs: None,
       host: None,
       path_prefix: None,
       service_port: None,

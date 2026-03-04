@@ -53,4 +53,14 @@ pub struct PackageArgs {
 pub struct E2eArgs {
   #[arg(long, default_value = "http://127.0.0.1:7443")]
   pub api: String,
+  #[arg(long, default_value = "containerd")]
+  pub runtime: String,
+  #[arg(long, default_value = "xtask-e2e")]
+  pub name_prefix: String,
+  #[arg(long)]
+  pub image: Option<String>,
+  #[arg(long, default_value_t = 18080)]
+  pub port: u16,
+  #[arg(long, default_value_t = 18088)]
+  pub ingress_port: u16,
 }

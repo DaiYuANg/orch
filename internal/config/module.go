@@ -8,6 +8,7 @@ import (
 
 	"github.com/DaiYuANg/toolkit4go/configx"
 	"github.com/DaiYuANg/warden/internal/constant"
+	"github.com/samber/lo"
 	"go.uber.org/fx"
 )
 
@@ -51,10 +52,20 @@ func loadConfig(dep loadConfigDependency) (*Config, error) {
 func resolveConfigFiles(input []string) ([]string, error) {
 	files := compactFiles(input)
 	if len(files) > 0 {
-		for _, file := range files {
-			if _, err := os.Stat(file); err != nil {
-				return nil, fmt.Errorf("config file %q: %w", file, err)
+		type fileStatError struct {
+			file string
+			err  error
+		}
+		statErrors := lo.FilterMap(files, func(file string, _ int) (fileStatError, bool) {
+			_, err := os.Stat(file)
+			if err == nil {
+				return fileStatError{}, false
 			}
+			return fileStatError{file: file, err: err}, true
+		})
+		if len(statErrors) > 0 {
+			first := statErrors[0]
+			return nil, fmt.Errorf("config file %q: %w", first.file, first.err)
 		}
 		return files, nil
 	}
@@ -75,23 +86,18 @@ func defaultConfigCandidates() []string {
 }
 
 func compactFiles(input []string) []string {
-	files := make([]string, 0, len(input))
-	for _, file := range input {
+	return lo.FilterMap(input, func(file string, _ int) (string, bool) {
 		trimmed := strings.TrimSpace(file)
 		if trimmed == "" {
-			continue
+			return "", false
 		}
-		files = append(files, trimmed)
-	}
-	return files
+		return trimmed, true
+	})
 }
 
 func existingFiles(candidates []string) []string {
-	files := make([]string, 0, len(candidates))
-	for _, file := range candidates {
-		if _, err := os.Stat(file); err == nil {
-			files = append(files, file)
-		}
-	}
-	return files
+	return lo.Filter(candidates, func(file string, _ int) bool {
+		_, err := os.Stat(file)
+		return err == nil
+	})
 }

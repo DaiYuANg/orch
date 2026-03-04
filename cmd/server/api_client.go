@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
+	"github.com/samber/mo"
 )
 
 type apiClient struct {
@@ -117,13 +120,13 @@ func buildURLPath(path string, query map[string]string) string {
 	}
 
 	values := url.Values{}
-	for key, value := range query {
-		key = strings.TrimSpace(key)
+	lo.ForEach(lo.Entries(query), func(item lo.Entry[string, string], _ int) {
+		key := strings.TrimSpace(item.Key)
 		if key == "" {
-			continue
+			return
 		}
-		values.Set(key, value)
-	}
+		values.Set(key, item.Value)
+	})
 	if len(values) == 0 {
 		return base
 	}
@@ -131,16 +134,16 @@ func buildURLPath(path string, query map[string]string) string {
 }
 
 func resolveToken() (token string, source string, err error) {
-	if trimmed := strings.TrimSpace(authToken); trimmed != "" {
-		return trimmed, "--token", nil
+	if value := nonEmptyOption(authToken); value.IsPresent() {
+		return value.OrEmpty(), "--token", nil
 	}
 
-	if trimmed := strings.TrimSpace(authTokenFile); trimmed != "" {
-		content, readErr := os.ReadFile(trimmed)
+	if path := nonEmptyOption(authTokenFile); path.IsPresent() {
+		content, readErr := os.ReadFile(path.OrEmpty())
 		if readErr != nil {
 			return "", "", readErr
 		}
-		return strings.TrimSpace(string(content)), trimmed, nil
+		return strings.TrimSpace(string(content)), path.OrEmpty(), nil
 	}
 
 	defaultPath := filepath.Join(os.TempDir(), "warden.token")
@@ -152,6 +155,14 @@ func resolveToken() (token string, source string, err error) {
 		return "", "", readErr
 	}
 	return strings.TrimSpace(string(content)), defaultPath, nil
+}
+
+func nonEmptyOption(value string) mo.Option[string] {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return mo.None[string]()
+	}
+	return mo.Some(trimmed)
 }
 
 func ensureLeadingSlash(path string) string {

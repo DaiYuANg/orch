@@ -16,6 +16,8 @@ import (
 	dockerrt "github.com/DaiYuANg/warden/internal/runtime_engine/docker"
 	"github.com/DaiYuANg/warden/pkg"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
+	"github.com/samber/mo"
 )
 
 const (
@@ -218,11 +220,9 @@ func (s *Service) GetDeployment(id string) (DeploymentDetail, bool) {
 func (s *Service) ListDeployments() []DeploymentInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	items := make([]DeploymentInfo, 0, len(s.deployments))
-	for _, dep := range s.deployments {
-		items = append(items, dep.DeploymentInfo)
-	}
-	return items
+	return lo.Map(lo.Values(s.deployments), func(dep *deploymentRecord, _ int) DeploymentInfo {
+		return dep.DeploymentInfo
+	})
 }
 
 func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error {
@@ -307,15 +307,12 @@ func (s *Service) reconcileLoop() {
 
 func (s *Service) reconcile() {
 	s.mu.RLock()
-	instanceIDs := make([]string, 0, len(s.instances))
-	for id := range s.instances {
-		instanceIDs = append(instanceIDs, id)
-	}
+	instanceIDs := lo.Keys(s.instances)
 	s.mu.RUnlock()
 
-	for _, id := range instanceIDs {
+	lo.ForEach(instanceIDs, func(id string, _ int) {
 		s.reconcileInstance(id)
-	}
+	})
 }
 
 func (s *Service) reconcileInstance(instanceID string) {
@@ -674,10 +671,9 @@ func buildHealthCheck(taskSpec dsl.Task) healthCheckSpec {
 		port = p
 	}
 	if port == 0 {
-		for _, p := range ports {
-			port = p
-			break
-		}
+		port = mo.TupleToOption(lo.Find(lo.Values(ports), func(candidate int) bool {
+			return candidate > 0
+		})).OrElse(0)
 	}
 
 	check := healthCheckSpec{
@@ -714,13 +710,9 @@ func extractPorts(network *dsl.NetworkConfig) map[string]int {
 	if network == nil || len(network.Port) == 0 {
 		return nil
 	}
-	ports := make(map[string]int, len(network.Port))
-	for name, port := range network.Port {
-		if port > 0 {
-			ports[name] = port
-		}
-	}
-	return ports
+	return lo.PickBy(network.Port, func(_ string, port int) bool {
+		return port > 0
+	})
 }
 
 func buildLabels(
@@ -759,18 +751,18 @@ func buildLabels(
 }
 
 func labelsToPorts(labels map[string]string) map[string]int {
-	ports := make(map[string]int)
-	for key, value := range labels {
-		if !strings.HasPrefix(key, labelPortPrefix) {
-			continue
+	ports := lo.Reduce(lo.Entries(labels), func(agg map[string]int, item lo.Entry[string, string], _ int) map[string]int {
+		if !strings.HasPrefix(item.Key, labelPortPrefix) {
+			return agg
 		}
-		port, err := strconv.Atoi(value)
+		port, err := strconv.Atoi(item.Value)
 		if err != nil || port <= 0 {
-			continue
+			return agg
 		}
-		name := strings.TrimPrefix(key, labelPortPrefix)
-		ports[name] = port
-	}
+		name := strings.TrimPrefix(item.Key, labelPortPrefix)
+		agg[name] = port
+		return agg
+	}, map[string]int{})
 	if len(ports) == 0 {
 		return nil
 	}
@@ -790,10 +782,9 @@ func labelsToHealthCheck(labels map[string]string) healthCheckSpec {
 	if p, ok := ports["http"]; ok {
 		check.Port = p
 	} else {
-		for _, p := range ports {
-			check.Port = p
-			break
-		}
+		check.Port = mo.TupleToOption(lo.Find(lo.Values(ports), func(port int) bool {
+			return port > 0
+		})).OrElse(0)
 	}
 	return check
 }
@@ -868,12 +859,7 @@ func max(a, b int) int {
 }
 
 func containsString(items []string, target string) bool {
-	for _, item := range items {
-		if item == target {
-			return true
-		}
-	}
-	return false
+	return lo.Contains(items, target)
 }
 
 func (s *Service) getInstance(instanceID string) (*instanceRecord, bool) {
@@ -971,10 +957,9 @@ func (s *Service) buildRoutesFromLabelMap(
 			if p, ok := ports["http"]; ok {
 				httpPort = p
 			} else {
-				for _, p := range ports {
-					httpPort = p
-					break
-				}
+				httpPort = mo.TupleToOption(lo.Find(lo.Values(ports), func(port int) bool {
+					return port > 0
+				})).OrElse(0)
 			}
 		}
 		if httpPort > 0 {
@@ -1043,35 +1028,32 @@ func (s *Service) buildRoutesFromLabelMap(
 }
 
 func collectTaskLabels(taskSpec dsl.Task) map[string]string {
-	labels := make(map[string]string, len(taskSpec.Labels)+len(taskSpec.Tags))
-	for key, value := range taskSpec.Labels {
-		labels[strings.TrimSpace(key)] = strings.TrimSpace(value)
-	}
-	for _, tag := range taskSpec.Tags {
+	normalizedLabels := lo.MapEntries(taskSpec.Labels, func(key, value string) (string, string) {
+		return strings.TrimSpace(key), strings.TrimSpace(value)
+	})
+
+	tagLabels := lo.Reduce(taskSpec.Tags, func(agg map[string]string, tag string, _ int) map[string]string {
 		raw := strings.TrimSpace(tag)
 		if raw == "" {
-			continue
+			return agg
 		}
 		parts := strings.SplitN(raw, "=", 2)
+		key := strings.TrimSpace(parts[0])
 		if len(parts) == 1 {
-			labels[strings.TrimSpace(parts[0])] = "true"
-			continue
+			agg[key] = "true"
+			return agg
 		}
-		labels[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-	}
-	return labels
+		agg[key] = strings.TrimSpace(parts[1])
+		return agg
+	}, map[string]string{})
+
+	return lo.Assign(normalizedLabels, tagLabels)
 }
 
 func uniqRoutes(routes []registry.Route) []registry.Route {
-	uniq := make(map[string]registry.Route, len(routes))
-	for _, route := range routes {
-		uniq[route.ID] = route
-	}
-	out := make([]registry.Route, 0, len(uniq))
-	for _, route := range uniq {
-		out = append(out, route)
-	}
-	return out
+	return lo.UniqBy(routes, func(route registry.Route) string {
+		return route.ID
+	})
 }
 
 func parseBoolDefault(raw string, def bool) bool {
@@ -1118,16 +1100,19 @@ func detectNodeIP() string {
 	if err != nil {
 		return "127.0.0.1"
 	}
-	for _, addr := range addrs {
+	ip := lo.Reduce(addrs, func(found string, addr net.Addr, _ int) string {
+		if found != "" {
+			return found
+		}
 		ipNet, ok := addr.(*net.IPNet)
 		if !ok || ipNet.IP == nil || ipNet.IP.IsLoopback() {
-			continue
+			return ""
 		}
 		ip4 := ipNet.IP.To4()
 		if ip4 == nil {
-			continue
+			return ""
 		}
 		return ip4.String()
-	}
-	return "127.0.0.1"
+	}, "")
+	return mo.TupleToOption(ip, ip != "").OrElse("127.0.0.1")
 }

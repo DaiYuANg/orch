@@ -11,6 +11,8 @@ import (
 
 	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/adrg/xdg"
+	"github.com/samber/lo"
+	"github.com/samber/mo"
 	"go.etcd.io/bbolt"
 )
 
@@ -118,20 +120,13 @@ func (s *Service) ResolveServiceIPs(service string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	uniq := map[string]struct{}{}
-	ips := make([]string, 0, len(endpoints))
-	for _, endpoint := range endpoints {
-		ip := strings.TrimSpace(endpoint.NodeIP)
-		if ip == "" {
-			continue
-		}
-		if _, exists := uniq[ip]; exists {
-			continue
-		}
-		uniq[ip] = struct{}{}
-		ips = append(ips, ip)
-	}
-	return ips, nil
+	ips := lo.Map(endpoints, func(endpoint ServiceEndpoint, _ int) string {
+		return strings.TrimSpace(endpoint.NodeIP)
+	})
+	ips = lo.Filter(ips, func(ip string, _ int) bool {
+		return ip != ""
+	})
+	return lo.Uniq(ips), nil
 }
 
 func (s *Service) UpsertRoute(route Route) error {
@@ -168,15 +163,15 @@ func (s *Service) DeleteRoutesByOwner(ownerID string) error {
 	if err != nil {
 		return err
 	}
-	for _, route := range routes {
-		if route.OwnerID != ownerID {
-			continue
+	targets := lo.Filter(routes, func(route Route, _ int) bool {
+		return route.OwnerID == ownerID
+	})
+	return lo.Reduce(targets, func(agg error, route Route, _ int) error {
+		if agg != nil {
+			return agg
 		}
-		if deleteErr := s.DeleteRoute(route.ID); deleteErr != nil {
-			return deleteErr
-		}
-	}
-	return nil
+		return s.DeleteRoute(route.ID)
+	}, error(nil))
 }
 
 func (s *Service) ListRoutes(protocol RouteProtocol) ([]Route, error) {
@@ -202,34 +197,35 @@ func (s *Service) ResolveHTTPBackend(host, path string) (Route, ServiceEndpoint,
 	host = normalizeHost(host)
 	path = ensurePath(path)
 
-	var selected Route
-	matched := false
-	longestPath := -1
-	for _, route := range routes {
-		if !route.Enabled {
-			continue
-		}
-		if !hostMatch(route.Host, host) {
-			continue
+	type routeMatch struct {
+		route   Route
+		matched bool
+		longest int
+	}
+
+	match := lo.Reduce(routes, func(acc routeMatch, route Route, _ int) routeMatch {
+		if !route.Enabled || !hostMatch(route.Host, host) {
+			return acc
 		}
 		prefix := ensurePath(route.PathPrefix)
-		if !strings.HasPrefix(path, prefix) {
-			continue
+		if !strings.HasPrefix(path, prefix) || len(prefix) <= acc.longest {
+			return acc
 		}
-		if len(prefix) > longestPath {
-			longestPath = len(prefix)
-			selected = route
-			matched = true
+		return routeMatch{
+			route:   route,
+			matched: true,
+			longest: len(prefix),
 		}
-	}
-	if !matched {
+	}, routeMatch{longest: -1})
+
+	if !match.matched {
 		return Route{}, ServiceEndpoint{}, "", fmt.Errorf("no http route matched host=%s path=%s", host, path)
 	}
-	endpoint, backend, err := s.resolveBackendForRoute(selected)
+	endpoint, backend, err := s.resolveBackendForRoute(match.route)
 	if err != nil {
 		return Route{}, ServiceEndpoint{}, "", err
 	}
-	return selected, endpoint, backend, nil
+	return match.route, endpoint, backend, nil
 }
 
 func (s *Service) ResolveStreamBackend(protocol RouteProtocol, listenPort int) (Route, ServiceEndpoint, string, error) {
@@ -237,20 +233,17 @@ func (s *Service) ResolveStreamBackend(protocol RouteProtocol, listenPort int) (
 	if err != nil {
 		return Route{}, ServiceEndpoint{}, "", err
 	}
-	for _, route := range routes {
-		if !route.Enabled {
-			continue
-		}
-		if route.ListenPort != listenPort {
-			continue
-		}
-		endpoint, backend, resolveErr := s.resolveBackendForRoute(route)
-		if resolveErr != nil {
-			return Route{}, ServiceEndpoint{}, "", resolveErr
-		}
-		return route, endpoint, backend, nil
+	route, found := lo.Find(routes, func(route Route) bool {
+		return route.Enabled && route.ListenPort == listenPort
+	})
+	if !found {
+		return Route{}, ServiceEndpoint{}, "", fmt.Errorf("no %s route for listen port %d", protocol, listenPort)
 	}
-	return Route{}, ServiceEndpoint{}, "", fmt.Errorf("no %s route for listen port %d", protocol, listenPort)
+	endpoint, backend, resolveErr := s.resolveBackendForRoute(route)
+	if resolveErr != nil {
+		return Route{}, ServiceEndpoint{}, "", resolveErr
+	}
+	return route, endpoint, backend, nil
 }
 
 func (s *Service) resolveBackendForRoute(route Route) (ServiceEndpoint, string, error) {
@@ -259,24 +252,25 @@ func (s *Service) resolveBackendForRoute(route Route) (ServiceEndpoint, string, 
 		return ServiceEndpoint{}, "", err
 	}
 
-	candidates := make([]ServiceEndpoint, 0, len(endpoints))
-	ports := make([]int, 0, len(endpoints))
-	for _, endpoint := range endpoints {
+	type backendCandidate struct {
+		endpoint ServiceEndpoint
+		port     int
+	}
+	candidates := lo.FilterMap(endpoints, func(endpoint ServiceEndpoint, _ int) (backendCandidate, bool) {
 		port := selectPort(route, endpoint)
 		if port <= 0 {
-			continue
+			return backendCandidate{}, false
 		}
-		candidates = append(candidates, endpoint)
-		ports = append(ports, port)
-	}
+		return backendCandidate{endpoint: endpoint, port: port}, true
+	})
 	if len(candidates) == 0 {
 		return ServiceEndpoint{}, "", fmt.Errorf("no healthy endpoint for service=%s", route.Service)
 	}
 
 	idx := s.nextIndex(route.ID, len(candidates))
-	endpoint := candidates[idx]
-	backend := fmt.Sprintf("%s:%d", endpoint.NodeIP, ports[idx])
-	return endpoint, backend, nil
+	candidate := candidates[idx]
+	backend := fmt.Sprintf("%s:%d", candidate.endpoint.NodeIP, candidate.port)
+	return candidate.endpoint, backend, nil
 }
 
 func (s *Service) nextIndex(key string, size int) int {
@@ -301,12 +295,9 @@ func selectPort(route Route, endpoint ServiceEndpoint) int {
 	if port, ok := endpoint.Ports["http"]; ok {
 		return port
 	}
-	for _, port := range endpoint.Ports {
-		if port > 0 {
-			return port
-		}
-	}
-	return 0
+	return mo.TupleToOption(lo.Find(lo.Values(endpoint.Ports), func(port int) bool {
+		return port > 0
+	})).OrElse(0)
 }
 
 func normalizeHost(host string) string {

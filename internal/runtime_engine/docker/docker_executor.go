@@ -10,6 +10,7 @@ import (
 	"time"
 
 	godocker "github.com/fsouza/go-dockerclient"
+	"github.com/samber/lo"
 )
 
 type Executor struct {
@@ -159,39 +160,43 @@ func (e *Executor) ListContainers(ctx context.Context, all bool, filters map[str
 }
 
 func buildPortBindings(ports map[string]int) (map[godocker.Port]struct{}, map[godocker.Port][]godocker.PortBinding) {
-	if len(ports) == 0 {
+	validPorts := lo.Filter(lo.Values(ports), func(port int, _ int) bool {
+		return port > 0
+	})
+	if len(validPorts) == 0 {
 		return nil, nil
 	}
-	exposed := make(map[godocker.Port]struct{}, len(ports))
-	bindings := make(map[godocker.Port][]godocker.PortBinding, len(ports))
-	for _, port := range ports {
-		if port <= 0 {
-			continue
-		}
+
+	type bindingsAggregate struct {
+		exposed  map[godocker.Port]struct{}
+		bindings map[godocker.Port][]godocker.PortBinding
+	}
+
+	aggregate := lo.Reduce(validPorts, func(agg bindingsAggregate, port int, _ int) bindingsAggregate {
 		dockerPort := godocker.Port(fmt.Sprintf("%d/tcp", port))
-		exposed[dockerPort] = struct{}{}
-		bindings[dockerPort] = []godocker.PortBinding{
+		agg.exposed[dockerPort] = struct{}{}
+		agg.bindings[dockerPort] = []godocker.PortBinding{
 			{
 				HostIP:   "0.0.0.0",
 				HostPort: strconv.Itoa(port),
 			},
 		}
-	}
-	if len(exposed) == 0 {
-		return nil, nil
-	}
-	return exposed, bindings
+		return agg
+	}, bindingsAggregate{
+		exposed:  make(map[godocker.Port]struct{}, len(validPorts)),
+		bindings: make(map[godocker.Port][]godocker.PortBinding, len(validPorts)),
+	})
+
+	return aggregate.exposed, aggregate.bindings
 }
 
 func mapToEnv(env map[string]string) []string {
 	if len(env) == 0 {
 		return nil
 	}
-	items := make([]string, 0, len(env))
-	for k, v := range env {
-		items = append(items, fmt.Sprintf("%s=%s", k, v))
-	}
-	return items
+	return lo.Map(lo.Entries(env), func(item lo.Entry[string, string], _ int) string {
+		return fmt.Sprintf("%s=%s", item.Key, item.Value)
+	})
 }
 
 func (e *Executor) pullImage(ctx context.Context, image string) error {

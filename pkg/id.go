@@ -15,25 +15,21 @@ func MachineID() (string, error) {
 	// 主机信息
 	hInfo, err := host.Info()
 	if err == nil {
-		if hInfo.Hostname != "" {
-			parts = append(parts, hInfo.Hostname)
-		}
-		if hInfo.OS != "" {
-			parts = append(parts, hInfo.OS)
-		}
-		if hInfo.Platform != "" {
-			parts = append(parts, hInfo.Platform)
-		}
+		parts = lo.Filter([]string{hInfo.Hostname, hInfo.OS, hInfo.Platform}, func(item string, _ int) bool {
+			return strings.TrimSpace(item) != ""
+		})
 	}
 
 	// MAC 地址
 	ifaces, err := net.Interfaces()
 	if err == nil {
-		lo.ForEach(ifaces, func(iface net.InterfaceStat, index int) {
-			if len(iface.HardwareAddr) > 0 {
-				parts = append(parts, iface.HardwareAddr)
+		hardwareAddrs := lo.FilterMap(ifaces, func(iface net.InterfaceStat, _ int) (string, bool) {
+			if len(iface.HardwareAddr) == 0 {
+				return "", false
 			}
+			return iface.HardwareAddr, true
 		})
+		parts = append(parts, hardwareAddrs...)
 	}
 
 	mid := sysMachineId()

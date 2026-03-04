@@ -10,6 +10,7 @@ import (
 
 	"github.com/DaiYuANg/warden/internal/config"
 	"github.com/DaiYuANg/warden/internal/registry"
+	"github.com/samber/lo"
 	"github.com/valyala/fasthttp"
 	"go.uber.org/fx"
 )
@@ -105,12 +106,12 @@ func (i *Ingress) Stop() error {
 	}
 
 	i.mu.Lock()
-	for port := range i.tcpListeners {
+	lo.ForEach(lo.Keys(i.tcpListeners), func(port int, _ int) {
 		_ = i.unregisterTCP(Route{ListenPort: port})
-	}
-	for port := range i.udpListeners {
+	})
+	lo.ForEach(lo.Keys(i.udpListeners), func(port int, _ int) {
 		_ = i.unregisterUDP(Route{ListenPort: port})
-	}
+	})
 	i.mu.Unlock()
 
 	if i.httpServer != nil {
@@ -177,14 +178,14 @@ func (i *Ingress) syncStreamRoutes(protocol registry.RouteProtocol) {
 	}
 
 	active := make(map[int]struct{})
-	for _, item := range routes {
+	lo.ForEach(routes, func(item registry.Route, _ int) {
 		if !item.Enabled || item.ListenPort <= 0 {
-			continue
+			return
 		}
 
 		_, _, backend, resolveErr := i.registry.ResolveStreamBackend(protocol, item.ListenPort)
 		if resolveErr != nil {
-			continue
+			return
 		}
 		active[item.ListenPort] = struct{}{}
 
@@ -200,21 +201,21 @@ func (i *Ingress) syncStreamRoutes(protocol registry.RouteProtocol) {
 			_ = i.registerUDP(localRoute)
 		}
 		i.mu.Unlock()
-	}
+	})
 
 	i.mu.Lock()
 	if protocol == registry.RouteProtocolTCP {
-		for port := range i.tcpListeners {
+		lo.ForEach(lo.Keys(i.tcpListeners), func(port int, _ int) {
 			if _, ok := active[port]; !ok {
 				_ = i.unregisterTCP(Route{ListenPort: port})
 			}
-		}
+		})
 	} else {
-		for port := range i.udpListeners {
+		lo.ForEach(lo.Keys(i.udpListeners), func(port int, _ int) {
 			if _, ok := active[port]; !ok {
 				_ = i.unregisterUDP(Route{ListenPort: port})
 			}
-		}
+		})
 	}
 	i.mu.Unlock()
 }

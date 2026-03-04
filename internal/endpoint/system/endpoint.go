@@ -62,17 +62,19 @@ func (s *Endpoint) DiskHandler(ctx context.Context, input *struct{}) (*struct {
 }, error) {
 	var resp []DiskResponse
 	if parts, err := disk.PartitionsWithContext(ctx, true); err == nil {
-		lo.ForEach(parts, func(p disk.PartitionStat, index int) {
-			if du, err := disk.UsageWithContext(ctx, p.Mountpoint); err == nil {
-				resp = append(resp, DiskResponse{
-					Device:     p.Device,
-					Mountpoint: p.Mountpoint,
-					Total:      du.Total,
-					Used:       du.Used,
-					Free:       du.Free,
-					UsedPct:    du.UsedPercent,
-				})
+		resp = lo.FilterMap(parts, func(p disk.PartitionStat, _ int) (DiskResponse, bool) {
+			du, usageErr := disk.UsageWithContext(ctx, p.Mountpoint)
+			if usageErr != nil {
+				return DiskResponse{}, false
 			}
+			return DiskResponse{
+				Device:     p.Device,
+				Mountpoint: p.Mountpoint,
+				Total:      du.Total,
+				Used:       du.Used,
+				Free:       du.Free,
+				UsedPct:    du.UsedPercent,
+			}, true
 		})
 	}
 	return model.WrapResponse(resp), nil
@@ -83,15 +85,15 @@ func (s *Endpoint) NetHandler(ctx context.Context, input *struct{}) (*struct {
 }, error) {
 	var resp []NetResponse
 	if ni, err := net.IOCountersWithContext(ctx, true); err == nil {
-		for _, n := range ni {
-			resp = append(resp, NetResponse{
+		resp = lo.Map(ni, func(n net.IOCountersStat, _ int) NetResponse {
+			return NetResponse{
 				Name:        n.Name,
 				BytesSent:   n.BytesSent,
 				BytesRecv:   n.BytesRecv,
 				PacketsSent: n.PacketsSent,
 				PacketsRecv: n.PacketsRecv,
-			})
-		}
+			}
+		})
 	}
 	return model.WrapResponse(resp), nil
 }

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,8 @@ const (
 	labelInstanceID   = "warden.instance.id"
 	labelRuntime      = "warden.runtime"
 	labelPortPrefix   = "warden.port."
+	labelDNSResolver  = "warden.dns.resolver"
+	labelDNSSearch    = "warden.dns.search."
 	labelCheckType    = "warden.check.type"
 	labelCheckPath    = "warden.check.path"
 	labelCheckCmd     = "warden.check.command"
@@ -520,10 +523,12 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 				UpdatedAt:    time.Now(),
 			},
 			RunSpec: RuntimeRunSpec{
-				Name:   trimContainerName(c.Names),
-				Image:  c.Image,
-				Labels: c.Labels,
-				Ports:  labelsToPorts(c.Labels),
+				Name:       trimContainerName(c.Names),
+				Image:      c.Image,
+				Labels:     c.Labels,
+				Ports:      labelsToPorts(c.Labels),
+				DNSServers: labelsToDNSServers(c.Labels),
+				DNSSearch:  labelsToDNSSearch(c.Labels),
 			},
 			HealthCheck: labelsToHealthCheck(c.Labels),
 			MaxRestarts: max(3, mustAtoi(c.Labels[labelCheckRetries], 3)),
@@ -645,18 +650,20 @@ func (s *Service) newInstanceRecord(deploymentID, runtimeName, serviceName, work
 	}
 	instanceID := uuid.NewString()
 	check := buildHealthCheck(taskSpec)
-	labels := buildLabels(deploymentID, runtimeName, serviceName, workloadName, unitName, taskSpec.Name, instanceID, replica, check, taskSpec.Network)
+	labels := buildLabels(deploymentID, runtimeName, serviceName, workloadName, unitName, taskSpec.Name, instanceID, replica, check, taskSpec.Network, taskSpec.DNS)
 	for key, value := range collectTaskLabels(taskSpec) {
 		labels[key] = value
 	}
 
 	spec := RuntimeRunSpec{
-		Name:   sanitizeContainerName(fmt.Sprintf("warden-%s-%s-%s-%d", workloadName, unitName, taskSpec.Name, replica)),
-		Image:  taskSpec.Image,
-		Cmd:    taskSpec.Command,
-		Env:    taskSpec.Env,
-		Labels: labels,
-		Ports:  extractPorts(taskSpec.Network),
+		Name:       sanitizeContainerName(fmt.Sprintf("warden-%s-%s-%s-%d", workloadName, unitName, taskSpec.Name, replica)),
+		Image:      taskSpec.Image,
+		Cmd:        taskSpec.Command,
+		Env:        taskSpec.Env,
+		Labels:     labels,
+		Ports:      extractPorts(taskSpec.Network),
+		DNSServers: extractDNSServers(taskSpec.DNS),
+		DNSSearch:  extractDNSSearch(taskSpec.DNS),
 	}
 
 	now := time.Now()
@@ -742,6 +749,7 @@ func buildLabels(
 	replica int,
 	check healthCheckSpec,
 	network *dsl.NetworkConfig,
+	dnsConfig *dsl.DNSConfig,
 ) map[string]string {
 	labels := map[string]string{
 		labelManaged:      "true",
@@ -765,6 +773,16 @@ func buildLabels(
 			labels[labelPortPrefix+name] = strconv.Itoa(port)
 		}
 	}
+	if dnsConfig != nil {
+		resolver := strings.TrimSpace(dnsConfig.Resolver)
+		if resolver != "" {
+			labels[labelDNSResolver] = resolver
+		}
+		domains := extractDNSSearch(dnsConfig)
+		for idx, domain := range domains {
+			labels[labelDNSSearch+strconv.Itoa(idx)] = domain
+		}
+	}
 	return labels
 }
 
@@ -785,6 +803,77 @@ func labelsToPorts(labels map[string]string) map[string]int {
 		return nil
 	}
 	return ports
+}
+
+func extractDNSServers(config *dsl.DNSConfig) []string {
+	if config == nil {
+		return nil
+	}
+	resolver := strings.TrimSpace(config.Resolver)
+	if resolver == "" {
+		return nil
+	}
+	raw := strings.FieldsFunc(resolver, func(r rune) bool {
+		return r == ',' || r == ';' || r == ' '
+	})
+	servers := lo.FilterMap(raw, func(item string, _ int) (string, bool) {
+		trimmed := strings.TrimSpace(item)
+		return trimmed, trimmed != ""
+	})
+	if len(servers) == 0 {
+		return nil
+	}
+	return lo.Uniq(servers)
+}
+
+func extractDNSSearch(config *dsl.DNSConfig) []string {
+	if config == nil {
+		return nil
+	}
+	domains := lo.FilterMap(config.Domains, func(item string, _ int) (string, bool) {
+		trimmed := strings.TrimSpace(item)
+		return trimmed, trimmed != ""
+	})
+	if len(domains) == 0 {
+		return nil
+	}
+	return lo.Uniq(domains)
+}
+
+func labelsToDNSServers(labels map[string]string) []string {
+	return extractDNSServers(&dsl.DNSConfig{
+		Resolver: labels[labelDNSResolver],
+	})
+}
+
+func labelsToDNSSearch(labels map[string]string) []string {
+	entries := lo.Filter(lo.Entries(labels), func(item lo.Entry[string, string], _ int) bool {
+		return strings.HasPrefix(item.Key, labelDNSSearch)
+	})
+	if len(entries) == 0 {
+		return nil
+	}
+	type indexed struct {
+		idx    int
+		domain string
+	}
+	sorted := lo.Map(entries, func(item lo.Entry[string, string], _ int) indexed {
+		idx := mustAtoi(strings.TrimPrefix(item.Key, labelDNSSearch), 0)
+		return indexed{
+			idx:    idx,
+			domain: strings.TrimSpace(item.Value),
+		}
+	})
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].idx < sorted[j].idx
+	})
+	domains := lo.FilterMap(sorted, func(item indexed, _ int) (string, bool) {
+		return item.domain, item.domain != ""
+	})
+	if len(domains) == 0 {
+		return nil
+	}
+	return lo.Uniq(domains)
 }
 
 func labelsToHealthCheck(labels map[string]string) healthCheckSpec {
@@ -983,7 +1072,7 @@ func (s *Service) buildRoutesFromLabelMap(
 		if httpPort > 0 {
 			host := strings.TrimSpace(labels["warden.ingress.http.host"])
 			if host == "" {
-				host = fmt.Sprintf("%s.%s.warden.local", sanitizeDNSLabel(taskName), sanitizeDNSLabel(workloadName))
+				host = fmt.Sprintf("%s.warden.local", sanitizeDNSLabel(serviceName))
 			}
 			pathPrefix := ensurePath(labels["warden.ingress.http.path"])
 			routeID := fmt.Sprintf("route:%s:http:%s:%s", deploymentID, strings.ToLower(host), pathPrefix)
@@ -1041,7 +1130,9 @@ func (s *Service) buildRoutesFromLabelMap(
 		})
 	}
 
+	_ = workloadName
 	_ = unitName
+	_ = taskName
 	return uniqRoutes(routes)
 }
 

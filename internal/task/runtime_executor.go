@@ -9,12 +9,14 @@ import (
 )
 
 type RuntimeRunSpec struct {
-	Name   string
-	Image  string
-	Cmd    []string
-	Env    map[string]string
-	Labels map[string]string
-	Ports  map[string]int
+	Name       string
+	Image      string
+	Cmd        []string
+	Env        map[string]string
+	Labels     map[string]string
+	Ports      map[string]int
+	DNSServers []string
+	DNSSearch  []string
 }
 
 type RuntimeStatus struct {
@@ -67,12 +69,14 @@ func (d *dockerRuntimeExecutor) Ping(ctx context.Context) error {
 
 func (d *dockerRuntimeExecutor) Run(ctx context.Context, spec RuntimeRunSpec) (string, error) {
 	return d.exec.RunContainer(ctx, dockerrt.RunSpec{
-		Name:   spec.Name,
-		Image:  spec.Image,
-		Cmd:    spec.Cmd,
-		Env:    spec.Env,
-		Labels: spec.Labels,
-		Ports:  spec.Ports,
+		Name:       spec.Name,
+		Image:      spec.Image,
+		Cmd:        spec.Cmd,
+		Env:        spec.Env,
+		Labels:     spec.Labels,
+		Ports:      spec.Ports,
+		DNSServers: spec.DNSServers,
+		DNSSearch:  spec.DNSSearch,
 	})
 }
 

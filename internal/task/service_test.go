@@ -128,6 +128,11 @@ units:
         driver: docker
         image: nginx:latest
         replicas: 1
+        dns:
+          resolver: "1.1.1.1, 8.8.8.8"
+          domains:
+            - svc.cluster.local
+            - internal.local
         network:
           name: default
           port:
@@ -156,6 +161,15 @@ units:
 	routes, err := registryService.ListRoutes(registry.RouteProtocol(""))
 	require.NoError(t, err)
 	assert.NotEmpty(t, routes)
+	expectedService := buildServiceName("todo", "backend", "api")
+	assert.Equal(t, expectedService+".warden.local", routes[0].Host)
+
+	runtime.mu.Lock()
+	specs := lo.Values(runtime.containers)
+	runtime.mu.Unlock()
+	require.Len(t, specs, 1)
+	assert.Equal(t, []string{"1.1.1.1", "8.8.8.8"}, specs[0].DNSServers)
+	assert.Equal(t, []string{"svc.cluster.local", "internal.local"}, specs[0].DNSSearch)
 
 	err = service.StopDeployment(ctx, result.DeploymentID)
 	require.NoError(t, err)

@@ -18,12 +18,14 @@ type Executor struct {
 }
 
 type RunSpec struct {
-	Name   string
-	Image  string
-	Cmd    []string
-	Env    map[string]string
-	Labels map[string]string
-	Ports  map[string]int
+	Name       string
+	Image      string
+	Cmd        []string
+	Env        map[string]string
+	Labels     map[string]string
+	Ports      map[string]int
+	DNSServers []string
+	DNSSearch  []string
 }
 
 type RuntimeStatus struct {
@@ -70,6 +72,8 @@ func (e *Executor) RunContainer(ctx context.Context, spec RunSpec) (string, erro
 		},
 		HostConfig: &godocker.HostConfig{
 			PortBindings: portBindings,
+			DNS:          spec.DNSServers,
+			DNSSearch:    spec.DNSSearch,
 		},
 		Context: ctx,
 	})

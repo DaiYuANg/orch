@@ -16,7 +16,9 @@ Implemented:
 - Registry persistence with `bbolt` + route/endpoint resolution
 - Raft-backed registry write path (when enabled) with FSM apply/snapshot/restore
 - Leader-only scheduling guard for deploy operations with replicated assignment records
+- Leader keeps worker capability enabled (leader-as-worker) while remote worker dispatch is evolving
 - Badger-backed hot cache in raft FSM for recently written consensus data
+- Cluster status and membership management APIs (`/system/cluster`, `/system/cluster/join`, `/system/cluster/remove`)
 - Built-in ingress (HTTP/TCP/UDP) backed by registry routes
 - DNS resolution for registered services
 - JWT middleware with local root token generation

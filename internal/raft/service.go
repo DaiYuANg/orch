@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -38,6 +39,21 @@ type Service struct {
 	applyTimeout      time.Duration
 	leaderWaitTimeout time.Duration
 	logger            *slog.Logger
+}
+
+type Server struct {
+	ID       string `json:"id"`
+	Address  string `json:"address"`
+	Suffrage string `json:"suffrage"`
+}
+
+type Status struct {
+	Enabled bool     `json:"enabled"`
+	NodeID  string   `json:"node_id"`
+	Bind    string   `json:"bind"`
+	Leader  string   `json:"leader"`
+	Role    string   `json:"role"`
+	Servers []Server `json:"servers"`
 }
 
 func NewRaftBadgerService(cfg ServiceConfig, logger *slog.Logger) (*Service, error) {
@@ -101,6 +117,32 @@ func (s *Service) Leader() string {
 	return string(s.raft.raftNode.Leader())
 }
 
+func (s *Service) State() string {
+	if !s.Enabled() || s.raft == nil || s.raft.raftNode == nil {
+		return "disabled"
+	}
+	return s.raft.raftNode.State().String()
+}
+
+func (s *Service) Status() (Status, error) {
+	status := Status{
+		Enabled: s.Enabled(),
+		NodeID:  s.nodeID,
+		Bind:    s.bindAddr,
+		Leader:  s.Leader(),
+		Role:    s.State(),
+	}
+	if !s.Enabled() || s.raft == nil {
+		return status, nil
+	}
+	servers, err := s.ListServers()
+	if err != nil {
+		return Status{}, err
+	}
+	status.Servers = servers
+	return status, nil
+}
+
 func (s *Service) MetadataDB() *bbolt.DB {
 	if !s.Enabled() || s.raft == nil {
 		return nil
@@ -141,6 +183,76 @@ func (s *Service) ApplyDelete(bucket, key string) error {
 		return err
 	}
 	return s.raft.ApplyLog(raw, s.applyTimeout)
+}
+
+func (s *Service) ListServers() ([]Server, error) {
+	if !s.Enabled() || s.raft == nil || s.raft.raftNode == nil {
+		return []Server{}, ErrRaftDisabled
+	}
+
+	configuration := s.raft.raftNode.GetConfiguration()
+	if err := configuration.Error(); err != nil {
+		return nil, err
+	}
+
+	servers := lo.Map(configuration.Configuration().Servers, func(item raft.Server, _ int) Server {
+		return Server{
+			ID:       string(item.ID),
+			Address:  string(item.Address),
+			Suffrage: item.Suffrage.String(),
+		}
+	})
+	sort.SliceStable(servers, func(i, j int) bool {
+		return servers[i].ID < servers[j].ID
+	})
+	return servers, nil
+}
+
+func (s *Service) AddVoter(id, address string) error {
+	if !s.Enabled() || s.raft == nil || s.raft.raftNode == nil {
+		return ErrRaftDisabled
+	}
+	if !s.IsLeader() {
+		return ErrNotLeader
+	}
+
+	serverID := strings.TrimSpace(id)
+	serverAddress := strings.TrimSpace(address)
+	if serverID == "" {
+		return fmt.Errorf("server id is required")
+	}
+	if serverAddress == "" {
+		return fmt.Errorf("server address is required")
+	}
+
+	servers, err := s.ListServers()
+	if err != nil {
+		return err
+	}
+	if lo.ContainsBy(servers, func(item Server) bool {
+		return item.ID == serverID || item.Address == serverAddress
+	}) {
+		return nil
+	}
+
+	future := s.raft.raftNode.AddVoter(raft.ServerID(serverID), raft.ServerAddress(serverAddress), 0, 0)
+	return future.Error()
+}
+
+func (s *Service) RemoveServer(id string) error {
+	if !s.Enabled() || s.raft == nil || s.raft.raftNode == nil {
+		return ErrRaftDisabled
+	}
+	if !s.IsLeader() {
+		return ErrNotLeader
+	}
+
+	serverID := strings.TrimSpace(id)
+	if serverID == "" {
+		return fmt.Errorf("server id is required")
+	}
+	future := s.raft.raftNode.RemoveServer(raft.ServerID(serverID), 0, 0)
+	return future.Error()
 }
 
 func (s *Service) WaitForLeader(ctx context.Context) error {
@@ -188,12 +300,12 @@ func (s *Service) joinPeers() error {
 		return nil
 	}
 
-	configuration := s.raft.raftNode.GetConfiguration()
-	if err := configuration.Error(); err != nil {
+	servers, err := s.ListServers()
+	if err != nil {
 		return err
 	}
-	existing := lo.Associate(configuration.Configuration().Servers, func(item raft.Server) (string, struct{}) {
-		return string(item.Address), struct{}{}
+	existing := lo.Associate(servers, func(item Server) (string, struct{}) {
+		return item.Address, struct{}{}
 	})
 
 	for _, peer := range s.join {
@@ -203,8 +315,7 @@ func (s *Service) joinPeers() error {
 		if _, ok := existing[peer]; ok {
 			continue
 		}
-		future := s.raft.raftNode.AddVoter(raft.ServerID(peer), raft.ServerAddress(peer), 0, 0)
-		if err := future.Error(); err != nil {
+		if err := s.AddVoter(peer, peer); err != nil {
 			return fmt.Errorf("add raft voter %s: %w", peer, err)
 		}
 	}

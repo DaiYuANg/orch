@@ -1,6 +1,6 @@
 # Local Raft Multi-Process Smoke Test
 
-This setup runs 3 local Warden processes on one machine to validate:
+This setup runs 3 to 4 local Warden processes on one machine to validate:
 
 - raft leader write path works
 - follower rejects scheduling writes (`not leader`)
@@ -23,12 +23,18 @@ This setup runs 3 local Warden processes on one machine to validate:
   - raft: `12003`
   - dns: `10533`
   - ingress: `18083`
+- node4 (optional):
+  - api: `7446`
+  - raft: `12004`
+  - dns: `10534`
+  - ingress: `18084`
 
 Configs:
 
 - `examples/local-raft/node1.yaml`
 - `examples/local-raft/node2.yaml`
 - `examples/local-raft/node3.yaml`
+- `examples/local-raft/node4.yaml` (optional)
 
 Workload used by smoke test:
 
@@ -36,29 +42,61 @@ Workload used by smoke test:
 
 ## Run
 
+Open 3 terminals and run one node per terminal.
+Each node runs in foreground, so logs are printed directly in that terminal.
+
+Terminal A (start follower first):
+
 ```bash
-go run ./cmd/localraft start -rebuild
+task raft:node2
 ```
 
-Then run checks:
+Terminal B (start follower first):
 
 ```bash
-go run ./cmd/localraft check
+task raft:node3
 ```
 
-Stop all processes:
+Terminal C (start bootstrap node last):
 
 ```bash
-go run ./cmd/localraft stop
+task raft:node1
 ```
 
-You can also use Taskfile shortcuts:
+Optional Terminal D:
 
 ```bash
-task raft:start
-task raft:check
-task raft:status
-task raft:stop
+task raft:node4
+```
+
+Stop nodes with `Ctrl+C` in each terminal.
+
+## Basic validation
+
+Deploy workload to leader (node1):
+
+```bash
+task raft:deploy:leader
+```
+
+Try deploying the same workload to follower (node2), should fail with `not leader`:
+
+```bash
+task raft:deploy:follower
+```
+
+Read deployment list from leader and follower:
+
+```bash
+task raft:list:leader
+task raft:list:follower
+```
+
+Check raft status from leader and follower:
+
+```bash
+task raft:cluster:leader
+task raft:cluster:follower
 ```
 
 ## Customize ports
@@ -72,11 +110,9 @@ Edit these keys in each node config:
 - `raft.node_id`
 - `raft.join` (leader node)
 
-If ports change, update check command params:
+If ports change, update config files and Task vars.
+For example, deploy to another leader API:
 
 ```bash
-go run ./cmd/localraft check \
-  -leader-api http://127.0.0.1:7443 \
-  -follower-api http://127.0.0.1:7444 \
-  -follower-ingress http://127.0.0.1:18082
+task raft:deploy:leader API=http://127.0.0.1:7443
 ```

@@ -9,6 +9,7 @@ import (
 var commands = []*cobra.Command{
 	tokenCmd,
 	workloadCmd,
+	clusterCmd,
 	serverCmd,
 	infoCmd,
 }

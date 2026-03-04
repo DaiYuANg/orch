@@ -32,22 +32,81 @@ tasks:
     cmds:
       - go tool golangci-lint run
 
-  raft:start:
-    desc: start local 3-node raft cluster (cross-platform)
+  raft:run:
+    desc: run one raft node in foreground (logs in current terminal)
+    requires:
+      vars: [CONF]
     cmds:
-      - go run ./cmd/localraft start -rebuild
+      - go run ./cmd/server server --conf {{.CONF}}
 
-  raft:check:
-    desc: run local raft smoke checks (leader write + follower ingress)
+  raft:node1:
+    desc: run node1 (bootstrap leader candidate)
     cmds:
-      - go run ./cmd/localraft check
+      - task: raft:run
+        vars:
+          CONF: examples/local-raft/node1.yaml
 
-  raft:status:
-    desc: show local raft node process status
+  raft:node2:
+    desc: run node2
     cmds:
-      - go run ./cmd/localraft status
+      - task: raft:run
+        vars:
+          CONF: examples/local-raft/node2.yaml
 
-  raft:stop:
-    desc: stop local raft cluster processes
+  raft:node3:
+    desc: run node3
     cmds:
-      - go run ./cmd/localraft stop
+      - task: raft:run
+        vars:
+          CONF: examples/local-raft/node3.yaml
+
+  raft:node4:
+    desc: run node4 (optional)
+    cmds:
+      - task: raft:run
+        vars:
+          CONF: examples/local-raft/node4.yaml
+
+  raft:deploy:leader:
+    desc: deploy smoke workload to leader API (default node1)
+    vars:
+      API: http://127.0.0.1:7443
+      FILE: examples/local-raft/echo.yaml
+    cmds:
+      - go run ./cmd/server --api {{.API}} service deploy --file {{.FILE}}
+
+  raft:deploy:follower:
+    desc: deploy smoke workload to follower API (should fail with not leader)
+    vars:
+      API: http://127.0.0.1:7444
+      FILE: examples/local-raft/echo.yaml
+    cmds:
+      - go run ./cmd/server --api {{.API}} service deploy --file {{.FILE}}
+
+  raft:list:leader:
+    desc: list deployments from leader API
+    vars:
+      API: http://127.0.0.1:7443
+    cmds:
+      - go run ./cmd/server --api {{.API}} service list
+
+  raft:list:follower:
+    desc: list deployments from follower API (should contain leader-created deployment)
+    vars:
+      API: http://127.0.0.1:7444
+    cmds:
+      - go run ./cmd/server --api {{.API}} service list
+
+  raft:cluster:leader:
+    desc: show raft cluster status from leader API
+    vars:
+      API: http://127.0.0.1:7443
+    cmds:
+      - go run ./cmd/server --api {{.API}} cluster status
+
+  raft:cluster:follower:
+    desc: show raft cluster status from follower API
+    vars:
+      API: http://127.0.0.1:7444
+    cmds:
+      - go run ./cmd/server --api {{.API}} cluster status

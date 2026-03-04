@@ -2,6 +2,7 @@ package system
 
 import (
 	"github.com/DaiYuANg/warden/internal/http/model"
+	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/samber/lo"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
@@ -13,6 +14,7 @@ import (
 )
 
 type Endpoint struct {
+	raft *raft.Service
 }
 
 // CPUHandler
@@ -115,4 +117,73 @@ func (s *Endpoint) InfoHandler(ctx context.Context, input *struct{}) (*struct {
 		KernelArch:    h.KernelArch,
 	}
 	return model.WrapResponse(resp), nil
+}
+
+func (s *Endpoint) ClusterHandler(ctx context.Context, input *struct{}) (*struct {
+	Body model.Response[ClusterResponse]
+}, error) {
+	if s.raft == nil {
+		return model.WrapResponse(ClusterResponse{Enabled: false}), nil
+	}
+
+	status, err := s.raft.Status()
+	if err != nil {
+		return nil, err
+	}
+
+	resp := ClusterResponse{
+		Enabled: status.Enabled,
+		NodeID:  status.NodeID,
+		Bind:    status.Bind,
+		Leader:  status.Leader,
+		Role:    status.Role,
+		Servers: lo.Map(status.Servers, func(item raft.Server, _ int) ClusterServerResponse {
+			return ClusterServerResponse{
+				ID:       item.ID,
+				Address:  item.Address,
+				Suffrage: item.Suffrage,
+			}
+		}),
+	}
+	return model.WrapResponse(resp), nil
+}
+
+func (s *Endpoint) JoinClusterHandler(ctx context.Context, input *struct {
+	Body ClusterJoinRequest
+}) (*struct {
+	Body model.Response[struct {
+		Joined bool `json:"joined"`
+	}]
+}, error) {
+	if s.raft == nil {
+		return nil, raft.ErrRaftDisabled
+	}
+	if err := s.raft.AddVoter(input.Body.ID, input.Body.Address); err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(struct {
+		Joined bool `json:"joined"`
+	}{
+		Joined: true,
+	}), nil
+}
+
+func (s *Endpoint) RemoveClusterHandler(ctx context.Context, input *struct {
+	Body ClusterRemoveRequest
+}) (*struct {
+	Body model.Response[struct {
+		Removed bool `json:"removed"`
+	}]
+}, error) {
+	if s.raft == nil {
+		return nil, raft.ErrRaftDisabled
+	}
+	if err := s.raft.RemoveServer(input.Body.ID); err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(struct {
+		Removed bool `json:"removed"`
+	}{
+		Removed: true,
+	}), nil
 }

@@ -25,6 +25,8 @@ Snapshot date: March 4, 2026
 - [x] Raft-enabled registry mutating operations routed through consensus apply
 - [x] Leader-only deploy guard with replicated scheduling-assignment records
 - [x] Badger hot-cache integration for raft FSM read/write path
+- [x] Leader-as-worker scheduling baseline with desired/worker assignment metadata
+- [x] Cluster observability and membership APIs (`/system/cluster`, `join`, `remove`)
 
 ## In Progress
 

@@ -41,3 +41,27 @@ type InfoResponse struct {
 	KernelVersion string  `json:"kernelVersion"`
 	KernelArch    string  `json:"kernelArch"`
 }
+
+type ClusterServerResponse struct {
+	ID       string `json:"id"`
+	Address  string `json:"address"`
+	Suffrage string `json:"suffrage"`
+}
+
+type ClusterResponse struct {
+	Enabled bool                    `json:"enabled"`
+	NodeID  string                  `json:"node_id"`
+	Bind    string                  `json:"bind"`
+	Leader  string                  `json:"leader"`
+	Role    string                  `json:"role"`
+	Servers []ClusterServerResponse `json:"servers"`
+}
+
+type ClusterJoinRequest struct {
+	ID      string `json:"id" doc:"raft server id"`
+	Address string `json:"address" doc:"raft server address, e.g. 127.0.0.1:12004"`
+}
+
+type ClusterRemoveRequest struct {
+	ID string `json:"id" doc:"raft server id"`
+}

@@ -2,10 +2,13 @@ package task
 
 import (
 	"fmt"
+	"hash/fnv"
+	"strings"
 	"time"
 
 	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/goccy/go-json"
+	"github.com/samber/lo"
 )
 
 const taskAssignmentBucket = "task_assignments"
@@ -13,7 +16,8 @@ const taskAssignmentBucket = "task_assignments"
 type schedulingAssignment struct {
 	DeploymentID string    `json:"deployment_id"`
 	Workload     string    `json:"workload"`
-	NodeID       string    `json:"node_id"`
+	DesiredNode  string    `json:"desired_node"`
+	WorkerNode   string    `json:"worker_node"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -32,11 +36,13 @@ func (s *Service) upsertSchedulingAssignment(deploymentID, workload string) erro
 	if s.raft == nil || !s.raft.Enabled() {
 		return nil
 	}
+	desired, worker := s.selectWorkerNode(deploymentID)
 	now := time.Now()
 	record := schedulingAssignment{
 		DeploymentID: deploymentID,
 		Workload:     workload,
-		NodeID:       s.nodeID,
+		DesiredNode:  desired,
+		WorkerNode:   worker,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -53,6 +59,44 @@ func (s *Service) upsertSchedulingAssignment(deploymentID, workload string) erro
 		return fmt.Errorf("verify scheduling assignment cache: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) selectWorkerNode(deploymentID string) (desired string, worker string) {
+	if s.raft == nil || !s.raft.Enabled() {
+		return s.nodeID, s.nodeID
+	}
+	servers, err := s.raft.ListServers()
+	if err != nil || len(servers) == 0 {
+		return s.nodeID, s.nodeID
+	}
+
+	ids := lo.Map(servers, func(item raft.Server, _ int) string {
+		return strings.TrimSpace(item.ID)
+	})
+	ids = lo.Filter(ids, func(item string, _ int) bool {
+		return item != ""
+	})
+	if len(ids) == 0 {
+		return s.nodeID, s.nodeID
+	}
+
+	chosen := ids[s.hashToIndex(deploymentID, len(ids))]
+	if chosen == s.nodeID {
+		return chosen, chosen
+	}
+
+	// Current baseline keeps leader as executable worker to maximize reuse.
+	s.logger.Info("remote worker selected but falling back to leader worker mode", "desired_node", chosen, "worker_node", s.nodeID)
+	return chosen, s.nodeID
+}
+
+func (s *Service) hashToIndex(input string, size int) int {
+	if size <= 1 {
+		return 0
+	}
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(input))
+	return int(hasher.Sum32() % uint32(size))
 }
 
 func (s *Service) deleteSchedulingAssignment(deploymentID string) error {

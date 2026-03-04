@@ -1,0 +1,15 @@
+http:
+  port: 7446
+
+network:
+  dns_listen: "127.0.0.1:10534"
+  ingress_http_listen: "127.0.0.1:18084"
+
+raft:
+  enable: true
+  node_id: "127.0.0.1:12004"
+  bind_addr: "127.0.0.1:12004"
+  data_dir: ".tmp/local-raft/node4"
+  bootstrap: false
+  apply_timeout: "3s"
+  leader_wait_timeout: "10s"

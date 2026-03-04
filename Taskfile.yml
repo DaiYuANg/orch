@@ -31,3 +31,23 @@ tasks:
   lint:
     cmds:
       - go tool golangci-lint run
+
+  raft:start:
+    desc: start local 3-node raft cluster (cross-platform)
+    cmds:
+      - go run ./cmd/localraft start -rebuild
+
+  raft:check:
+    desc: run local raft smoke checks (leader write + follower ingress)
+    cmds:
+      - go run ./cmd/localraft check
+
+  raft:status:
+    desc: show local raft node process status
+    cmds:
+      - go run ./cmd/localraft status
+
+  raft:stop:
+    desc: stop local raft cluster processes
+    cmds:
+      - go run ./cmd/localraft stop

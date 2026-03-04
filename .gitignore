@@ -83,3 +83,4 @@ dist
 .gocache
 .pnpm-store
 .npm-cache
+.tmp

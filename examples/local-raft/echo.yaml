@@ -1,0 +1,28 @@
+name: raft-demo
+description: local raft smoke test workload
+units:
+  - name: app
+    tasks:
+      - name: echo
+        type: service
+        driver: docker
+        image: hashicorp/http-echo:0.2.3
+        command:
+          - "-text=raft-ok"
+          - "-listen=:19080"
+        replicas: 1
+        labels:
+          warden.ingress.http.enable: "true"
+          warden.ingress.http.host: "echo.warden.local"
+          warden.ingress.http.path: "/"
+          warden.ingress.http.port: "19080"
+        network:
+          name: default
+          port:
+            http: 19080
+        check:
+          type: http
+          path: /
+          interval: 5s
+          timeout: 2s
+          retries: 3

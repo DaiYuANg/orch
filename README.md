@@ -66,6 +66,7 @@ More runnable steps:
 
 - [Deploy guide](/D:/Projects/warden/docs/content/docs/deploy.md)
 - [DSL specification](/D:/Projects/warden/docs/content/docs/specification.md)
+- [Local Raft multi-process smoke test](/D:/Projects/warden/docs/local-raft.md)
 
 ## Repository Layout
 

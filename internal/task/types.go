@@ -57,6 +57,7 @@ type InstanceInfo struct {
 	NodeID            string         `json:"node_id,omitempty"`
 	NodeIP            string         `json:"node_ip,omitempty"`
 	Driver            string         `json:"driver"`
+	Stateful          bool           `json:"stateful,omitempty"`
 	ContainerID       string         `json:"container_id"`
 	Status            InstanceStatus `json:"status"`
 	LastError         string         `json:"last_error,omitempty"`
@@ -112,7 +113,9 @@ type InternalStopRequest struct {
 }
 
 type MigrateDeploymentRequest struct {
-	TargetNode string `json:"target_node,omitempty"`
+	TargetNode     string `json:"target_node,omitempty"`
+	ForceStateful  bool   `json:"force_stateful,omitempty"`
+	MaxUnavailable int    `json:"max_unavailable,omitempty"`
 }
 
 type MigrateDeploymentResult struct {
@@ -125,8 +128,10 @@ type MigrateDeploymentResult struct {
 }
 
 type FailoverRequest struct {
-	FailedNode string `json:"failed_node"`
-	TargetNode string `json:"target_node,omitempty"`
+	FailedNode     string `json:"failed_node"`
+	TargetNode     string `json:"target_node,omitempty"`
+	ForceStateful  bool   `json:"force_stateful,omitempty"`
+	MaxUnavailable int    `json:"max_unavailable,omitempty"`
 }
 
 type FailoverResult struct {
@@ -137,7 +142,9 @@ type FailoverResult struct {
 }
 
 type RebalanceRequest struct {
-	MaxMigrations int `json:"max_migrations,omitempty"`
+	MaxMigrations  int  `json:"max_migrations,omitempty"`
+	ForceStateful  bool `json:"force_stateful,omitempty"`
+	MaxUnavailable int  `json:"max_unavailable,omitempty"`
 }
 
 type RebalanceResult struct {

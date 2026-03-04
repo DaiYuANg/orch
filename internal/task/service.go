@@ -32,6 +32,7 @@ const (
 	labelReplica      = "warden.replica"
 	labelInstanceID   = "warden.instance.id"
 	labelRuntime      = "warden.runtime"
+	labelStateful     = "warden.stateful"
 	labelPortPrefix   = "warden.port."
 	labelDNSResolver  = "warden.dns.resolver"
 	labelDNSSearch    = "warden.dns.search."
@@ -132,12 +133,8 @@ func newService(
 func (s *Service) Start(_ context.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := s.ensureRuntime(ctx, driverDocker); err != nil {
-		s.logger.Warn("runtime unavailable at startup", "error", err)
-	} else {
-		if err := s.recoverManagedContainers(ctx); err != nil {
-			s.logger.Warn("recover managed containers failed", "error", err)
-		}
+	if err := s.recoverManagedContainers(ctx); err != nil {
+		s.logger.Warn("recover managed containers failed", "error", err)
 	}
 
 	go s.reconcileLoop()
@@ -643,18 +640,33 @@ func (s *Service) restartInstance(instanceID string, reason string) {
 }
 
 func (s *Service) recoverManagedContainers(ctx context.Context) error {
-	exec, err := s.ensureRuntime(ctx, driverDocker)
-	if err != nil {
-		return err
-	}
+	drivers := lo.Keys(s.runtimeInits)
+	sort.Strings(drivers)
 
-	items, err := exec.List(ctx, true, map[string][]string{
-		"label": []string{labelManaged + "=true"},
-	})
-	if err != nil {
-		return err
-	}
+	var firstErr error
+	for _, driver := range drivers {
+		exec, err := s.ensureRuntime(ctx, driver)
+		if err != nil {
+			s.logger.Debug("skip runtime recovery", "driver", driver, "error", err)
+			continue
+		}
 
+		items, err := exec.List(ctx, true, map[string][]string{
+			"label": []string{labelManaged + "=true"},
+		})
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			s.logger.Warn("list managed instances from runtime failed", "driver", driver, "error", err)
+			continue
+		}
+		s.recoverManagedContainerItems(exec, items)
+	}
+	return firstErr
+}
+
+func (s *Service) recoverManagedContainerItems(exec RuntimeExecutor, items []RuntimeContainer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, c := range items {
@@ -704,6 +716,7 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 				NodeID:       s.nodeID,
 				NodeIP:       s.nodeIP,
 				Driver:       driver,
+				Stateful:     parseBoolDefault(c.Labels[labelStateful], false),
 				ContainerID:  c.ID,
 				Status:       InstanceStatusRunning,
 				CreatedAt:    time.Now(),
@@ -742,7 +755,6 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 			}
 		}
 	}
-	return nil
 }
 
 func (s *Service) ensureRuntime(ctx context.Context, driver string) (RuntimeExecutor, error) {
@@ -849,7 +861,7 @@ func (s *Service) newInstanceRecord(deploymentID, runtimeName, serviceName, work
 	}
 	instanceID := uuid.NewString()
 	check := buildHealthCheck(taskSpec)
-	labels := buildLabels(deploymentID, runtimeName, serviceName, workloadName, unitName, taskSpec.Name, instanceID, replica, check, taskSpec.Network, taskSpec.DNS)
+	labels := buildLabels(deploymentID, runtimeName, serviceName, workloadName, unitName, taskSpec.Name, instanceID, replica, taskSpec.Stateful, check, taskSpec.Network, taskSpec.DNS)
 	for key, value := range collectTaskLabels(taskSpec) {
 		labels[key] = value
 	}
@@ -878,6 +890,7 @@ func (s *Service) newInstanceRecord(deploymentID, runtimeName, serviceName, work
 			NodeID:       s.nodeID,
 			NodeIP:       s.nodeIP,
 			Driver:       runtimeName,
+			Stateful:     taskSpec.Stateful,
 			Status:       InstanceStatusUnknown,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -948,6 +961,7 @@ func buildLabels(
 	taskName string,
 	instanceID string,
 	replica int,
+	stateful bool,
 	check healthCheckSpec,
 	network *dsl.NetworkConfig,
 	dnsConfig *dsl.DNSConfig,
@@ -962,6 +976,7 @@ func buildLabels(
 		labelTask:         taskName,
 		labelInstanceID:   instanceID,
 		labelReplica:      strconv.Itoa(replica),
+		labelStateful:     strconv.FormatBool(stateful),
 		labelCheckType:    check.Type,
 		labelCheckPath:    check.Path,
 		labelCheckCmd:     check.Command,
@@ -1207,6 +1222,7 @@ func (s *Service) upsertRegistryEndpoint(instance *instanceRecord, healthy bool)
 			"workload":      instance.Workload,
 			"unit":          instance.Unit,
 			"task":          instance.Task,
+			"stateful":      strconv.FormatBool(instance.Stateful),
 			"container_id":  instance.ContainerID,
 		},
 		CreatedAt: instance.CreatedAt,

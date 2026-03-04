@@ -21,6 +21,9 @@ func (s *Service) MigrateDeployment(ctx context.Context, deploymentID string, re
 	if !ok {
 		return nil, fmt.Errorf("deployment not found: %s", deploymentID)
 	}
+	if err := validateMigrationSafety(snapshot, req); err != nil {
+		return nil, err
+	}
 	if targetNode == "" {
 		targetNode = s.pickExecutionWorker(snapshot.Deployment.ID, map[string]struct{}{
 			snapshot.Deployment.WorkerNode: {},
@@ -93,7 +96,9 @@ func (s *Service) Failover(ctx context.Context, req FailoverRequest) (*FailoverR
 			})
 		}
 		migration, err := s.MigrateDeployment(ctx, deployment.ID, MigrateDeploymentRequest{
-			TargetNode: target,
+			TargetNode:     target,
+			ForceStateful:  req.ForceStateful,
+			MaxUnavailable: req.MaxUnavailable,
 		})
 		if err != nil {
 			return nil, err
@@ -133,7 +138,9 @@ func (s *Service) Rebalance(ctx context.Context, req RebalanceRequest) (*Rebalan
 		}
 
 		migration, err := s.MigrateDeployment(ctx, deployment.ID, MigrateDeploymentRequest{
-			TargetNode: target,
+			TargetNode:     target,
+			ForceStateful:  req.ForceStateful,
+			MaxUnavailable: req.MaxUnavailable,
 		})
 		if err != nil {
 			return nil, err
@@ -147,6 +154,26 @@ func (s *Service) Rebalance(ctx context.Context, req RebalanceRequest) (*Rebalan
 type deploymentMigrationSnapshot struct {
 	Deployment DeploymentInfo
 	Instances  []instanceRecord
+}
+
+func validateMigrationSafety(snapshot deploymentMigrationSnapshot, req MigrateDeploymentRequest) error {
+	stateful := lo.ContainsBy(snapshot.Instances, func(item instanceRecord) bool {
+		return item.Stateful
+	})
+	if !stateful {
+		return nil
+	}
+	if !req.ForceStateful {
+		return fmt.Errorf("deployment %s is stateful; set force_stateful=true to confirm migration", snapshot.Deployment.ID)
+	}
+	maxUnavailable := req.MaxUnavailable
+	if maxUnavailable <= 0 {
+		maxUnavailable = 1
+	}
+	if maxUnavailable != 1 {
+		return fmt.Errorf("stateful migration currently supports max_unavailable=1 only")
+	}
+	return nil
 }
 
 func (s *Service) snapshotDeploymentForMigration(deploymentID string) (deploymentMigrationSnapshot, bool) {

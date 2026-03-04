@@ -37,9 +37,15 @@ func init() {
 	serviceDeployCmd.Flags().StringVar(&deployFormat, "format", "", "dsl format override: yaml|hcl")
 	serviceLogsCmd.Flags().IntVar(&serviceLogsTail, "tail", 200, "number of log lines")
 	serviceMigrateCmd.Flags().StringVar(&serviceMigrateTargetNode, "target-node", "", "target worker node id")
+	serviceMigrateCmd.Flags().BoolVar(&serviceMigrateForceStateful, "force-stateful", false, "allow migrating stateful workloads")
+	serviceMigrateCmd.Flags().IntVar(&serviceMigrateMaxUnavailable, "max-unavailable", 1, "max unavailable instances during stateful migration")
 	serviceFailoverCmd.Flags().StringVar(&serviceFailoverFailedNode, "failed-node", "", "failed worker node id")
 	serviceFailoverCmd.Flags().StringVar(&serviceFailoverTargetNode, "target-node", "", "optional explicit failover target node id")
+	serviceFailoverCmd.Flags().BoolVar(&serviceFailoverForceStateful, "force-stateful", false, "allow failover for stateful workloads")
+	serviceFailoverCmd.Flags().IntVar(&serviceFailoverMaxUnavailable, "max-unavailable", 1, "max unavailable instances during stateful failover")
 	serviceRebalanceCmd.Flags().IntVar(&serviceRebalanceMaxMigrations, "max-migrations", 0, "max migrations in one rebalance run (0 means auto)")
+	serviceRebalanceCmd.Flags().BoolVar(&serviceRebalanceForceStateful, "force-stateful", false, "allow rebalancing stateful workloads")
+	serviceRebalanceCmd.Flags().IntVar(&serviceRebalanceMaxUnavailable, "max-unavailable", 1, "max unavailable instances during stateful rebalance")
 }
 
 var deployFile string
@@ -47,9 +53,15 @@ var deployContent string
 var deployFormat string
 var serviceLogsTail int
 var serviceMigrateTargetNode string
+var serviceMigrateForceStateful bool
+var serviceMigrateMaxUnavailable int
 var serviceFailoverFailedNode string
 var serviceFailoverTargetNode string
+var serviceFailoverForceStateful bool
+var serviceFailoverMaxUnavailable int
 var serviceRebalanceMaxMigrations int
+var serviceRebalanceForceStateful bool
+var serviceRebalanceMaxUnavailable int
 
 var serviceListCmd = &cobra.Command{
 	Use:   "list",
@@ -172,7 +184,9 @@ var serviceMigrateCmd = &cobra.Command{
 		}
 
 		req := tasksvc.MigrateDeploymentRequest{
-			TargetNode: strings.TrimSpace(serviceMigrateTargetNode),
+			TargetNode:     strings.TrimSpace(serviceMigrateTargetNode),
+			ForceStateful:  serviceMigrateForceStateful,
+			MaxUnavailable: serviceMigrateMaxUnavailable,
 		}
 		var result tasksvc.MigrateDeploymentResult
 		if err := client.Post("/tasks/"+url.PathEscape(args[0])+"/migrate", req, &result); err != nil {
@@ -197,8 +211,10 @@ var serviceFailoverCmd = &cobra.Command{
 		}
 
 		req := tasksvc.FailoverRequest{
-			FailedNode: failedNode,
-			TargetNode: strings.TrimSpace(serviceFailoverTargetNode),
+			FailedNode:     failedNode,
+			TargetNode:     strings.TrimSpace(serviceFailoverTargetNode),
+			ForceStateful:  serviceFailoverForceStateful,
+			MaxUnavailable: serviceFailoverMaxUnavailable,
 		}
 		var result tasksvc.FailoverResult
 		if err := client.Post("/tasks/failover", req, &result); err != nil {
@@ -218,7 +234,9 @@ var serviceRebalanceCmd = &cobra.Command{
 		}
 
 		req := tasksvc.RebalanceRequest{
-			MaxMigrations: serviceRebalanceMaxMigrations,
+			MaxMigrations:  serviceRebalanceMaxMigrations,
+			ForceStateful:  serviceRebalanceForceStateful,
+			MaxUnavailable: serviceRebalanceMaxUnavailable,
 		}
 		var result tasksvc.RebalanceResult
 		if err := client.Post("/tasks/rebalance", req, &result); err != nil {

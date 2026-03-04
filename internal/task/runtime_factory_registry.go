@@ -22,9 +22,9 @@ func newRuntimeFactories(primary RuntimeFactory) map[string]RuntimeFactory {
 	return map[string]RuntimeFactory{
 		driverDocker:         dockerFactory,
 		driverContainerd:     newContainerdRuntimeExecutor,
-		driverSystemd:        unsupportedRuntimeFactory(driverSystemd),
-		driverFirecracker:    unsupportedRuntimeFactory(driverFirecracker),
-		driverWindowsService: unsupportedRuntimeFactory(driverWindowsService),
+		driverSystemd:        newSystemdRuntimeExecutor,
+		driverFirecracker:    newFirecrackerRuntimeExecutor,
+		driverWindowsService: newWindowsServiceRuntimeExecutor,
 	}
 }
 
@@ -36,6 +36,10 @@ func unsupportedRuntimeFactory(driver string) RuntimeFactory {
 
 func normalizeRuntimeDriver(driver string) string {
 	switch normalized := trimLower(driver); normalized {
+	case "windowsservice", "windows_service":
+		return driverWindowsService
+	case "fire-cracker":
+		return driverFirecracker
 	case "":
 		return driverDocker
 	default:

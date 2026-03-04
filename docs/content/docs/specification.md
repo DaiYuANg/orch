@@ -21,14 +21,15 @@ units:
     tasks: []                    # required, at least one
 ```
 
-### Task fields (currently docker-first)
+### Task fields
 
 ```yaml
 tasks:
   - name: api                    # required
     type: service                # required
-    driver: docker               # required (only docker is enabled now)
-    image: nginx:latest          # required when driver=docker
+    driver: docker               # required: docker|containerd|systemd|firecracker|windows-service
+    stateful: false              # optional, default false
+    image: nginx:latest          # required when driver=docker|containerd, and used as rootfs path for firecracker
     command: ["nginx", "-g", "daemon off;"]   # optional
     replicas: 1                  # optional, default 1
     env:                         # optional
@@ -84,14 +85,21 @@ check:
 ### Runtime behavior (MVP)
 
 - Deployment API parses DSL (`yaml` / `hcl`) and validates required fields.
-- Each task replica maps to one Docker container.
+- Each task replica maps to one runtime instance resolved by `driver`.
 - Every running instance is registered into the service directory (endpoint + health + route metadata).
 - DNS resolves `<service>.warden.local.` from the service directory.
 - Ingress resolves HTTP/TCP/UDP routes from the same service directory and proxies automatically.
 - Container restart is automatic when:
   - container exits unexpectedly, or
   - HTTP health check fails continuously until retry threshold.
-- Managed containers are recovered on agent restart by Docker labels.
+- Runtime-managed instances are recovered on restart when runtime supports label-based list/recovery.
+
+### Stateful migration guardrail (baseline)
+
+- Mark task as stateful with `stateful: true`.
+- Migration/failover/rebalance for stateful deployment requires explicit confirmation:
+  - `force_stateful=true`
+  - `max_unavailable=1` (current baseline restriction)
 
 ### Current API
 

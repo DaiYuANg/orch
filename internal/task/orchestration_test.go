@@ -107,3 +107,59 @@ units:
 	assert.Equal(t, service.nodeID, afterFailover.Instances[0].NodeID)
 	assert.Equal(t, service.nodeID, afterFailover.Deployment.WorkerNode)
 }
+
+func TestMigrateStatefulRequiresForce(t *testing.T) {
+	ctx := context.Background()
+	registryService := newRegistryForTaskTest(t)
+	runtime := newFakeRuntime("mock")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	service := NewServiceWithRuntimeFactory(logger, registryService, func() (RuntimeExecutor, error) {
+		return runtime, nil
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/tasks/internal/run", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":0,"message":"ok","data":{"container_id":"ctr-remote-stateful","driver":"mock","node_id":"node-b","node_ip":"10.0.0.2"}}`))
+	})
+	mux.HandleFunc("/tasks/internal/stop", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":0,"message":"ok","data":{"stopped":true}}`))
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	service.nodeAPI = map[string]string{
+		"node-b": server.URL,
+	}
+
+	workloadYAML := `
+name: stateful-demo
+units:
+  - name: data
+    tasks:
+      - name: kv
+        type: service
+        driver: docker
+        stateful: true
+        image: nginx:latest
+        replicas: 1
+`
+
+	deployed, err := service.Deploy(ctx, DeployRequest{
+		Filename: "stateful-demo.yaml",
+		Content:  workloadYAML,
+	})
+	require.NoError(t, err)
+
+	_, err = service.MigrateDeployment(ctx, deployed.DeploymentID, MigrateDeploymentRequest{
+		TargetNode: "node-b",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stateful")
+
+	result, err := service.MigrateDeployment(ctx, deployed.DeploymentID, MigrateDeploymentRequest{
+		TargetNode:     "node-b",
+		ForceStateful:  true,
+		MaxUnavailable: 1,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "node-b", result.ToNode)
+}

@@ -4,15 +4,15 @@ Warden is a lightweight runtime and control layer for long-lived services (datab
 
 ## Current Status (March 2026)
 
-Warden is currently an MVP with a Docker-first deployment path and modular runtime architecture.
+Warden is currently an MVP with a modular runtime architecture and a production-focused control plane baseline.
 
 Implemented:
 
 - Modular server bootstrapped by `fx` modules (`config`, `auth`, `task`, `registry`, `dns`, `ingress`, `http`, etc.)
 - DSL parsing and validation (`yaml` and `hcl`) for workload deployment
 - Task deployment API and CLI (`deploy`, `list`, `get`, `stop`, `logs`)
-- Docker runtime execution, health checks, restart/reconcile loop, and managed container recovery
-- Runtime execution is abstracted behind a task-level runtime interface with driver-based resolver (`docker` + `containerd` baseline)
+- Runtime execution abstraction with driver resolver across `docker` / `containerd` / `systemd` / `firecracker` / `windows-service` (platform/runtime-gated)
+- Docker runtime health checks, restart/reconcile loop, and managed container recovery
 - Registry persistence with `bbolt` + route/endpoint resolution
 - Raft-backed registry write path (when enabled) with FSM apply/snapshot/restore
 - Leader-only scheduling guard for deploy operations with replicated assignment records
@@ -20,6 +20,7 @@ Implemented:
 - Badger-backed hot cache in raft FSM for recently written consensus data
 - Cluster status and membership management APIs (`/system/cluster`, `/system/cluster/join`, `/system/cluster/remove`)
 - Placement control APIs for migration/failover/rebalance (`/tasks/{id}/migrate`, `/tasks/failover`, `/tasks/rebalance`)
+- Stateful migration safety guardrails (`task.stateful`, `force_stateful`, `max_unavailable=1`)
 - Process split between server runtime (`cmd/server`) and user operations CLI (`cmd/cli`)
 - Built-in ingress (HTTP/TCP/UDP) backed by registry routes
 - DNS resolution for registered services with deploy/stop driven DNS record lifecycle updates
@@ -32,9 +33,9 @@ Implemented:
 
 Not finished yet:
 
-- Production-ready non-docker runtime scheduling path (systemd/firecracker/windows-service)
+- Runtime-specific parity gaps (for example containerd logs, systemd/firecracker/windows-service deep lifecycle semantics)
 - Containerd logs and full recovery parity with docker runtime
-- Migration/failover/rebalance strategy hardening for stateful workload safety guarantees
+- Stateful migration/failover/rebalance strategy hardening (drain, pre-check, rollback, disruption budgets)
 - Secrets management
 - HA migration/orchestration workflows
 - Full dashboard feature coverage (auth, deploy form, logs/actions, richer observability views)

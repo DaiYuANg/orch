@@ -20,6 +20,7 @@ type Task struct {
 	Name      string            `yaml:"name" hcl:"name"`
 	Type      string            `yaml:"type" hcl:"type"`
 	Driver    string            `yaml:"driver" hcl:"driver"`
+	Stateful  bool              `yaml:"stateful,omitempty" hcl:"stateful,optional"`
 	Command   []string          `yaml:"command,omitempty" hcl:"command,optional"`
 	Image     string            `yaml:"image,omitempty" hcl:"image,optional"`
 	Schedule  string            `yaml:"schedule,omitempty" hcl:"schedule,optional"`

@@ -15,6 +15,7 @@ Snapshot date: March 4, 2026
 - [x] Reconcile loop: container restart and managed container recovery
 - [x] Task runtime interface abstraction with Docker adapter
 - [x] Driver-based runtime resolver baseline with containerd adapter wiring
+- [x] Task runtime factory wired for `docker/containerd/systemd/firecracker/windows-service` with platform-aware executors/stubs
 - [x] CLI operations for service deploy/list/get/stop/logs
 - [x] JWT auth middleware and root token generation
 - [x] Persistent auth signing key for restart-safe token validation
@@ -30,6 +31,7 @@ Snapshot date: March 4, 2026
 - [x] Cross-node runtime dispatch baseline via worker API (`raft.node_api`) with leader fallback
 - [x] Placement control baseline via deployment migration API (`/tasks/{id}/migrate`)
 - [x] Explicit failover/rebalance control baselines (`/tasks/failover`, `/tasks/rebalance`)
+- [x] Stateful migration safety guardrail baseline (`task.stateful`, `force_stateful`, `max_unavailable=1`)
 - [x] Cluster observability and membership APIs (`/system/cluster`, `join`, `remove`)
 - [x] CLI/process split: `cmd/server` for server runtime and `cmd/cli` for user operations
 - [x] Deploy/stop DNS record lifecycle binding for HTTP ingress hosts
@@ -37,10 +39,10 @@ Snapshot date: March 4, 2026
 
 ## In Progress
 
-- [ ] Runtime abstraction hardening for non-docker executors (systemd/firecracker/windows-service)
+- [ ] Runtime abstraction hardening for non-docker executors (runtime-specific lifecycle parity and operational semantics)
 - [ ] Containerd parity gaps (logs, managed-recovery parity, richer network semantics)
 - [ ] Cross-node reconcile/restart/log aggregation path for remote worker instances (baseline wired, needs production hardening)
-- [ ] Stateful-safe migration/failover/rebalance policies (drain, pre-check, rollback, disruption budgets)
+- [ ] Stateful-safe migration/failover/rebalance policies beyond guardrails (drain, pre-check, rollback, disruption budgets)
 - [ ] Dashboard integration depth (auth/token flow, deploy actions, logs and richer runtime operations)
 - [ ] Pack CLI and package workflow beyond static catalog
 - [ ] Better operator UX for auth/token/config management

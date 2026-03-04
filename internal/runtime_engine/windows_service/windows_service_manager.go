@@ -100,6 +100,15 @@ func (w *WindowsServiceManager) DeleteService(name string) error {
 	return s.Delete()
 }
 
+func (w *WindowsServiceManager) QueryService(name string) (svc.Status, error) {
+	s, err := w.mgr.OpenService(name)
+	if err != nil {
+		return svc.Status{}, err
+	}
+	defer s.Close()
+	return s.Query()
+}
+
 // 权限判断工具（仅 Windows 有效）
 func isAdmin() bool {
 	var sid *windows.SID

@@ -74,14 +74,22 @@ Migrate a deployment to a target worker node:
 go run ./cmd/cli service migrate <deployment-id> --target-node <node-id> --api http://127.0.0.1:7443
 ```
 
+For stateful workloads (`task.stateful: true`), explicit confirmation is required:
+
+```powershell
+go run ./cmd/cli service migrate <deployment-id> --target-node <node-id> --force-stateful --max-unavailable 1 --api http://127.0.0.1:7443
+```
+
 Fail over all deployments from a failed node:
 
 ```powershell
 go run ./cmd/cli service failover --failed-node <node-id> --target-node <node-id> --api http://127.0.0.1:7443
+go run ./cmd/cli service failover --failed-node <node-id> --force-stateful --max-unavailable 1 --api http://127.0.0.1:7443
 ```
 
 Trigger a rebalance run:
 
 ```powershell
 go run ./cmd/cli service rebalance --max-migrations 5 --api http://127.0.0.1:7443
+go run ./cmd/cli service rebalance --max-migrations 5 --force-stateful --max-unavailable 1 --api http://127.0.0.1:7443
 ```

@@ -192,7 +192,7 @@ func (c *containerdRuntimeExecutor) List(ctx context.Context, _ bool, filters ma
 		if infoErr != nil {
 			return RuntimeContainer{}, false
 		}
-		if !matchContainerdLabels(info.Labels, filters) {
+		if !matchLabelFilters(info.Labels, filters) {
 			return RuntimeContainer{}, false
 		}
 		return RuntimeContainer{
@@ -221,20 +221,4 @@ func (c *containerdRuntimeExecutor) newContainerdSpecOptions(spec RuntimeRunSpec
 		options = append(options, oci.WithHostNamespace(specs.NetworkNamespace))
 	}
 	return options
-}
-
-func matchContainerdLabels(labels map[string]string, filters map[string][]string) bool {
-	labelFilters := filters["label"]
-	if len(labelFilters) == 0 {
-		return true
-	}
-	return lo.EveryBy(labelFilters, func(item string) bool {
-		pair := strings.SplitN(strings.TrimSpace(item), "=", 2)
-		if len(pair) != 2 {
-			return false
-		}
-		key := strings.TrimSpace(pair[0])
-		value := strings.TrimSpace(pair[1])
-		return labels[key] == value
-	})
 }

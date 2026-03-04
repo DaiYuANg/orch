@@ -1,90 +1,92 @@
 # Warden
 
-> **Warden** is a lightweight runtime and control layer designed for long-lived, stateful services such as databases,
-> message queues, and object storage — outside of the traditional container orchestration systems.
+Warden is a lightweight runtime and control layer for long-lived services (database, message queue, object storage, and other always-on workloads) outside traditional container orchestration systems.
 
----
+## Current Status (March 2026)
 
-## 🚧 Problem
+Warden is currently an MVP with a Docker-first deployment path and modular runtime architecture.
 
-Modern infrastructure is dominated by Kubernetes and container orchestration. However, many workloads — especially *
-*stateful services** — do not fit well into the container-native model:
+Implemented:
 
-- Ephemeral containers conflict with long-running services
-- Volume mounts and state management are complex and fragile
-- High availability often relies on intricate custom operators
-- DNS and service discovery across mixed environments is inconsistent
+- Modular server bootstrapped by `fx` modules (`config`, `auth`, `task`, `registry`, `dns`, `ingress`, `http`, etc.)
+- DSL parsing and validation (`yaml` and `hcl`) for workload deployment
+- Task deployment API and CLI (`deploy`, `list`, `get`, `stop`, `logs`)
+- Docker runtime execution, health checks, restart/reconcile loop, and managed container recovery
+- Registry persistence with `bbolt` + route/endpoint resolution
+- Built-in ingress (HTTP/TCP/UDP) backed by registry routes
+- DNS resolution for registered services
+- JWT middleware with local root token generation
+- Persistent signing key storage for stable token validation across restarts
+- `pack` CLI basic catalog commands (`list`, `search`)
 
-Running databases in Kubernetes is possible, but rarely ideal.
+Not finished yet:
 
----
+- Production-ready non-docker runtime scheduling path (systemd/containerd/firecracker/windows-service)
+- Secrets management
+- HA migration/orchestration workflows
+- Full dashboard experience
+- Pack ecosystem and distribution pipeline
 
-## 🎯 Warden's Goal
+See [ROADMAP.md](/D:/Projects/warden/ROADMAP.md) for detailed plan.
 
-Warden aims to provide a better home for **stateful services** by combining:
+## Quick Start
 
-- 🧠 **Declarative service definition** (via YAML)
-- 🛠️ **Runtime management** (binary, systemd, container, or package-based)
-- 🌐 **Service discovery & DNS registration** (integrates with Kubernetes or container DNS)
-- 📦 **Service packaging and distribution** (WIP)
-- 🔁 **Health checks and failover** (automatic respawn and migration)
-- 🔒 **Secrets and environment injection** (optional integration with external systems)
+Requirements:
 
-It also supports **stateless services** where required — especially when deployed outside of containerized environments.
+- Go
+- Docker
 
----
+Run server:
 
-## 🧩 Architecture
+```powershell
+go run ./cmd/server server
+```
 
-Warden is designed as a **peer-to-peer runtime**, without reliance on centralized controllers.
+Use CLI:
 
-Each node runs a self-contained **agent**, capable of:
+```powershell
+go run ./cmd/server --help
+go run ./cmd/server service --help
+```
 
-- Managing services and their lifecycle
-- Communicating with other peers to coordinate service migration or registration
-- Interfacing with local executors: Docker, containerd, package managers, or raw binaries
+Deploy sample workload:
 
-Optionally, a Web UI and CLI tool can provide inspection and control.
+```powershell
+go run ./cmd/server service deploy --file ./examples/minimal-nginx.yaml
+```
 
----
+More runnable steps:
 
-## 🔧 Features Overview
+- [Deploy guide](/D:/Projects/warden/docs/content/docs/deploy.md)
+- [DSL specification](/D:/Projects/warden/docs/content/docs/specification.md)
 
-| Feature                 | Description                                                               |
-|-------------------------|---------------------------------------------------------------------------|
-| **Flexible installers** | Binary runner, Docker/Podman, systemd, or package manager-based execution |
-| **DNS integration**     | Supports service registration to Kubernetes (via Service + Endpoints)     |
-| **Secrets manager**     | Optional key/value secret registration and injection                      |
-| **Remote storage**      | Supports NFS, block devices, or local mounts                              |
-| **Process supervision** | Handles respawn, restart, exit handling, and health probes                |
-| **Minimal dependency**  | No Kubernetes or container runtime required                               |
+## Repository Layout
 
----
+- `cmd/server`: main control-plane CLI and server entrypoint
+- `cmd/pack`: pack discovery CLI (MVP)
+- `internal/task`: deployment orchestration, reconcile, health/restart
+- `internal/registry`: route and endpoint registry
+- `internal/dns`: DNS server using registry backends
+- `internal/ingress`: HTTP/TCP/UDP ingress proxying
+- `internal/runtime_engine`: runtime driver implementations
+- `internal/dsl`: workload schema, parser, validator
+- `dashboard`: frontend console (early stage)
 
-## 👥 Who is this for?
+## Development
 
-Warden is built for:
+Build:
 
-- DevOps teams running **stateful services on bare-metal or VMs**
-- Developers needing a **simple declarative runtime** without full Kubernetes
-- Infrastructure teams managing **distributed long-living workloads**
-- Edge deployments where **containers are not the ideal abstraction**
+```powershell
+go build -o ./dist/server ./cmd/server
+go build -o ./dist/pack ./cmd/pack
+```
 
----
+Test:
 
-## 📦 Roadmap
+```powershell
+go test ./...
+```
 
-- [x] Core runtime and installer system
-- [x] Peer-based node communication
-- [x] Kubernetes DNS integration
-- [ ] Secret injection support
-- [ ] Service migration & HA with rsync-based state movement
-- [ ] Package format for sharing and deploying services
-- [ ] Plugin system for custom installers or probes
-- [ ] Web UI for inspection and control
-
----
-
-## 📝 License
+## License
 
 MIT © 2025 Warden Authors

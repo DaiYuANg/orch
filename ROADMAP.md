@@ -1,0 +1,48 @@
+# Warden Roadmap
+
+Snapshot date: March 4, 2026
+
+## Completed
+
+- [x] `fx` modular server composition and lifecycle wiring
+- [x] Config loading via defaults + env + optional config files
+- [x] Workload DSL parsing/validation (`yaml` + `hcl`)
+- [x] Docker-first deployment pipeline (`/tasks/deploy`)
+- [x] Deployment lifecycle APIs (`list`, `get`, `stop`, instance `logs`)
+- [x] Registry persistence for endpoints/routes (`bbolt`)
+- [x] DNS resolution from service registry
+- [x] Built-in ingress for HTTP/TCP/UDP route forwarding
+- [x] Reconcile loop: container restart and managed container recovery
+- [x] CLI operations for service deploy/list/get/stop/logs
+- [x] JWT auth middleware and root token generation
+- [x] Persistent auth signing key for restart-safe token validation
+
+## In Progress
+
+- [ ] Runtime abstraction hardening beyond Docker path
+- [ ] Dashboard integration with live backend data
+- [ ] Pack CLI and package workflow beyond static catalog
+- [ ] Better operator UX for auth/token/config management
+- [ ] More automated tests in `cmd/*`, `task`, `registry`, and ingress paths
+
+## Planned
+
+### Runtime and orchestration
+
+- [ ] First-class support for systemd/containerd/firecracker/windows-service execution flows
+- [ ] Placement and migration strategies for stateful workloads
+- [ ] HA failover primitives and explicit rebalancing operations
+
+### Platform capabilities
+
+- [ ] Secrets injection and secret source integrations
+- [ ] Pluggable health checks and lifecycle hooks
+- [ ] Multi-node coordination model refinement (raft/gossip responsibilities)
+- [ ] Fine-grained API authn/authz and token lifecycle management
+
+### Developer and user experience
+
+- [ ] Stable dashboard release with operations views and deployment actions
+- [ ] Pack format, metadata, and remote registry/distribution model
+- [ ] Operational docs for single-node and multi-node production setups
+- [ ] Compatibility matrix and release quality gates

@@ -7,6 +7,7 @@ includes:
 
 vars:
   SERVER_BINARY_NAME: server
+  CLI_BINARY_NAME: warden-cli
   PACK_BINARY_NAME: pack
   DIST_DIR: dist
   # 默认平台
@@ -24,6 +25,11 @@ tasks:
     cmds:
       - go build -o {{.DIST_DIR}}/{{.PACK_BINARY_NAME}} ./cmd/pack
 
+  build:cli:
+    desc: 构建当前平台 CLI（默认启用 CGO）
+    cmds:
+      - go build -o {{.DIST_DIR}}/{{.CLI_BINARY_NAME}} ./cmd/cli
+
   check:
     cmds:
       - go tool staticcheck ./...
@@ -37,7 +43,7 @@ tasks:
     requires:
       vars: [CONF]
     cmds:
-      - go run ./cmd/server server --conf {{.CONF}}
+      - go run ./cmd/server run --conf {{.CONF}}
 
   raft:node1:
     desc: run node1 (bootstrap leader candidate)
@@ -73,7 +79,7 @@ tasks:
       API: http://127.0.0.1:7443
       FILE: examples/local-raft/echo.yaml
     cmds:
-      - go run ./cmd/server --api {{.API}} service deploy --file {{.FILE}}
+      - go run ./cmd/cli --api {{.API}} service deploy --file {{.FILE}}
 
   raft:deploy:follower:
     desc: deploy smoke workload to follower API (should fail with not leader)
@@ -81,32 +87,32 @@ tasks:
       API: http://127.0.0.1:7444
       FILE: examples/local-raft/echo.yaml
     cmds:
-      - go run ./cmd/server --api {{.API}} service deploy --file {{.FILE}}
+      - go run ./cmd/cli --api {{.API}} service deploy --file {{.FILE}}
 
   raft:list:leader:
     desc: list deployments from leader API
     vars:
       API: http://127.0.0.1:7443
     cmds:
-      - go run ./cmd/server --api {{.API}} service list
+      - go run ./cmd/cli --api {{.API}} service list
 
   raft:list:follower:
     desc: list deployments from follower API (should contain leader-created deployment)
     vars:
       API: http://127.0.0.1:7444
     cmds:
-      - go run ./cmd/server --api {{.API}} service list
+      - go run ./cmd/cli --api {{.API}} service list
 
   raft:cluster:leader:
     desc: show raft cluster status from leader API
     vars:
       API: http://127.0.0.1:7443
     cmds:
-      - go run ./cmd/server --api {{.API}} cluster status
+      - go run ./cmd/cli --api {{.API}} cluster status
 
   raft:cluster:follower:
     desc: show raft cluster status from follower API
     vars:
       API: http://127.0.0.1:7444
     cmds:
-      - go run ./cmd/server --api {{.API}} cluster status
+      - go run ./cmd/cli --api {{.API}} cluster status

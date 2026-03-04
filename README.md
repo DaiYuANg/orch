@@ -19,6 +19,7 @@ Implemented:
 - Leader keeps worker capability enabled (leader-as-worker) while remote worker dispatch is evolving
 - Badger-backed hot cache in raft FSM for recently written consensus data
 - Cluster status and membership management APIs (`/system/cluster`, `/system/cluster/join`, `/system/cluster/remove`)
+- Process split between server runtime (`cmd/server`) and user operations CLI (`cmd/cli`)
 - Built-in ingress (HTTP/TCP/UDP) backed by registry routes
 - DNS resolution for registered services
 - JWT middleware with local root token generation
@@ -48,20 +49,20 @@ Requirements:
 Run server:
 
 ```powershell
-go run ./cmd/server server
+go run ./cmd/server run
 ```
 
 Use CLI:
 
 ```powershell
-go run ./cmd/server --help
-go run ./cmd/server service --help
+go run ./cmd/cli --help
+go run ./cmd/cli service --help
 ```
 
 Deploy sample workload:
 
 ```powershell
-go run ./cmd/server service deploy --file ./examples/minimal-nginx.yaml
+go run ./cmd/cli service deploy --file ./examples/minimal-nginx.yaml
 ```
 
 More runnable steps:
@@ -72,7 +73,8 @@ More runnable steps:
 
 ## Repository Layout
 
-- `cmd/server`: main control-plane CLI and server entrypoint
+- `cmd/server`: server process entrypoint (`run` command)
+- `cmd/cli`: user CLI for deploy/list/get/stop/logs/token/info/cluster operations
 - `cmd/pack`: pack discovery CLI (MVP)
 - `internal/task`: deployment orchestration, reconcile, health/restart
 - `internal/registry`: route and endpoint registry
@@ -88,6 +90,7 @@ Build:
 
 ```powershell
 go build -o ./dist/server ./cmd/server
+go build -o ./dist/warden-cli ./cmd/cli
 go build -o ./dist/pack ./cmd/pack
 ```
 

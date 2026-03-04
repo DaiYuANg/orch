@@ -5,7 +5,7 @@
 ### 1. Start server
 
 ```powershell
-go run ./cmd/server server
+go run ./cmd/server run
 ```
 
 Default HTTP API listens on `http://127.0.0.1:7443`.
@@ -15,13 +15,13 @@ Default HTTP API listens on `http://127.0.0.1:7443`.
 Start a new terminal and print the token:
 
 ```powershell
-go run ./cmd/server token
+go run ./cmd/cli token
 ```
 
 Or print token file path only:
 
 ```powershell
-go run ./cmd/server token --path
+go run ./cmd/cli token --path
 ```
 
 By default token is generated to:
@@ -34,7 +34,7 @@ By default token is generated to:
 Repo already includes `examples/minimal-nginx.yaml`.
 
 ```powershell
-go run ./cmd/server service deploy `
+go run ./cmd/cli service deploy `
   --file ./examples/minimal-nginx.yaml `
   --api http://127.0.0.1:7443
 ```
@@ -44,24 +44,24 @@ go run ./cmd/server service deploy `
 List deployments:
 
 ```powershell
-go run ./cmd/server service list --api http://127.0.0.1:7443
+go run ./cmd/cli service list --api http://127.0.0.1:7443
 ```
 
 Get one deployment detail:
 
 ```powershell
-go run ./cmd/server service get <deployment-id> --api http://127.0.0.1:7443
+go run ./cmd/cli service get <deployment-id> --api http://127.0.0.1:7443
 ```
 
 Query system info:
 
 ```powershell
-go run ./cmd/server info --api http://127.0.0.1:7443
+go run ./cmd/cli info --api http://127.0.0.1:7443
 ```
 
 ### 5. View logs and stop
 
 ```powershell
-go run ./cmd/server service logs <instance-id> --tail 200 --api http://127.0.0.1:7443
-go run ./cmd/server service stop <deployment-id> --api http://127.0.0.1:7443
+go run ./cmd/cli service logs <instance-id> --tail 200 --api http://127.0.0.1:7443
+go run ./cmd/cli service stop <deployment-id> --api http://127.0.0.1:7443
 ```

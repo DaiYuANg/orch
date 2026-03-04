@@ -27,6 +27,7 @@ Snapshot date: March 4, 2026
 - [x] Badger hot-cache integration for raft FSM read/write path
 - [x] Leader-as-worker scheduling baseline with desired/worker assignment metadata
 - [x] Cluster observability and membership APIs (`/system/cluster`, `join`, `remove`)
+- [x] CLI/process split: `cmd/server` for server runtime and `cmd/cli` for user operations
 
 ## In Progress
 

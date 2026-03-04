@@ -22,7 +22,8 @@ Non-goals (for now):
 ## Repo layout (high-level)
 
 - `cmd/`
-  - `cmd/server/`: main server CLI (Cobra). Entry: `cmd/server/main.go`
+  - `cmd/server/`: server process CLI (Cobra). Entry: `cmd/server/main.go`
+  - `cmd/cli/`: user operations CLI (deploy/list/get/stop/logs/token/info/cluster)
   - `cmd/pack/`: packaging/search CLI (WIP)
   - `cmd/access_client/`: access client (WIP)
 - `internal/` (core)
@@ -44,7 +45,7 @@ Non-goals (for now):
 
 ## How the server boots (important)
 
-`warden server` (Cobra) creates an `fx.App` with modules:
+`warden-server run` (Cobra) creates an `fx.App` with modules:
 
 - `internal/config`
 - `internal/auth`
@@ -76,9 +77,11 @@ This repo uses Taskfile.
 
 ### Run (developer)
 - Quick run:
-  - `go run ./cmd/server server`
+  - `go run ./cmd/server run`
 - With config files (later overrides earlier):
-  - `go run ./cmd/server server --conf config.yaml --conf config.local.yaml`
+  - `go run ./cmd/server run --conf config.yaml --conf config.local.yaml`
+- User CLI examples:
+  - `go run ./cmd/cli service list --api http://127.0.0.1:7443`
 
 ### Checks / lint
 - `task check` → staticcheck
@@ -166,7 +169,7 @@ First run:
 
 mkdir -p data/registry workloads
 
-go run ./cmd/server server --conf config.yaml
+go run ./cmd/server run --conf config.yaml
 
 If your config loader supports .env:
 
@@ -385,9 +388,13 @@ Existing code may be gradually refactored when touched, but avoid churn-only PRs
 
 ## Add a new CLI command
 
-- Add file under cmd/server/<xxx>Cmd.go
+- User-facing command:
+  - Add file under `cmd/cli/<xxx>Cmd.go`
+  - Register it in `cmd/cli/rootCmd.go`
 
-- Register it in cmd/server/rootCmd.go commands = []*cobra.Command{ ... }
+- Server process command:
+  - Add file under `cmd/server/<xxx>Cmd.go`
+  - Register it in `cmd/server/rootCmd.go`
 
 - Keep CLI commands as composition roots; business logic should live under internal/
 

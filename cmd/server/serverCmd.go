@@ -33,9 +33,10 @@ var modules = []fx.Option{
 	dns.Module,
 }
 
-var serverCmd = &cobra.Command{
-	Use:   "server",
-	Short: "Start the server",
+var runCmd = &cobra.Command{
+	Use:     "run",
+	Aliases: []string{"server", "start"},
+	Short:   "Run warden control plane server",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
 		options := append(

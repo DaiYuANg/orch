@@ -32,9 +32,17 @@ func (s *Service) ensureLeaderForScheduling() error {
 	return nil
 }
 
-func (s *Service) upsertSchedulingAssignment(deploymentID, workload string) error {
+func (s *Service) upsertSchedulingAssignment(deploymentID, workload string) (schedulingAssignment, error) {
 	if s.raft == nil || !s.raft.Enabled() {
-		return nil
+		now := time.Now()
+		return schedulingAssignment{
+			DeploymentID: deploymentID,
+			Workload:     workload,
+			DesiredNode:  s.nodeID,
+			WorkerNode:   s.nodeID,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}, nil
 	}
 	desired, worker := s.selectWorkerNode(deploymentID)
 	now := time.Now()
@@ -48,17 +56,17 @@ func (s *Service) upsertSchedulingAssignment(deploymentID, workload string) erro
 	}
 	raw, err := json.Marshal(record)
 	if err != nil {
-		return err
+		return schedulingAssignment{}, err
 	}
 	if err := s.raft.ApplySet(taskAssignmentBucket, deploymentID, raw); err != nil {
-		return fmt.Errorf("set scheduling assignment: %w", err)
+		return schedulingAssignment{}, fmt.Errorf("set scheduling assignment: %w", err)
 	}
 
 	// Prefer badger hot cache via raft.Read; fallback remains FSM bbolt.
 	if _, err := s.raft.Read(taskAssignmentBucket, deploymentID); err != nil {
-		return fmt.Errorf("verify scheduling assignment cache: %w", err)
+		return schedulingAssignment{}, fmt.Errorf("verify scheduling assignment cache: %w", err)
 	}
-	return nil
+	return record, nil
 }
 
 func (s *Service) selectWorkerNode(deploymentID string) (desired string, worker string) {
@@ -85,9 +93,12 @@ func (s *Service) selectWorkerNode(deploymentID string) (desired string, worker 
 		return chosen, chosen
 	}
 
-	// Current baseline keeps leader as executable worker to maximize reuse.
-	s.logger.Info("remote worker selected but falling back to leader worker mode", "desired_node", chosen, "worker_node", s.nodeID)
-	return chosen, s.nodeID
+	if s.resolveWorkerAPI(chosen).IsAbsent() {
+		// Keep leader-as-worker baseline when remote worker endpoint is not configured.
+		s.logger.Info("remote worker has no api mapping, fallback to leader worker mode", "desired_node", chosen, "worker_node", s.nodeID)
+		return chosen, s.nodeID
+	}
+	return chosen, chosen
 }
 
 func (s *Service) hashToIndex(input string, size int) int {

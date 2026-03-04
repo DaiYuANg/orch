@@ -38,6 +38,8 @@ type DeploymentInfo struct {
 	Workload    string           `json:"workload"`
 	Format      string           `json:"format"`
 	Status      DeploymentStatus `json:"status"`
+	DesiredNode string           `json:"desired_node,omitempty"`
+	WorkerNode  string           `json:"worker_node,omitempty"`
 	CreatedAt   time.Time        `json:"created_at"`
 	UpdatedAt   time.Time        `json:"updated_at"`
 	InstanceIDs []string         `json:"instance_ids"`
@@ -52,6 +54,8 @@ type InstanceInfo struct {
 	Unit              string         `json:"unit"`
 	Task              string         `json:"task"`
 	Replica           int            `json:"replica"`
+	NodeID            string         `json:"node_id,omitempty"`
+	NodeIP            string         `json:"node_ip,omitempty"`
 	Driver            string         `json:"driver"`
 	ContainerID       string         `json:"container_id"`
 	Status            InstanceStatus `json:"status"`
@@ -88,4 +92,15 @@ type healthCheckSpec struct {
 	Interval time.Duration
 	Timeout  time.Duration
 	Retries  int
+}
+
+type InternalRunRequest struct {
+	Spec RuntimeRunSpec `json:"spec"`
+}
+
+type InternalRunResult struct {
+	ContainerID string `json:"container_id"`
+	Driver      string `json:"driver"`
+	NodeID      string `json:"node_id"`
+	NodeIP      string `json:"node_ip"`
 }

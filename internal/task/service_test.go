@@ -8,8 +8,10 @@ import (
 	"sync"
 	"testing"
 
+	internaldns "github.com/DaiYuANg/warden/internal/dns"
 	"github.com/DaiYuANg/warden/internal/registry"
 	"github.com/adrg/xdg"
+	"github.com/miekg/dns"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -186,4 +188,61 @@ units:
 	require.NoError(t, err)
 	assert.Empty(t, routes)
 	assert.Contains(t, runtime.stopCalls, instance.ContainerID)
+}
+
+func TestDeployAndStopSyncDNSRecord(t *testing.T) {
+	ctx := context.Background()
+	registryService := newRegistryForTaskTest(t)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	runtime := newFakeRuntime("mock")
+	service := NewServiceWithRuntimeFactory(logger, registryService, func() (RuntimeExecutor, error) {
+		return runtime, nil
+	})
+
+	dnsServer, err := internaldns.NewDNSServer(logger, registryService)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = dnsServer.Shutdown()
+	})
+	service.dnsServer = dnsServer
+	service.dnsIP = "127.0.0.1"
+
+	workloadYAML := `
+name: dns-bind
+units:
+  - name: app
+    tasks:
+      - name: web
+        type: service
+        driver: docker
+        image: nginx:latest
+        labels:
+          warden.ingress.http.host: "api.example.local"
+        network:
+          port:
+            http: 18080
+`
+
+	result, err := service.Deploy(ctx, DeployRequest{
+		Filename: "dns-bind.yaml",
+		Content:  workloadYAML,
+	})
+	require.NoError(t, err)
+
+	query := new(dns.Msg)
+	query.SetQuestion(dns.Fqdn("api.example.local"), dns.TypeA)
+	recorder := &dnsResponseRecorder{}
+	dnsServer.ServeDNS(recorder, query)
+	require.NotNil(t, recorder.msg)
+	require.NotEmpty(t, recorder.msg.Answer)
+	answer, ok := recorder.msg.Answer[0].(*dns.A)
+	require.True(t, ok)
+	assert.Equal(t, "127.0.0.1", answer.A.String())
+
+	require.NoError(t, service.StopDeployment(ctx, result.DeploymentID))
+
+	recorder = &dnsResponseRecorder{}
+	dnsServer.ServeDNS(recorder, query)
+	require.NotNil(t, recorder.msg)
+	assert.Empty(t, recorder.msg.Answer)
 }

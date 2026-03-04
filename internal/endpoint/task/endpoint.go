@@ -29,6 +29,21 @@ type instanceLogsPathInput struct {
 	Tail int    `query:"tail" default:"200"`
 }
 
+type internalRunInput struct {
+	Body tasksvc.InternalRunRequest
+}
+
+type internalStopInput struct {
+	Body struct {
+		ContainerID string `json:"container_id"`
+	}
+}
+
+type internalLogsPathInput struct {
+	ContainerID string `path:"container_id"`
+	Tail        int    `query:"tail" default:"200"`
+}
+
 func (e *Endpoint) submitTask(ctx context.Context, input *deployInput) (*struct {
 	Body model.Response[tasksvc.DeployResult]
 }, error) {
@@ -80,6 +95,47 @@ func (e *Endpoint) getInstanceLogs(ctx context.Context, input *instanceLogsPathI
 	}]
 }, error) {
 	logs, err := e.service.Logs(ctx, input.ID, input.Tail)
+	if err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(struct {
+		Logs string `json:"logs"`
+	}{
+		Logs: logs,
+	}), nil
+}
+
+func (e *Endpoint) internalRun(ctx context.Context, input *internalRunInput) (*struct {
+	Body model.Response[tasksvc.InternalRunResult]
+}, error) {
+	result, err := e.service.InternalRun(ctx, input.Body)
+	if err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(*result), nil
+}
+
+func (e *Endpoint) internalStop(ctx context.Context, input *internalStopInput) (*struct {
+	Body model.Response[struct {
+		Stopped bool `json:"stopped"`
+	}]
+}, error) {
+	if err := e.service.InternalStop(ctx, input.Body.ContainerID); err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(struct {
+		Stopped bool `json:"stopped"`
+	}{
+		Stopped: true,
+	}), nil
+}
+
+func (e *Endpoint) internalLogs(ctx context.Context, input *internalLogsPathInput) (*struct {
+	Body model.Response[struct {
+		Logs string `json:"logs"`
+	}]
+}, error) {
+	logs, err := e.service.InternalLogs(ctx, input.ContainerID, input.Tail)
 	if err != nil {
 		return nil, err
 	}

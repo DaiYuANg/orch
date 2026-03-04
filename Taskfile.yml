@@ -116,3 +116,19 @@ tasks:
       API: http://127.0.0.1:7444
     cmds:
       - go run ./cmd/cli --api {{.API}} cluster status
+
+  raft:smoke:
+    desc: run local raft e2e smoke test (requires nodes already running)
+    vars:
+      LEADER_API: http://127.0.0.1:7443
+      FOLLOWER_API: http://127.0.0.1:7444
+      INGRESS: 127.0.0.1:18082
+      DNS: 127.0.0.1:10532
+    env:
+      WARDEN_LOCAL_RAFT_SMOKE: "1"
+      WARDEN_SMOKE_LEADER_API: "{{.LEADER_API}}"
+      WARDEN_SMOKE_FOLLOWER_API: "{{.FOLLOWER_API}}"
+      WARDEN_SMOKE_INGRESS: "{{.INGRESS}}"
+      WARDEN_SMOKE_DNS: "{{.DNS}}"
+    cmds:
+      - go test ./tests/localraft -run TestLocalRaftSmoke -count=1 -v

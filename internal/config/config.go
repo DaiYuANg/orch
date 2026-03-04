@@ -39,6 +39,7 @@ func defaultConfig() Config {
 		Raft: Raft{
 			Enable:            false,
 			BindAddr:          "127.0.0.1:12000",
+			APIAddr:           "",
 			Bootstrap:         true,
 			ApplyTimeout:      "3s",
 			LeaderWaitTimeout: "10s",

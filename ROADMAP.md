@@ -26,13 +26,16 @@ Snapshot date: March 4, 2026
 - [x] Leader-only deploy guard with replicated scheduling-assignment records
 - [x] Badger hot-cache integration for raft FSM read/write path
 - [x] Leader-as-worker scheduling baseline with desired/worker assignment metadata
+- [x] Cross-node runtime dispatch baseline via worker API (`raft.node_api`) with leader fallback
 - [x] Cluster observability and membership APIs (`/system/cluster`, `join`, `remove`)
 - [x] CLI/process split: `cmd/server` for server runtime and `cmd/cli` for user operations
+- [x] Deploy/stop DNS record lifecycle binding for HTTP ingress hosts
+- [x] Local raft smoke test harness (`task raft:smoke` + `tests/localraft`)
 
 ## In Progress
 
 - [ ] Runtime abstraction hardening for non-docker executors (systemd/containerd/firecracker/windows-service)
-- [ ] Cross-node remote execution dispatch after leader placement (current scheduling baseline is leader-local)
+- [ ] Cross-node reconcile/restart/log aggregation path for remote worker instances
 - [ ] Dashboard integration depth (auth/token flow, deploy actions, logs and richer runtime operations)
 - [ ] Pack CLI and package workflow beyond static catalog
 - [ ] Better operator UX for auth/token/config management

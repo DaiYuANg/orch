@@ -9,6 +9,12 @@ raft:
   enable: true
   node_id: "127.0.0.1:12002"
   bind_addr: "127.0.0.1:12002"
+  api_addr: "http://127.0.0.1:7444"
+  node_api:
+    - "127.0.0.1:12001=http://127.0.0.1:7443"
+    - "127.0.0.1:12002=http://127.0.0.1:7444"
+    - "127.0.0.1:12003=http://127.0.0.1:7445"
+    - "127.0.0.1:12004=http://127.0.0.1:7446"
   data_dir: ".tmp/local-raft/node2"
   bootstrap: false
   apply_timeout: "3s"

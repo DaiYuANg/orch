@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	internalconfig "github.com/DaiYuANg/warden/internal/config"
+	internaldns "github.com/DaiYuANg/warden/internal/dns"
 	"github.com/DaiYuANg/warden/internal/dsl"
 	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/DaiYuANg/warden/internal/registry"
@@ -52,6 +54,10 @@ type Service struct {
 	registry    *registry.Service
 	nodeID      string
 	nodeIP      string
+	nodeAPI     map[string]string
+	dnsIP       string
+	httpClient  *http.Client
+	dnsServer   *internaldns.DNSServer
 	deployments map[string]*deploymentRecord
 	instances   map[string]*instanceRecord
 
@@ -61,22 +67,41 @@ type Service struct {
 }
 
 func NewService(logger *slog.Logger, registryService *registry.Service) *Service {
-	return newService(logger, registryService, nil, newDockerRuntimeExecutor)
+	return newService(logger, nil, nil, registryService, nil, newDockerRuntimeExecutor)
 }
 
 func NewServiceWithRuntimeFactory(logger *slog.Logger, registryService *registry.Service, runtimeFactory RuntimeFactory) *Service {
-	return newService(logger, registryService, nil, runtimeFactory)
+	return newService(logger, nil, nil, registryService, nil, runtimeFactory)
 }
 
-func newServiceWithRaft(logger *slog.Logger, registryService *registry.Service, raftService *raft.Service) *Service {
-	return newService(logger, registryService, raftService, newDockerRuntimeExecutor)
+func newServiceWithRaft(
+	logger *slog.Logger,
+	cfg *internalconfig.Config,
+	registryService *registry.Service,
+	raftService *raft.Service,
+	dnsServer *internaldns.DNSServer,
+) *Service {
+	return newService(logger, cfg, raftService, registryService, dnsServer, newDockerRuntimeExecutor)
 }
 
-func newService(logger *slog.Logger, registryService *registry.Service, raftService *raft.Service, runtimeFactory RuntimeFactory) *Service {
+func newService(
+	logger *slog.Logger,
+	cfg *internalconfig.Config,
+	raftService *raft.Service,
+	registryService *registry.Service,
+	dnsServer *internaldns.DNSServer,
+	runtimeFactory RuntimeFactory,
+) *Service {
 	if runtimeFactory == nil {
 		runtimeFactory = newDockerRuntimeExecutor
 	}
-	nodeID, _ := pkg.MachineID()
+	nodeID := ""
+	if raftService != nil && raftService.Enabled() {
+		nodeID = strings.TrimSpace(raftService.NodeID())
+	}
+	if nodeID == "" {
+		nodeID, _ = pkg.MachineID()
+	}
 	nodeIP := detectNodeIP()
 	if nodeID == "" {
 		nodeID = uuid.NewString()
@@ -91,6 +116,10 @@ func newService(logger *slog.Logger, registryService *registry.Service, raftServ
 		registry:          registryService,
 		nodeID:            nodeID,
 		nodeIP:            nodeIP,
+		nodeAPI:           buildNodeAPIIndex(cfg),
+		dnsIP:             resolveIngressAdvertiseIP(cfg, nodeIP),
+		httpClient:        &http.Client{Timeout: 10 * time.Second},
+		dnsServer:         dnsServer,
 		deployments:       make(map[string]*deploymentRecord),
 		instances:         make(map[string]*instanceRecord),
 		reconcileInterval: 5 * time.Second,
@@ -145,13 +174,9 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 		return nil, err
 	}
 
-	exec, err := s.ensureRuntime(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	deploymentID := uuid.NewString()
-	if err := s.upsertSchedulingAssignment(deploymentID, workload.Name); err != nil {
+	assignment, err := s.upsertSchedulingAssignment(deploymentID, workload.Name)
+	if err != nil {
 		return nil, err
 	}
 	cleanupAssignment := true
@@ -164,14 +189,25 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 	now := time.Now()
 	deployment := &deploymentRecord{
 		DeploymentInfo: DeploymentInfo{
-			ID:        deploymentID,
-			Workload:  workload.Name,
-			Format:    format,
-			Status:    DeploymentStatusRunning,
-			CreatedAt: now,
-			UpdatedAt: now,
+			ID:          deploymentID,
+			Workload:    workload.Name,
+			Format:      format,
+			Status:      DeploymentStatusRunning,
+			DesiredNode: assignment.DesiredNode,
+			WorkerNode:  assignment.WorkerNode,
+			CreatedAt:   now,
+			UpdatedAt:   now,
 		},
 		instances: make(map[string]*instanceRecord),
+	}
+
+	localExec := mo.None[RuntimeExecutor]()
+	if assignment.WorkerNode == s.nodeID {
+		exec, runtimeErr := s.ensureRuntime(ctx)
+		if runtimeErr != nil {
+			return nil, runtimeErr
+		}
+		localExec = mo.Some(exec)
 	}
 
 	created := make([]*instanceRecord, 0)
@@ -183,6 +219,7 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 				if err := s.upsertRoute(route); err != nil {
 					return nil, fmt.Errorf("upsert route %s: %w", route.ID, err)
 				}
+				s.syncDNSForRoute(route)
 				deployment.RouteIDs = append(deployment.RouteIDs, route.ID)
 			}
 
@@ -191,23 +228,54 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 				replicas = 1
 			}
 			for replica := 0; replica < replicas; replica++ {
-				instance := s.newInstanceRecord(deploymentID, exec.Driver(), serviceName, workload.Name, unit.Name, taskSpec, replica)
-				containerID, runErr := exec.Run(ctx, instance.RunSpec)
-				if runErr != nil {
-					for _, item := range created {
-						_ = exec.Stop(ctx, item.ContainerID)
+				runtimeName := "docker"
+				if localExec.IsPresent() {
+					runtimeName = localExec.OrEmpty().Driver()
+				}
+				instance := s.newInstanceRecord(deploymentID, runtimeName, serviceName, workload.Name, unit.Name, taskSpec, replica)
+
+				containerID := ""
+				if localExec.IsPresent() {
+					runExec := localExec.OrEmpty()
+					var runErr error
+					containerID, runErr = runExec.Run(ctx, instance.RunSpec)
+					if runErr != nil {
+						lo.ForEach(created, func(item *instanceRecord, _ int) {
+							_ = s.stopInstanceContainer(ctx, item)
+						})
+						_ = s.deleteRoutesByOwner(deploymentID)
+						return nil, fmt.Errorf("start workload %s/%s/%s[%d]: %w", workload.Name, unit.Name, taskSpec.Name, replica, runErr)
 					}
-					_ = s.deleteRoutesByOwner(deploymentID)
-					return nil, fmt.Errorf("start docker workload %s/%s/%s[%d]: %w", workload.Name, unit.Name, taskSpec.Name, replica, runErr)
+				} else {
+					workerRun, runErr := s.runContainerOnWorker(ctx, assignment.WorkerNode, instance.RunSpec)
+					if runErr != nil {
+						lo.ForEach(created, func(item *instanceRecord, _ int) {
+							_ = s.stopInstanceContainer(ctx, item)
+						})
+						_ = s.deleteRoutesByOwner(deploymentID)
+						return nil, fmt.Errorf("start remote workload %s/%s/%s[%d] on %s: %w", workload.Name, unit.Name, taskSpec.Name, replica, assignment.WorkerNode, runErr)
+					}
+					containerID = workerRun.ContainerID
+					if strings.TrimSpace(workerRun.Driver) != "" {
+						instance.Driver = workerRun.Driver
+					}
+					if strings.TrimSpace(workerRun.NodeID) != "" {
+						instance.NodeID = workerRun.NodeID
+					} else {
+						instance.NodeID = assignment.WorkerNode
+					}
+					if strings.TrimSpace(workerRun.NodeIP) != "" {
+						instance.NodeIP = workerRun.NodeIP
+					}
 				}
 				instance.ContainerID = containerID
 				instance.Status = InstanceStatusRunning
 				instance.UpdatedAt = time.Now()
 				if err := s.upsertRegistryEndpoint(instance, true); err != nil {
-					_ = exec.Stop(ctx, instance.ContainerID)
-					for _, item := range created {
-						_ = exec.Stop(ctx, item.ContainerID)
-					}
+					_ = s.stopInstanceContainer(ctx, instance)
+					lo.ForEach(created, func(item *instanceRecord, _ int) {
+						_ = s.stopInstanceContainer(ctx, item)
+					})
 					_ = s.deleteRoutesByOwner(deploymentID)
 					return nil, fmt.Errorf("register endpoint %s: %w", instance.ID, err)
 				}
@@ -263,11 +331,6 @@ func (s *Service) ListDeployments() []DeploymentInfo {
 }
 
 func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error {
-	exec, err := s.ensureRuntime(ctx)
-	if err != nil {
-		return err
-	}
-
 	s.mu.RLock()
 	dep, ok := s.deployments[deploymentID]
 	if !ok {
@@ -282,7 +345,7 @@ func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error
 
 	var firstErr error
 	for _, item := range instances {
-		if stopErr := exec.Stop(ctx, item.ContainerID); stopErr != nil && firstErr == nil {
+		if stopErr := s.stopInstanceContainer(ctx, item); stopErr != nil && firstErr == nil {
 			firstErr = stopErr
 		}
 		if err := s.deleteEndpoint(item.ID); err != nil && firstErr == nil {
@@ -313,11 +376,6 @@ func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error
 }
 
 func (s *Service) Logs(ctx context.Context, instanceID string, tail int) (string, error) {
-	exec, err := s.ensureRuntime(ctx)
-	if err != nil {
-		return "", err
-	}
-
 	s.mu.RLock()
 	instance, ok := s.instances[instanceID]
 	s.mu.RUnlock()
@@ -325,6 +383,14 @@ func (s *Service) Logs(ctx context.Context, instanceID string, tail int) (string
 		return "", fmt.Errorf("instance not found: %s", instanceID)
 	}
 
+	if strings.TrimSpace(instance.NodeID) != "" && instance.NodeID != s.nodeID {
+		return s.readContainerLogsOnWorker(ctx, instance.NodeID, instance.ContainerID, tail)
+	}
+
+	exec, err := s.ensureRuntime(ctx)
+	if err != nil {
+		return "", err
+	}
 	return exec.Logs(ctx, instance.ContainerID, tail)
 }
 
@@ -366,6 +432,9 @@ func (s *Service) reconcileInstance(instanceID string) {
 	s.mu.RUnlock()
 
 	if snapshot.Status == InstanceStatusStopped || snapshot.Status == InstanceStatusFailed {
+		return
+	}
+	if strings.TrimSpace(snapshot.NodeID) != "" && snapshot.NodeID != s.nodeID {
 		return
 	}
 
@@ -544,6 +613,8 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 				Unit:         c.Labels[labelUnit],
 				Task:         c.Labels[labelTask],
 				Replica:      replica,
+				NodeID:       s.nodeID,
+				NodeIP:       s.nodeIP,
 				Driver:       driver,
 				ContainerID:  c.ID,
 				Status:       InstanceStatusRunning,
@@ -704,6 +775,8 @@ func (s *Service) newInstanceRecord(deploymentID, runtimeName, serviceName, work
 			Unit:         unitName,
 			Task:         taskSpec.Name,
 			Replica:      replica,
+			NodeID:       s.nodeID,
+			NodeIP:       s.nodeIP,
 			Driver:       runtimeName,
 			Status:       InstanceStatusUnknown,
 			CreatedAt:    now,
@@ -1012,11 +1085,19 @@ func (s *Service) upsertRegistryEndpoint(instance *instanceRecord, healthy bool)
 	if s.registry == nil || instance == nil {
 		return nil
 	}
+	nodeID := strings.TrimSpace(instance.NodeID)
+	if nodeID == "" {
+		nodeID = s.nodeID
+	}
+	nodeIP := strings.TrimSpace(instance.NodeIP)
+	if nodeIP == "" {
+		nodeIP = s.nodeIP
+	}
 	endpoint := registry.ServiceEndpoint{
 		ID:       instance.ID,
 		Service:  instance.Service,
-		NodeID:   s.nodeID,
-		NodeIP:   s.nodeIP,
+		NodeID:   nodeID,
+		NodeIP:   nodeIP,
 		Runtime:  instance.Driver,
 		Protocol: registry.RouteProtocolHTTP,
 		Ports:    instance.RunSpec.Ports,
@@ -1059,7 +1140,106 @@ func (s *Service) deleteRoutesByOwner(ownerID string) error {
 	if s.registry == nil {
 		return nil
 	}
-	return s.registry.DeleteRoutesByOwner(ownerID)
+	httpRoutes, err := s.registry.ListRoutes(registry.RouteProtocolHTTP)
+	if err != nil {
+		return err
+	}
+	targetHosts := lo.FilterMap(httpRoutes, func(item registry.Route, _ int) (string, bool) {
+		host := strings.TrimSpace(item.Host)
+		return host, item.OwnerID == ownerID && host != ""
+	})
+
+	if err := s.registry.DeleteRoutesByOwner(ownerID); err != nil {
+		return err
+	}
+	s.deleteUnusedDNSRecords(targetHosts)
+	return nil
+}
+
+func (s *Service) deleteUnusedDNSRecords(hosts []string) {
+	if s.dnsServer == nil || len(hosts) == 0 || s.registry == nil {
+		return
+	}
+
+	remaining, err := s.registry.ListRoutes(registry.RouteProtocolHTTP)
+	if err != nil {
+		s.logger.Warn("list routes for dns cleanup failed", "error", err)
+		return
+	}
+	existing := lo.Reduce(remaining, func(agg map[string]struct{}, item registry.Route, _ int) map[string]struct{} {
+		host := strings.TrimSpace(item.Host)
+		if host != "" {
+			agg[host] = struct{}{}
+		}
+		return agg
+	}, map[string]struct{}{})
+
+	lo.ForEach(lo.Uniq(hosts), func(host string, _ int) {
+		if _, ok := existing[host]; ok {
+			return
+		}
+		s.dnsServer.DeleteRecord(host)
+	})
+}
+
+func (s *Service) syncDNSForRoute(route registry.Route) {
+	if s.dnsServer == nil || route.Protocol != registry.RouteProtocolHTTP || !route.Enabled {
+		return
+	}
+	host := strings.TrimSpace(route.Host)
+	if host == "" {
+		return
+	}
+	s.dnsServer.SetRecord(host, s.dnsIP)
+}
+
+func (s *Service) stopInstanceContainer(ctx context.Context, instance *instanceRecord) error {
+	if instance == nil {
+		return nil
+	}
+	workerID := strings.TrimSpace(instance.NodeID)
+	if workerID != "" && workerID != s.nodeID {
+		return s.stopContainerOnWorker(ctx, workerID, instance.ContainerID)
+	}
+	exec, err := s.ensureRuntime(ctx)
+	if err != nil {
+		return err
+	}
+	return exec.Stop(ctx, instance.ContainerID)
+}
+
+func (s *Service) InternalRun(ctx context.Context, req InternalRunRequest) (*InternalRunResult, error) {
+	exec, err := s.ensureRuntime(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	containerID, err := exec.Run(ctx, req.Spec)
+	if err != nil {
+		return nil, err
+	}
+	return &InternalRunResult{
+		ContainerID: containerID,
+		Driver:      exec.Driver(),
+		NodeID:      s.nodeID,
+		NodeIP:      s.nodeIP,
+	}, nil
+}
+
+func (s *Service) InternalStop(ctx context.Context, containerID string) error {
+	exec, err := s.ensureRuntime(ctx)
+	if err != nil {
+		return err
+	}
+	return exec.Stop(ctx, strings.TrimSpace(containerID))
+}
+
+func (s *Service) InternalLogs(ctx context.Context, containerID string, tail int) (string, error) {
+	exec, err := s.ensureRuntime(ctx)
+	if err != nil {
+		return "", err
+	}
+	return exec.Logs(ctx, strings.TrimSpace(containerID), tail)
 }
 
 func (s *Service) buildRoutesForTask(

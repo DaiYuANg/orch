@@ -16,22 +16,23 @@ Implemented:
 - Registry persistence with `bbolt` + route/endpoint resolution
 - Raft-backed registry write path (when enabled) with FSM apply/snapshot/restore
 - Leader-only scheduling guard for deploy operations with replicated assignment records
-- Leader keeps worker capability enabled (leader-as-worker) while remote worker dispatch is evolving
+- Leader keeps worker capability enabled (leader-as-worker) and can dispatch workload runtime execution to configured remote workers (`raft.node_api`)
 - Badger-backed hot cache in raft FSM for recently written consensus data
 - Cluster status and membership management APIs (`/system/cluster`, `/system/cluster/join`, `/system/cluster/remove`)
 - Process split between server runtime (`cmd/server`) and user operations CLI (`cmd/cli`)
 - Built-in ingress (HTTP/TCP/UDP) backed by registry routes
-- DNS resolution for registered services
+- DNS resolution for registered services with deploy/stop driven DNS record lifecycle updates
 - JWT middleware with local root token generation
 - Persistent signing key storage for stable token validation across restarts
 - Baseline automated tests for `internal/task`, `internal/registry`, and `internal/ingress`
+- Local raft multi-process smoke test (`task raft:smoke`) for deploy+scheduling+dns+ingress validation
 - Dashboard shell rebuilt with Refine + shadcn-style component primitives
 - `pack` CLI basic catalog commands (`list`, `search`)
 
 Not finished yet:
 
 - Production-ready non-docker runtime scheduling path (systemd/containerd/firecracker/windows-service)
-- Cross-node remote execution after leader placement decision (current baseline is leader-local scheduling)
+- Cross-node runtime reconcile/repair loop after remote placement (current reconcile loop is leader-local only)
 - Secrets management
 - HA migration/orchestration workflows
 - Full dashboard feature coverage (auth, deploy form, logs/actions, richer observability views)

@@ -4,6 +4,7 @@ This setup runs 3 to 4 local Warden processes on one machine to validate:
 
 - raft leader write path works
 - follower rejects scheduling writes (`not leader`)
+- leader can dispatch runtime execution to remote worker nodes
 - follower ingress can still route traffic after replicated registry updates
 
 ## Ports and nodes
@@ -99,6 +100,12 @@ task raft:cluster:leader
 task raft:cluster:follower
 ```
 
+Run one-command smoke validation (nodes must already be running):
+
+```bash
+task raft:smoke
+```
+
 ## Customize ports
 
 Edit these keys in each node config:
@@ -108,7 +115,18 @@ Edit these keys in each node config:
 - `network.ingress_http_listen`
 - `raft.bind_addr`
 - `raft.node_id`
+- `raft.api_addr`
+- `raft.node_api`
 - `raft.join` (leader node)
+
+`raft.node_api` format uses `node-id=http://api-host:port`, for example:
+
+```yaml
+raft:
+  node_api:
+    - "127.0.0.1:12001=http://127.0.0.1:7443"
+    - "127.0.0.1:12002=http://127.0.0.1:7444"
+```
 
 If ports change, update config files and Task vars.
 For example, deploy to another leader API:

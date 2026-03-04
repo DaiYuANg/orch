@@ -20,7 +20,6 @@ require (
 	github.com/coreos/go-systemd/v22 v22.6.0
 	github.com/danielgtaylor/huma/v2 v2.37.2
 	github.com/dgraph-io/badger/v3 v3.2103.5
-	github.com/eko/gocache/lib/v4 v4.2.3
 	github.com/firecracker-microvm/firecracker-go-sdk v1.0.0
 	github.com/fsouza/go-dockerclient v1.13.0
 	github.com/go-co-op/gocron/v2 v2.19.1

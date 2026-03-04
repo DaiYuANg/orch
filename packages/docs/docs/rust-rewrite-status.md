@@ -44,6 +44,10 @@ title: Rust Rewrite 状态
 - `warden-cli-rs` 可查询：`workloads/endpoints/routes/dns`。
 - `warden-cli-rs` 已支持 `deploy/stop/task list/task get`（JSON 参数，不依赖旧 HCL DSL）。
 - `warden-cli-rs` 支持 `--api auto`：优先平台协议（Unix/Named Pipe）失败后 fallback 到 HTTP。
+- API 层已统一业务错误码与错误封装中间件，非 JSON 错误也会返回 `ApiEnvelope`。
+- API 层已接入 `utoipa`，提供 OpenAPI 与 Swagger UI。
+- client 侧已接入 retry 中间件，仅幂等方法（GET/HEAD/OPTIONS/DELETE）启用重试。
+- timeout 配置已经下沉到 `config.timeouts` 并注入 ingress / dns。
 - 构建与编排入口切换为 `just + cargo xtask`。
 - DNS server 底座改为 `hickory-dns`（`hickory-server`）。
 - 配置系统切换为 `figment`，支持 `WARDEN__...` 环境变量覆盖。

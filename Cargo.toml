@@ -38,8 +38,15 @@ tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest-middleware = "0.4"
+reqwest-retry = "0.7"
 url = "2"
 async-trait = "0.1"
 bollard = "0.19"
 futures-util = "0.3"
 openraft = "0.9"
+validator = { version = "0.20", features = ["derive"] }
+moka = { version = "0.12", features = ["sync"] }
+duct = "0.13"
+utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }

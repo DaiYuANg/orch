@@ -7,8 +7,13 @@ license.workspace = true
 [dependencies]
 anyhow.workspace = true
 reqwest.workspace = true
+reqwest-middleware.workspace = true
+reqwest-retry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 url.workspace = true
 warden-types = { path = "../warden-types" }
+
+[dev-dependencies]
+axum.workspace = true

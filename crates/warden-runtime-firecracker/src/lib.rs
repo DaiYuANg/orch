@@ -8,39 +8,39 @@ use warden_types::DeployWorkloadRequest;
 pub struct FirecrackerRuntimeProvider;
 
 impl FirecrackerRuntimeProvider {
-    pub fn new() -> Self {
-        Self
-    }
+  pub fn new() -> Self {
+    Self
+  }
 }
 
 #[async_trait]
 impl RuntimeProvider for FirecrackerRuntimeProvider {
-    fn name(&self) -> &'static str {
-        "firecracker"
-    }
+  fn name(&self) -> &'static str {
+    "firecracker"
+  }
 
-    async fn start(&self) -> anyhow::Result<()> {
-        info!(target: "warden::runtime::firecracker", "firecracker runtime provider startup");
-        Ok(())
-    }
+  async fn start(&self) -> anyhow::Result<()> {
+    info!(target: "warden::runtime::firecracker", "firecracker runtime provider startup");
+    Ok(())
+  }
 
-    async fn deploy(
-        &self,
-        _workload_id: &str,
-        _req: &DeployWorkloadRequest,
-    ) -> anyhow::Result<RuntimeLaunchResult> {
-        Err(anyhow!(
-            "runtime provider '{}' is not implemented yet",
-            self.name()
-        ))
-    }
+  async fn deploy(
+    &self,
+    _workload_id: &str,
+    _req: &DeployWorkloadRequest,
+  ) -> anyhow::Result<RuntimeLaunchResult> {
+    Err(anyhow!(
+      "runtime provider '{}' is not implemented yet",
+      self.name()
+    ))
+  }
 
-    async fn stop(&self, workload_id: &str) -> anyhow::Result<()> {
-        info!(
-            target: "warden::runtime::firecracker",
-            workload_id = %workload_id,
-            "firecracker stop no-op (not implemented)"
-        );
-        Ok(())
-    }
+  async fn stop(&self, workload_id: &str) -> anyhow::Result<()> {
+    info!(
+        target: "warden::runtime::firecracker",
+        workload_id = %workload_id,
+        "firecracker stop no-op (not implemented)"
+    );
+    Ok(())
+  }
 }

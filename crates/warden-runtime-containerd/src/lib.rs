@@ -8,39 +8,39 @@ use warden_types::DeployWorkloadRequest;
 pub struct ContainerdRuntimeProvider;
 
 impl ContainerdRuntimeProvider {
-    pub fn new() -> Self {
-        Self
-    }
+  pub fn new() -> Self {
+    Self
+  }
 }
 
 #[async_trait]
 impl RuntimeProvider for ContainerdRuntimeProvider {
-    fn name(&self) -> &'static str {
-        "containerd"
-    }
+  fn name(&self) -> &'static str {
+    "containerd"
+  }
 
-    async fn start(&self) -> anyhow::Result<()> {
-        info!(target: "warden::runtime::containerd", "containerd runtime provider startup");
-        Ok(())
-    }
+  async fn start(&self) -> anyhow::Result<()> {
+    info!(target: "warden::runtime::containerd", "containerd runtime provider startup");
+    Ok(())
+  }
 
-    async fn deploy(
-        &self,
-        _workload_id: &str,
-        _req: &DeployWorkloadRequest,
-    ) -> anyhow::Result<RuntimeLaunchResult> {
-        Err(anyhow!(
-            "runtime provider '{}' is not implemented yet",
-            self.name()
-        ))
-    }
+  async fn deploy(
+    &self,
+    _workload_id: &str,
+    _req: &DeployWorkloadRequest,
+  ) -> anyhow::Result<RuntimeLaunchResult> {
+    Err(anyhow!(
+      "runtime provider '{}' is not implemented yet",
+      self.name()
+    ))
+  }
 
-    async fn stop(&self, workload_id: &str) -> anyhow::Result<()> {
-        info!(
-            target: "warden::runtime::containerd",
-            workload_id = %workload_id,
-            "containerd stop no-op (not implemented)"
-        );
-        Ok(())
-    }
+  async fn stop(&self, workload_id: &str) -> anyhow::Result<()> {
+    info!(
+        target: "warden::runtime::containerd",
+        workload_id = %workload_id,
+        "containerd stop no-op (not implemented)"
+    );
+    Ok(())
+  }
 }

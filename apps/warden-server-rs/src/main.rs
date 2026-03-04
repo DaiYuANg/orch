@@ -76,6 +76,9 @@ async fn main() -> anyhow::Result<()> {
     registry,
     dns,
     task,
+    raft_enabled: cfg.raft.enable,
+    raft_node_id: cfg.raft.node_id,
+    raft_bind_addr: cfg.raft.bind_addr.clone(),
   });
   warden_http::run(&cfg, app).await
 }

@@ -15,11 +15,11 @@ import {
 
 type Deployment = {
   id: string;
-  workload: string;
+  name: string;
   status: "running" | "failed" | "stopped" | string;
-  format: string;
-  updated_at: string;
-  instance_ids: string[];
+  runtime: string;
+  node_id: string;
+  created_at: string;
 };
 
 const statusVariant = (status: string) => {
@@ -55,20 +55,22 @@ export function DeploymentsListPage() {
                 <TableRow>
                   <TableHead>Workload</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Format</TableHead>
-                  <TableHead>Instances</TableHead>
+                  <TableHead>Runtime</TableHead>
+                  <TableHead>Node</TableHead>
+                  <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {result.data.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.workload}</TableCell>
+                    <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>
                       <Badge variant={statusVariant(item.status)}>{item.status}</Badge>
                     </TableCell>
-                    <TableCell>{item.format}</TableCell>
-                    <TableCell>{item.instance_ids?.length ?? 0}</TableCell>
+                    <TableCell>{item.runtime}</TableCell>
+                    <TableCell>{item.node_id}</TableCell>
+                    <TableCell>{item.created_at}</TableCell>
                     <TableCell className="text-right">
                       <ShowButton resource="deployments" recordItemId={item.id} size="sm" />
                     </TableCell>

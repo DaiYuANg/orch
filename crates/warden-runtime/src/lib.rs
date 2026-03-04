@@ -147,6 +147,45 @@ impl RuntimeEngine {
     Ok(())
   }
 
+  pub async fn recover_managed(&self, workload_id: &str, runtime: &str) {
+    let normalized = runtime.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+      return;
+    }
+    let exists = self.providers.read().await.contains_key(&normalized);
+    if !exists {
+      warn!(
+        target: "warden::runtime",
+        workload_id = %workload_id,
+        runtime = %normalized,
+        "skip managed recovery due to missing provider"
+      );
+      return;
+    }
+    self
+      .managed
+      .write()
+      .await
+      .insert(workload_id.to_string(), normalized);
+  }
+
+  pub async fn list_providers(&self) -> Vec<String> {
+    let map = self.providers.read().await;
+    let mut names = map.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    names
+  }
+
+  pub async fn managed_summary(&self) -> Vec<(String, String)> {
+    let map = self.managed.read().await;
+    let mut rows = map
+      .iter()
+      .map(|(k, v)| (k.clone(), v.clone()))
+      .collect::<Vec<_>>();
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    rows
+  }
+
   async fn get_provider(&self, runtime: &str) -> Option<Arc<dyn RuntimeProvider>> {
     self.providers.read().await.get(runtime).cloned()
   }

@@ -22,7 +22,7 @@ type APIEnvelope<T> = {
 };
 
 const apiBaseURL =
-  import.meta.env.VITE_WARDEN_API_URL?.toString().trim() || "http://127.0.0.1:7443";
+  import.meta.env.VITE_WARDEN_API_URL?.toString().trim() || "/api";
 const apiToken = import.meta.env.VITE_WARDEN_API_TOKEN?.toString().trim() || "";
 
 const asURL = (path: string) => {
@@ -80,7 +80,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const assertSupported = (resource: string) => {
-  if (resource === "deployments" || resource === "system" || resource === "network" || resource === "dns") {
+  if (
+    resource === "cluster" ||
+    resource === "deployments" ||
+    resource === "system" ||
+    resource === "network" ||
+    resource === "dns"
+  ) {
     return;
   }
   throw new Error(`resource is not supported yet: ${resource}`);
@@ -96,6 +102,11 @@ export const wardenDataProvider: DataProvider = {
     if (params.resource === "deployments") {
       const data = await request<TData[]>("/tasks");
       return { data, total: data.length };
+    }
+
+    if (params.resource === "cluster") {
+      const data = await request<TData>("/system/cluster");
+      return { data: [data], total: 1 };
     }
 
     if (params.resource === "system") {
@@ -116,6 +127,11 @@ export const wardenDataProvider: DataProvider = {
 
     if (params.resource === "deployments") {
       const data = await request<TData>(`/tasks/${params.id}`);
+      return { data };
+    }
+
+    if (params.resource === "cluster") {
+      const data = await request<TData>("/system/cluster");
       return { data };
     }
 

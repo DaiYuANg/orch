@@ -41,11 +41,16 @@ title: Rust Rewrite 状态
   - `GET /tasks`
   - `GET /tasks/{id}`
   - `POST /tasks/{id}/stop`
+- 调度写路径已接入：
+  - `POST /tasks/{id}/migrate`
+  - `POST /tasks/failover`
+  - `POST /tasks/rebalance`
 - `warden-cli-rs` 可查询：`workloads/endpoints/routes/dns`。
-- `warden-cli-rs` 已支持 `deploy/stop/task list/task get`（JSON 参数，不依赖旧 HCL DSL）。
+- `warden-cli-rs` 已支持 `deploy/stop/migrate/failover/rebalance/task list/task get`（JSON 参数，不依赖旧 HCL DSL）。
 - `warden-cli-rs` 支持 `--api auto`：优先平台协议（Unix/Named Pipe）失败后 fallback 到 HTTP。
 - API 层已统一业务错误码与错误封装中间件，非 JSON 错误也会返回 `ApiEnvelope`。
 - API 层已接入 `utoipa`，提供 OpenAPI 与 Swagger UI。
+- API 层已提供系统观测接口：`/system/info`、`/system/cpu`、`/system/mem`、`/system/disk`、`/system/runtime`。
 - client 侧已接入 retry 中间件，仅幂等方法（GET/HEAD/OPTIONS/DELETE）启用重试。
 - timeout 配置已经下沉到 `config.timeouts` 并注入 ingress / dns。
 - 构建与编排入口切换为 `just + cargo xtask`。
@@ -55,7 +60,6 @@ title: Rust Rewrite 状态
 
 ## 3. 待完成（达到 Go 全量替代前）
 
-- migrate/failover/rebalance 写路径。
 - runtime driver 具体实现：docker/containerd/systemd/firecracker/windows-service。
 - raft 一致性写入与恢复流程。
 - ingress TCP/UDP 动态路由与健康探测。

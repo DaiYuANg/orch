@@ -84,6 +84,9 @@ fn build_router() -> axum::Router {
     registry: RegistryService::new(store.clone()),
     dns: DnsService::new(store.clone()),
     task: TaskService::new(RuntimeEngine::new(), store),
+    raft_enabled: false,
+    raft_node_id: 1,
+    raft_bind_addr: String::from("127.0.0.1:12000"),
   };
   router(state)
 }

@@ -8,5 +8,6 @@ license.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 tokio.workspace = true
+tower-http.workspace = true
 tracing.workspace = true
 warden-config = { path = "../warden-config" }

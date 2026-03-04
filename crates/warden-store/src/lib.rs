@@ -3,6 +3,7 @@ mod memory;
 mod records;
 mod redb_backend;
 mod state_store;
+mod workload_ops;
 
 pub use backend::{KvBackend, new_store};
 pub use memory::MemoryKvBackend;

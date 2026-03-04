@@ -5,11 +5,12 @@ import routerProvider, {
   NavigateToResource,
   UnsavedChangesNotifier,
 } from "@refinedev/react-router";
-import { Globe2, Layers3, Network, Server } from "lucide-react";
+import { Activity, Globe2, Layers3, Network, Server } from "lucide-react";
 import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 
 import { Layout } from "@/components/refine-ui/layout/layout";
 import { useNotificationProvider } from "@/components/refine-ui/notification/use-notification-provider";
+import { ClusterPage } from "@/pages/cluster/cluster-page";
 import { DeploymentsListPage } from "@/pages/deployments/list-page";
 import { DeploymentShowPage } from "@/pages/deployments/show-page";
 import { DNSPage } from "@/pages/dns/dns-page";
@@ -35,6 +36,14 @@ function AppContent() {
         },
       }}
       resources={[
+        {
+          name: "cluster",
+          list: "/cluster",
+          meta: {
+            label: "Cluster",
+            icon: <Activity className="h-4 w-4" />,
+          },
+        },
         {
           name: "deployments",
           list: "/deployments",
@@ -78,14 +87,15 @@ function AppContent() {
             </Layout>
           }
         >
-          <Route index element={<NavigateToResource resource="deployments" />} />
+          <Route index element={<NavigateToResource resource="cluster" />} />
+          <Route path="/cluster" element={<ClusterPage />} />
           <Route path="/deployments" element={<DeploymentsListPage />} />
           <Route path="/deployments/:id" element={<DeploymentShowPage />} />
           <Route path="/system" element={<SystemPage />} />
           <Route path="/network" element={<NetworkPage />} />
           <Route path="/dns" element={<DNSPage />} />
         </Route>
-        <Route path="*" element={<CatchAllNavigate to="/deployments" />} />
+        <Route path="*" element={<CatchAllNavigate to="/cluster" />} />
       </Routes>
       <UnsavedChangesNotifier />
       <DocumentTitleHandler />

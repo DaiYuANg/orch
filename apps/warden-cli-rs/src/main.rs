@@ -3,7 +3,8 @@ use serde::Serialize;
 use std::time::Duration;
 use warden_client::{WardenClient, parse_endpoint};
 use warden_types::{
-  DeployWorkloadRequest, DnsRecord, EndpointRecord, RouteRecord, WorkloadSummary,
+  BatchActionResult, DeployWorkloadRequest, DnsRecord, EndpointRecord, FailoverRequest,
+  MigrateWorkloadRequest, RebalanceRequest, RouteRecord, WorkloadSummary,
 };
 
 #[derive(Debug, Parser)]
@@ -31,6 +32,9 @@ enum Command {
   Dns,
   Deploy(DeployArgs),
   Stop(StopArgs),
+  Migrate(MigrateArgs),
+  Failover(FailoverArgs),
+  Rebalance(RebalanceArgs),
   Task {
     #[command(subcommand)]
     cmd: TaskArgs,
@@ -60,6 +64,37 @@ struct DeployArgs {
 #[derive(Debug, Parser)]
 struct StopArgs {
   id: String,
+}
+
+#[derive(Debug, Parser)]
+struct MigrateArgs {
+  id: String,
+  #[arg(long)]
+  target_node: String,
+  #[arg(long, default_value_t = false)]
+  force_stateful: bool,
+  #[arg(long, default_value_t = 1)]
+  max_unavailable: u32,
+}
+
+#[derive(Debug, Parser)]
+struct FailoverArgs {
+  #[arg(long)]
+  failed_node: String,
+  #[arg(long)]
+  target_node: Option<String>,
+  #[arg(long, default_value_t = false)]
+  force_stateful: bool,
+  #[arg(long, default_value_t = 1)]
+  max_unavailable: u32,
+  #[arg(long)]
+  max_migrations: Option<usize>,
+}
+
+#[derive(Debug, Parser)]
+struct RebalanceArgs {
+  #[arg(long, default_value_t = 1)]
+  max_migrations: usize,
 }
 
 #[derive(Debug, Subcommand)]
@@ -109,6 +144,35 @@ async fn main() -> anyhow::Result<()> {
       let path = format!("/tasks/{}/stop", args.id);
       let item: WorkloadSummary = client.post(&path, &serde_json::json!({})).await?;
       print_json(&item)?;
+    }
+    Command::Migrate(args) => {
+      let req = MigrateWorkloadRequest {
+        target_node: args.target_node,
+        force_stateful: args.force_stateful,
+        max_unavailable: args.max_unavailable,
+      };
+      let item: WorkloadSummary = client
+        .post(&format!("/tasks/{}/migrate", args.id), &req)
+        .await?;
+      print_json(&item)?;
+    }
+    Command::Failover(args) => {
+      let req = FailoverRequest {
+        failed_node: args.failed_node,
+        target_node: args.target_node,
+        force_stateful: args.force_stateful,
+        max_unavailable: args.max_unavailable,
+        max_migrations: args.max_migrations,
+      };
+      let result: BatchActionResult = client.post("/tasks/failover", &req).await?;
+      print_json(&result)?;
+    }
+    Command::Rebalance(args) => {
+      let req = RebalanceRequest {
+        max_migrations: args.max_migrations,
+      };
+      let result: BatchActionResult = client.post("/tasks/rebalance", &req).await?;
+      print_json(&result)?;
     }
     Command::Task { cmd } => match cmd {
       TaskArgs::List => {

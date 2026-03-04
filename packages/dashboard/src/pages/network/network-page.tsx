@@ -3,46 +3,30 @@ import { useCustom } from "@refinedev/core";
 import { ListView, ListViewHeader } from "@/components/refine-ui/views/list-view";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type RouteItem = {
   id: string;
-  owner_id: string;
-  service: string;
   protocol: string;
-  host?: string;
-  path_prefix?: string;
-  listen_port?: number;
-  target_port?: number;
+  host: string;
+  path_prefix: string;
+  listen_port: number;
+  backend: string;
   enabled: boolean;
-  source?: string;
 };
 
 type EndpointItem = {
-  id: string;
-  service: string;
+  workload_id: string;
   node_id: string;
-  node_ip: string;
-  runtime: string;
   protocol: string;
-  healthy: boolean;
-  ports?: Record<string, number>;
+  address: string;
 };
 
-const healthyVariant = (healthy: boolean) => (healthy ? ("secondary" as const) : ("destructive" as const));
 const routeVariant = (enabled: boolean) => (enabled ? ("secondary" as const) : ("outline" as const));
 
 export function NetworkPage() {
   const routesQuery = useCustom<RouteItem[]>({ url: "/system/routes", method: "get" });
   const endpointsQuery = useCustom<EndpointItem[]>({ url: "/system/endpoints", method: "get" });
-
   const routes = routesQuery.result.data ?? [];
   const endpoints = endpointsQuery.result.data ?? [];
 
@@ -56,38 +40,28 @@ export function NetworkPage() {
             <CardDescription>Ingress routes from registry.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {routesQuery.query.isLoading ? (
-              <div className="p-4 text-sm text-muted-foreground">Loading routes...</div>
-            ) : null}
-            {!routesQuery.query.isLoading && routes.length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground">No routes found.</div>
-            ) : null}
+            {routesQuery.query.isLoading ? <div className="p-4 text-sm text-muted-foreground">Loading routes...</div> : null}
+            {!routesQuery.query.isLoading && routes.length === 0 ? <div className="p-4 text-sm text-muted-foreground">No routes found.</div> : null}
             {!routesQuery.query.isLoading && routes.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Service</TableHead>
+                    <TableHead>ID</TableHead>
                     <TableHead>Protocol</TableHead>
                     <TableHead>Match</TableHead>
-                    <TableHead>Target</TableHead>
+                    <TableHead>Backend</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {routes.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.service}</TableCell>
+                      <TableCell className="font-medium">{item.id}</TableCell>
                       <TableCell>{item.protocol}</TableCell>
-                      <TableCell className="max-w-[260px] truncate">
-                        {item.protocol === "http"
-                          ? `${item.host || "*"}${item.path_prefix || "/"}`
-                          : `:${item.listen_port ?? 0}`}
-                      </TableCell>
-                      <TableCell>{item.target_port ?? "-"}</TableCell>
+                      <TableCell>{`${item.host}${item.path_prefix}`}</TableCell>
+                      <TableCell>{item.backend}</TableCell>
                       <TableCell>
-                        <Badge variant={routeVariant(item.enabled)}>
-                          {item.enabled ? "enabled" : "disabled"}
-                        </Badge>
+                        <Badge variant={routeVariant(item.enabled)}>{item.enabled ? "enabled" : "disabled"}</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -100,12 +74,10 @@ export function NetworkPage() {
         <Card>
           <CardHeader>
             <CardTitle>Endpoints</CardTitle>
-            <CardDescription>Healthy backends discovered by registry.</CardDescription>
+            <CardDescription>Backends discovered by registry.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {endpointsQuery.query.isLoading ? (
-              <div className="p-4 text-sm text-muted-foreground">Loading endpoints...</div>
-            ) : null}
+            {endpointsQuery.query.isLoading ? <div className="p-4 text-sm text-muted-foreground">Loading endpoints...</div> : null}
             {!endpointsQuery.query.isLoading && endpoints.length === 0 ? (
               <div className="p-4 text-sm text-muted-foreground">No endpoints found.</div>
             ) : null}
@@ -113,33 +85,19 @@ export function NetworkPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Service</TableHead>
+                    <TableHead>Workload</TableHead>
                     <TableHead>Node</TableHead>
-                    <TableHead>Runtime</TableHead>
-                    <TableHead>Ports</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Protocol</TableHead>
+                    <TableHead>Address</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {endpoints.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.service}</TableCell>
-                      <TableCell className="max-w-[240px] truncate">
-                        {item.node_id} ({item.node_ip})
-                      </TableCell>
-                      <TableCell>{item.runtime || "-"}</TableCell>
-                      <TableCell className="max-w-[220px] truncate">
-                        {item.ports
-                          ? Object.entries(item.ports)
-                              .map(([key, value]) => `${key}:${value}`)
-                              .join(", ")
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={healthyVariant(item.healthy)}>
-                          {item.healthy ? "healthy" : "unhealthy"}
-                        </Badge>
-                      </TableCell>
+                    <TableRow key={`${item.workload_id}-${item.node_id}-${item.protocol}`}>
+                      <TableCell className="font-medium">{item.workload_id}</TableCell>
+                      <TableCell>{item.node_id}</TableCell>
+                      <TableCell>{item.protocol}</TableCell>
+                      <TableCell>{item.address}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

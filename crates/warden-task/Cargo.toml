@@ -11,3 +11,7 @@ tracing.workspace = true
 warden-runtime = { path = "../warden-runtime" }
 warden-store = { path = "../warden-store" }
 warden-types = { path = "../warden-types" }
+
+[dev-dependencies]
+async-trait.workspace = true
+tokio.workspace = true

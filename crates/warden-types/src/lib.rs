@@ -83,3 +83,98 @@ pub struct DeployWorkloadRequest {
   pub ingress_port: Option<u16>,
   pub backend: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MigrateWorkloadRequest {
+  pub target_node: String,
+  pub force_stateful: bool,
+  pub max_unavailable: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct FailoverRequest {
+  pub failed_node: String,
+  pub target_node: Option<String>,
+  pub force_stateful: bool,
+  pub max_unavailable: u32,
+  pub max_migrations: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RebalanceRequest {
+  pub max_migrations: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BatchActionResult {
+  pub moved: Vec<String>,
+  pub skipped: Vec<String>,
+  pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SystemInfo {
+  pub hostname: String,
+  pub uptime: u64,
+  pub os: String,
+  pub platform: String,
+  pub kernel_version: String,
+  pub kernel_arch: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CpuInfo {
+  pub model_name: String,
+  pub cores: usize,
+  pub usage_percent: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MemInfo {
+  pub total: u64,
+  pub used: u64,
+  pub free: u64,
+  pub used_percent: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DiskInfo {
+  pub device: String,
+  pub mountpoint: String,
+  pub total: u64,
+  pub used: u64,
+  pub free: u64,
+  pub used_percent: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RuntimeManagedEntry {
+  pub workload_id: String,
+  pub runtime: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RuntimeInfo {
+  pub providers: Vec<String>,
+  pub managed: Vec<RuntimeManagedEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ClusterNodeInfo {
+  pub node_id: String,
+  pub workloads: usize,
+  pub endpoints: usize,
+  pub runtimes: Vec<String>,
+  pub healthy: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ClusterInfo {
+  pub raft_enabled: bool,
+  pub raft_node_id: u64,
+  pub raft_bind_addr: String,
+  pub leader_node: Option<String>,
+  pub total_nodes: usize,
+  pub total_workloads: usize,
+  pub nodes: Vec<ClusterNodeInfo>,
+}

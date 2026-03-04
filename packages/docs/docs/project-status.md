@@ -64,9 +64,17 @@ cargo run -p warden-cli-rs -- --api auto task list
 - `GET /tasks/{id}`
 - `POST /tasks/deploy`
 - `POST /tasks/{id}/stop`
+- `POST /tasks/{id}/migrate`
+- `POST /tasks/failover`
+- `POST /tasks/rebalance`
 - `GET /system/endpoints`
 - `GET /system/routes`
 - `GET /system/dns/records`
+- `GET /system/info`
+- `GET /system/cpu`
+- `GET /system/mem`
+- `GET /system/disk`
+- `GET /system/runtime`
 
 ## 4. 关键技术细节
 

@@ -7,13 +7,16 @@ mod windows;
 
 use anyhow::Context;
 use axum::Router;
+use axum::http::{HeaderValue, Method};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
+use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
 
 pub async fn run(cfg: &warden_config::Config, app: Router) -> anyhow::Result<()> {
+  let app = app.layer(build_cors_layer());
   let tcp_addr = SocketAddr::from(([0, 0, 0, 0], cfg.http.port));
   let tcp_listener = TcpListener::bind(tcp_addr)
     .await
@@ -79,4 +82,21 @@ pub async fn run(cfg: &warden_config::Config, app: Router) -> anyhow::Result<()>
 
   info!(target: "warden::http", "all listeners stopped");
   Ok(())
+}
+
+fn build_cors_layer() -> CorsLayer {
+  CorsLayer::new()
+    .allow_origin([
+      HeaderValue::from_static("http://127.0.0.1:5173"),
+      HeaderValue::from_static("http://localhost:5173"),
+    ])
+    .allow_methods([
+      Method::GET,
+      Method::POST,
+      Method::PUT,
+      Method::PATCH,
+      Method::DELETE,
+      Method::OPTIONS,
+    ])
+    .allow_headers(Any)
 }

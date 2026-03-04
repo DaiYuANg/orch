@@ -28,6 +28,7 @@ export function ShowView({ children, className }: ShowViewProps) {
 type ShowViewHeaderProps = PropsWithChildren<{
   resource?: string;
   title?: string;
+  showActions?: boolean;
   wrapperClassName?: string;
   headerClassName?: string;
 }>;
@@ -35,6 +36,7 @@ type ShowViewHeaderProps = PropsWithChildren<{
 export const ShowViewHeader = ({
   resource: resourceFromProps,
   title: titleFromProps,
+  showActions = true,
   wrapperClassName,
   headerClassName,
 }: ShowViewHeaderProps) => {
@@ -81,18 +83,20 @@ export const ShowViewHeader = ({
           <h2 className="text-2xl font-bold">{title}</h2>
         </div>
 
-        <div className="flex items-center gap-2">
-          <RefreshButton
-            variant="outline"
-            recordItemId={recordItemId}
-            resource={resourceName}
-          />
-          <EditButton
-            variant="outline"
-            recordItemId={recordItemId}
-            resource={resourceName}
-          />
-        </div>
+        {showActions ? (
+          <div className="flex items-center gap-2">
+            <RefreshButton
+              variant="outline"
+              recordItemId={recordItemId}
+              resource={resourceName}
+            />
+            <EditButton
+              variant="outline"
+              recordItemId={recordItemId}
+              resource={resourceName}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );

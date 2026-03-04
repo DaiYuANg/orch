@@ -1,6 +1,5 @@
-import { useList, useUpdate } from "@refinedev/core";
+import { useList } from "@refinedev/core";
 
-import { DeleteButton } from "@/components/refine-ui/buttons/delete";
 import { ShowButton } from "@/components/refine-ui/buttons/show";
 import { ListView, ListViewHeader } from "@/components/refine-ui/views/list-view";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 
 type Deployment = {
   id: string;
@@ -39,7 +37,6 @@ const statusVariant = (status: string) => {
 
 export function DeploymentsListPage() {
   const { query, result } = useList<Deployment>({ resource: "deployments" });
-  const stopMutation = useUpdate();
 
   return (
     <ListView>
@@ -72,30 +69,8 @@ export function DeploymentsListPage() {
                     </TableCell>
                     <TableCell>{item.format}</TableCell>
                     <TableCell>{item.instance_ids?.length ?? 0}</TableCell>
-                    <TableCell className="flex justify-end gap-2">
+                    <TableCell className="text-right">
                       <ShowButton resource="deployments" recordItemId={item.id} size="sm" />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={item.status !== "running" || stopMutation.mutation.isPending}
-                        onClick={() =>
-                          stopMutation.mutate({
-                            resource: "deployments",
-                            id: item.id,
-                            values: { action: "stop" },
-                          })
-                        }
-                      >
-                        Stop
-                      </Button>
-                      <DeleteButton
-                        resource="deployments"
-                        recordItemId={item.id}
-                        variant="outline"
-                        size="sm"
-                      >
-                        Stop (Confirm)
-                      </DeleteButton>
                     </TableCell>
                   </TableRow>
                 ))}

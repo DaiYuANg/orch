@@ -33,6 +33,7 @@ go run ./cmd/server run
 ```
 
 默认 HTTP API 监听 `http://127.0.0.1:7443`。
+默认同时监听本地 UDS：`$TMPDIR/warden.sock`（CLI 默认使用）。
 
 ### 2.3 获取访问 Token
 
@@ -48,9 +49,13 @@ go run ./cmd/cli token
 ### 2.4 部署示例 workload
 
 ```bash
-go run ./cmd/cli --api http://127.0.0.1:7443 service deploy --file ./examples/minimal-nginx.yaml
+# CLI 默认走 UDS，无需显式 --api
+go run ./cmd/cli service deploy --file ./examples/minimal-nginx.yaml
+go run ./cmd/cli service list
+go run ./cmd/cli service get <deployment-id>
+
+# 如需强制走 HTTP（远程或调试场景）
 go run ./cmd/cli --api http://127.0.0.1:7443 service list
-go run ./cmd/cli --api http://127.0.0.1:7443 service get <deployment-id>
 ```
 
 ### 2.5 验证 Ingress
@@ -191,6 +196,11 @@ go run ./cmd/cli cluster status
 go run ./cmd/cli info
 ```
 
+CLI 通讯端点：
+
+- 默认：`unix://$TMPDIR/warden.sock`
+- 可切换：`--api http://127.0.0.1:7443`
+
 ## 7. 多节点与 Raft
 
 本仓库提供本地多节点样例配置：`examples/local-raft/node{1..4}.yaml`。
@@ -251,6 +261,13 @@ task raft:smoke
 
 - `packages/dashboard`（Refine + shadcn 风格）
 - `packages/docs`（Docusaurus）
+
+Dashboard 当前定位为只读观测入口，主要页面：
+
+- Deployments：已部署 workload 与实例状态
+- Network：registry routes 与 endpoints（网络流量映射）
+- DNS：DNS 持久化记录
+- System：主机资源与节点信息
 
 常用命令：
 

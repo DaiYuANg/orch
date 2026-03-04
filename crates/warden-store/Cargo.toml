@@ -1,0 +1,15 @@
+[package]
+name = "warden-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+redb = "3"
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+warden-types = { path = "../warden-types" }

@@ -22,7 +22,7 @@ type APIEnvelope<T> = {
 };
 
 const apiBaseURL =
-  import.meta.env.VITE_WARDEN_API_URL?.toString().trim() || "http://127.0.0.1:8080";
+  import.meta.env.VITE_WARDEN_API_URL?.toString().trim() || "http://127.0.0.1:7443";
 const apiToken = import.meta.env.VITE_WARDEN_API_TOKEN?.toString().trim() || "";
 
 const asURL = (path: string) => {
@@ -80,7 +80,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const assertSupported = (resource: string) => {
-  if (resource === "deployments" || resource === "system") {
+  if (resource === "deployments" || resource === "system" || resource === "network" || resource === "dns") {
     return;
   }
   throw new Error(`resource is not supported yet: ${resource}`);
@@ -99,8 +99,12 @@ export const wardenDataProvider: DataProvider = {
     }
 
     if (params.resource === "system") {
-      const data = await request<TData[]>("/system/info");
-      return { data, total: data.length };
+      const data = await request<TData>("/system/info");
+      return { data: [data], total: 1 };
+    }
+
+    if (params.resource === "network" || params.resource === "dns") {
+      return { data: [], total: 0 };
     }
 
     return { data: [], total: 0 };
@@ -129,15 +133,7 @@ export const wardenDataProvider: DataProvider = {
     params: CreateParams<TVariables>,
   ): Promise<CreateResponse<TData>> => {
     assertSupported(params.resource);
-    if (params.resource !== "deployments") {
-      throw new Error(`resource is not supported for create: ${params.resource}`);
-    }
-
-    const data = await request<TData>("/tasks/deploy", {
-      method: "POST",
-      body: JSON.stringify(params.variables),
-    });
-    return { data };
+    throw new Error(`dashboard is read-only, create is disabled for ${params.resource}`);
   },
   update: async <
     TData extends BaseRecord = BaseRecord,
@@ -146,28 +142,13 @@ export const wardenDataProvider: DataProvider = {
     params: UpdateParams<TVariables>,
   ): Promise<UpdateResponse<TData>> => {
     assertSupported(params.resource);
-    if (params.resource !== "deployments") {
-      throw new Error(`resource is not supported for update: ${params.resource}`);
-    }
-
-    const body = params.variables as { action?: string };
-    if (body.action === "stop") {
-      const data = await request<TData>(`/tasks/${params.id}/stop`, { method: "POST" });
-      return { data };
-    }
-
-    throw new Error("deployments update currently supports only action=stop");
+    throw new Error(`dashboard is read-only, update is disabled for ${params.resource}`);
   },
   deleteOne: async <TData extends BaseRecord = BaseRecord, TVariables = Record<string, unknown>>(
     params: DeleteOneParams<TVariables>,
   ): Promise<DeleteOneResponse<TData>> => {
     assertSupported(params.resource);
-    if (params.resource !== "deployments") {
-      throw new Error(`resource is not supported for delete: ${params.resource}`);
-    }
-
-    const data = await request<TData>(`/tasks/${params.id}/stop`, { method: "POST" });
-    return { data };
+    throw new Error(`dashboard is read-only, delete is disabled for ${params.resource}`);
   },
   custom: async <
     TData extends BaseRecord = BaseRecord,

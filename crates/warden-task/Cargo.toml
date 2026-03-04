@@ -1,0 +1,13 @@
+[package]
+name = "warden-task"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+warden-runtime = { path = "../warden-runtime" }
+warden-store = { path = "../warden-store" }
+warden-types = { path = "../warden-types" }

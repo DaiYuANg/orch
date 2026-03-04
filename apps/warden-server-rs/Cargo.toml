@@ -1,0 +1,25 @@
+[package]
+name = "warden-server-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+warden-api = { path = "../../crates/warden-api" }
+warden-config = { path = "../../crates/warden-config" }
+warden-dns = { path = "../../crates/warden-dns" }
+warden-http = { path = "../../crates/warden-http" }
+warden-ingress = { path = "../../crates/warden-ingress" }
+warden-logger = { path = "../../crates/warden-logger" }
+warden-raft = { path = "../../crates/warden-raft" }
+warden-registry = { path = "../../crates/warden-registry" }
+warden-runtime = { path = "../../crates/warden-runtime" }
+warden-runtime-containerd = { path = "../../crates/warden-runtime-containerd" }
+warden-runtime-docker = { path = "../../crates/warden-runtime-docker" }
+warden-runtime-firecracker = { path = "../../crates/warden-runtime-firecracker" }
+warden-store = { path = "../../crates/warden-store" }
+warden-task = { path = "../../crates/warden-task" }

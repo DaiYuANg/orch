@@ -1,0 +1,10 @@
+[package]
+name = "warden-logger"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tracing.workspace = true
+tracing-subscriber.workspace = true
+warden-config = { path = "../warden-config" }

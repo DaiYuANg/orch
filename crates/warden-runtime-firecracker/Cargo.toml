@@ -1,0 +1,12 @@
+[package]
+name = "warden-runtime-firecracker"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+warden-runtime = { path = "../warden-runtime" }
+warden-types = { path = "../warden-types" }

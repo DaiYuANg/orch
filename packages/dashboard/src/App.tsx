@@ -5,13 +5,15 @@ import routerProvider, {
   NavigateToResource,
   UnsavedChangesNotifier,
 } from "@refinedev/react-router";
-import { Layers3, Server } from "lucide-react";
+import { Globe2, Layers3, Network, Server } from "lucide-react";
 import { BrowserRouter, Outlet, Route, Routes } from "react-router";
 
 import { Layout } from "@/components/refine-ui/layout/layout";
 import { useNotificationProvider } from "@/components/refine-ui/notification/use-notification-provider";
 import { DeploymentsListPage } from "@/pages/deployments/list-page";
 import { DeploymentShowPage } from "@/pages/deployments/show-page";
+import { DNSPage } from "@/pages/dns/dns-page";
+import { NetworkPage } from "@/pages/network/network-page";
 import { SystemPage } from "@/pages/system/system-page";
 import { wardenDataProvider } from "@/providers/warden-data-provider";
 
@@ -50,6 +52,22 @@ function AppContent() {
             icon: <Server className="h-4 w-4" />,
           },
         },
+        {
+          name: "network",
+          list: "/network",
+          meta: {
+            label: "Network",
+            icon: <Network className="h-4 w-4" />,
+          },
+        },
+        {
+          name: "dns",
+          list: "/dns",
+          meta: {
+            label: "DNS",
+            icon: <Globe2 className="h-4 w-4" />,
+          },
+        },
       ]}
     >
       <Routes>
@@ -64,6 +82,8 @@ function AppContent() {
           <Route path="/deployments" element={<DeploymentsListPage />} />
           <Route path="/deployments/:id" element={<DeploymentShowPage />} />
           <Route path="/system" element={<SystemPage />} />
+          <Route path="/network" element={<NetworkPage />} />
+          <Route path="/dns" element={<DNSPage />} />
         </Route>
         <Route path="*" element={<CatchAllNavigate to="/deployments" />} />
       </Routes>

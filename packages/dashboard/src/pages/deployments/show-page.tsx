@@ -71,7 +71,7 @@ export function DeploymentShowPage() {
 
   return (
     <ShowView>
-      <ShowViewHeader title={result.deployment.workload} />
+      <ShowViewHeader title={result.deployment.workload} showActions={false} />
 
       <Card>
         <CardHeader>

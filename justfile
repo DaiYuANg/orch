@@ -18,6 +18,12 @@ lint:
 test:
     cargo test --workspace
 
+docs-build:
+    mdbook build docs
+
+docs-serve:
+    mdbook serve docs --open
+
 run *args:
     cargo run -p warden-server-rs -- {{args}}
 
@@ -44,6 +50,33 @@ stop id api="auto":
 
 tasks api="auto":
     cargo run -p warden-cli-rs -- --api {{api}} task list
+
+task-logs id api="auto" tail="200":
+    cargo run -p warden-cli-rs -- --api {{api}} task logs {{id}} --tail {{tail}}
+
+dsl-plan file api="auto":
+    cargo run -p warden-cli-rs -- --api {{api}} dsl plan --file {{file}}
+
+dsl-plan-json file api="auto":
+    cargo run -p warden-cli-rs -- --api {{api}} dsl plan --file {{file}} --json
+
+dsl-plan-strict file api="auto":
+    cargo run -p warden-cli-rs -- --api {{api}} dsl plan --file {{file}} --strict
+
+dsl-render file:
+    cargo run -p warden-cli-rs -- dsl render --file {{file}}
+
+dsl-apply file api="auto":
+    cargo run -p warden-cli-rs -- --api {{api}} dsl apply --file {{file}}
+
+dsl-apply-strict file api="auto":
+    cargo run -p warden-cli-rs -- --api {{api}} dsl apply --file {{file}} --strict
+
+dsl-apply-prune file api="auto":
+    cargo run -p warden-cli-rs -- --api {{api}} dsl apply --file {{file}} --prune
+
+dsl-delete file api="auto":
+    cargo run -p warden-cli-rs -- --api {{api}} dsl delete --file {{file}}
 
 cluster-up nodes="3" start_port="7443":
     cargo xtask cluster run --nodes {{nodes}} --start-port {{start_port}}

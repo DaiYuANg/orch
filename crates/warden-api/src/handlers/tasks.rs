@@ -4,6 +4,7 @@ use axum::{
   Json,
   extract::{Path, State},
 };
+use tracing::{info, warn};
 use warden_types::{
   ApiEnvelope, BatchActionResult, DeployWorkloadRequest, FailoverRequest, MigrateWorkloadRequest,
   RebalanceRequest, WorkloadSummary,
@@ -45,9 +46,18 @@ pub(crate) async fn deploy_task(
   if req.name.trim().is_empty() {
     return Err(bad_request(String::from("name is required")));
   }
+  info!(
+    target: "warden::api::tasks",
+    name = %req.name,
+    runtime = %req.runtime,
+    "deploy task request"
+  );
   match state.task.deploy(req).await {
     Ok(item) => Ok(Json(ApiEnvelope::ok(item))),
-    Err(err) => Err(internal_error(err)),
+    Err(err) => {
+      warn!(target: "warden::api::tasks", error = %err, "deploy task failed");
+      Err(internal_error(err))
+    }
   }
 }
 
@@ -61,10 +71,19 @@ pub(crate) async fn stop_task(
   Path(id): Path<String>,
   State(state): State<ApiState>,
 ) -> ApiResult<WorkloadSummary> {
+  info!(target: "warden::api::tasks", workload_id = %id, "stop task request");
   match state.task.stop(&id).await {
     Ok(Some(item)) => Ok(Json(ApiEnvelope::ok(item))),
     Ok(None) => Err(not_found(format!("task {id} not found"))),
-    Err(err) => Err(internal_error(err)),
+    Err(err) => {
+      warn!(
+        target: "warden::api::tasks",
+        workload_id = %id,
+        error = %err,
+        "stop task failed"
+      );
+      Err(internal_error(err))
+    }
   }
 }
 
@@ -80,10 +99,24 @@ pub(crate) async fn migrate_task(
   State(state): State<ApiState>,
   Json(req): Json<MigrateWorkloadRequest>,
 ) -> ApiResult<WorkloadSummary> {
+  info!(
+    target: "warden::api::tasks",
+    workload_id = %id,
+    target_node = %req.target_node,
+    "migrate task request"
+  );
   match state.task.migrate(&id, &req).await {
     Ok(Some(item)) => Ok(Json(ApiEnvelope::ok(item))),
     Ok(None) => Err(not_found(format!("task {id} not found"))),
-    Err(err) => Err(internal_error(err)),
+    Err(err) => {
+      warn!(
+        target: "warden::api::tasks",
+        workload_id = %id,
+        error = %err,
+        "migrate task failed"
+      );
+      Err(internal_error(err))
+    }
   }
 }
 
@@ -97,9 +130,18 @@ pub(crate) async fn failover_tasks(
   State(state): State<ApiState>,
   Json(req): Json<FailoverRequest>,
 ) -> ApiResult<BatchActionResult> {
+  info!(
+    target: "warden::api::tasks",
+    failed_node = %req.failed_node,
+    target_node = ?req.target_node,
+    "failover request"
+  );
   match state.task.failover(&req).await {
     Ok(result) => Ok(Json(ApiEnvelope::ok(result))),
-    Err(err) => Err(internal_error(err)),
+    Err(err) => {
+      warn!(target: "warden::api::tasks", error = %err, "failover request failed");
+      Err(internal_error(err))
+    }
   }
 }
 
@@ -113,8 +155,16 @@ pub(crate) async fn rebalance_tasks(
   State(state): State<ApiState>,
   Json(req): Json<RebalanceRequest>,
 ) -> ApiResult<BatchActionResult> {
+  info!(
+    target: "warden::api::tasks",
+    max_migrations = req.max_migrations,
+    "rebalance request"
+  );
   match state.task.rebalance(&req).await {
     Ok(result) => Ok(Json(ApiEnvelope::ok(result))),
-    Err(err) => Err(internal_error(err)),
+    Err(err) => {
+      warn!(target: "warden::api::tasks", error = %err, "rebalance request failed");
+      Err(internal_error(err))
+    }
   }
 }

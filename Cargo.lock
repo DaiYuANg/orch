@@ -3488,14 +3488,17 @@ name = "warden-api"
 version = "0.1.0"
 dependencies = [
  "axum 0.8.8",
+ "futures-util",
  "serde",
  "serde_json",
  "sysinfo",
  "tokio",
  "tower 0.5.3",
+ "tracing",
  "utoipa",
  "utoipa-swagger-ui",
  "warden-dns",
+ "warden-dsl",
  "warden-raft",
  "warden-registry",
  "warden-runtime",
@@ -3514,6 +3517,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "warden-client",
+ "warden-dsl",
  "warden-types",
 ]
 
@@ -3554,6 +3558,16 @@ dependencies = [
  "tokio",
  "tracing",
  "warden-store",
+ "warden-types",
+]
+
+[[package]]
+name = "warden-dsl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_yaml",
  "warden-types",
 ]
 
@@ -3662,6 +3676,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "warden-runtime-process"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "tokio",
+ "tracing",
+ "warden-runtime",
+ "warden-types",
+]
+
+[[package]]
 name = "warden-server-rs"
 version = "0.1.0"
 dependencies = [
@@ -3681,6 +3707,7 @@ dependencies = [
  "warden-runtime-containerd",
  "warden-runtime-docker",
  "warden-runtime-firecracker",
+ "warden-runtime-process",
  "warden-store",
  "warden-task",
 ]

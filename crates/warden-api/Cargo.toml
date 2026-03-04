@@ -11,6 +11,9 @@ serde_json.workspace = true
 sysinfo.workspace = true
 utoipa.workspace = true
 utoipa-swagger-ui = { workspace = true }
+futures-util.workspace = true
+tracing.workspace = true
+warden-dsl = { path = "../warden-dsl" }
 warden-dns = { path = "../warden-dns" }
 warden-raft = { path = "../warden-raft" }
 warden-registry = { path = "../warden-registry" }

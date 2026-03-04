@@ -1,4 +1,8 @@
 use crate::TaskService;
+use crate::scheduling_helper::{
+  apply_migrations, empty_result, least_loaded, most_loaded, validate_availability_budget,
+};
+use tracing::{info, warn};
 use warden_types::{
   BatchActionResult, FailoverRequest, MigrateWorkloadRequest, RebalanceRequest, WorkloadSummary,
 };
@@ -17,14 +21,35 @@ impl TaskService {
 
     let mut workload = match self.store.get_workload(workload_id).await {
       Some(item) => item,
-      None => return Ok(None),
+      None => {
+        warn!(
+          target: "warden::task",
+          workload_id = %workload_id,
+          "migrate requested for missing workload"
+        );
+        return Ok(None);
+      }
     };
     if workload.node_id == target {
+      info!(
+        target: "warden::task",
+        workload_id = %workload_id,
+        node_id = %target,
+        "migrate skipped because workload already on target node"
+      );
       return Ok(Some(workload));
     }
 
+    let from_node = workload.node_id.clone();
+    info!(
+      target: "warden::task",
+      workload_id = %workload_id,
+      from_node = %from_node,
+      to_node = %target,
+      "migrate started"
+    );
     workload.node_id = target.to_string();
-    self
+    let moved = self
       .apply_write("task.migrate", || async {
         self.store.upsert_workload(workload.clone()).await?;
         let _ = self
@@ -33,7 +58,15 @@ impl TaskService {
           .await?;
         Ok(Some(workload))
       })
-      .await
+      .await?;
+    info!(
+      target: "warden::task",
+      workload_id = %workload_id,
+      from_node = %from_node,
+      to_node = %target,
+      "migrate completed"
+    );
+    Ok(moved)
   }
 
   pub async fn failover(&self, req: &FailoverRequest) -> anyhow::Result<BatchActionResult> {
@@ -65,7 +98,23 @@ impl TaskService {
     if limit < candidates.len() {
       candidates.truncate(limit);
     }
-    apply_migrations(self, &candidates, &target_node).await
+    info!(
+      target: "warden::task",
+      failed_node = %failed_node,
+      target_node = %target_node,
+      candidates = candidates.len(),
+      "failover started"
+    );
+    let result = apply_migrations(self, &candidates, &target_node).await?;
+    info!(
+      target: "warden::task",
+      failed_node = %failed_node,
+      target_node = %target_node,
+      moved = result.moved.len(),
+      skipped = result.skipped.len(),
+      "failover completed"
+    );
+    Ok(result)
   }
 
   pub async fn rebalance(&self, req: &RebalanceRequest) -> anyhow::Result<BatchActionResult> {
@@ -81,6 +130,12 @@ impl TaskService {
     }
 
     let limit = req.max_migrations.max(1);
+    info!(
+      target: "warden::task",
+      max_migrations = limit,
+      workloads = workloads.len(),
+      "rebalance started"
+    );
     let mut moved = Vec::new();
     let mut skipped = Vec::new();
     for _ in 0..limit {
@@ -115,66 +170,17 @@ impl TaskService {
       }
     }
 
-    Ok(BatchActionResult {
+    let result = BatchActionResult {
       moved,
       skipped,
       message: String::from("rebalance completed"),
-    })
-  }
-}
-
-async fn apply_migrations(
-  service: &TaskService,
-  candidates: &[WorkloadSummary],
-  target_node: &str,
-) -> anyhow::Result<BatchActionResult> {
-  let mut moved = Vec::new();
-  let mut skipped = Vec::new();
-  for item in candidates {
-    let req = MigrateWorkloadRequest {
-      target_node: target_node.to_string(),
-      force_stateful: false,
-      max_unavailable: 1,
     };
-    match service.migrate(&item.id, &req).await {
-      Ok(Some(value)) => moved.push(value.id),
-      Ok(None) => skipped.push(format!("{}: not found", item.id)),
-      Err(err) => skipped.push(format!("{}: {err}", item.id)),
-    }
+    info!(
+      target: "warden::task",
+      moved = result.moved.len(),
+      skipped = result.skipped.len(),
+      "rebalance completed"
+    );
+    Ok(result)
   }
-  Ok(BatchActionResult {
-    moved,
-    skipped,
-    message: String::from("failover completed"),
-  })
-}
-
-fn validate_availability_budget(max_unavailable: u32) -> anyhow::Result<()> {
-  if max_unavailable == 1 {
-    Ok(())
-  } else {
-    anyhow::bail!("currently only max_unavailable=1 is supported")
-  }
-}
-
-fn empty_result(message: &str) -> BatchActionResult {
-  BatchActionResult {
-    moved: Vec::new(),
-    skipped: Vec::new(),
-    message: message.to_string(),
-  }
-}
-
-fn most_loaded(counts: &std::collections::HashMap<String, usize>) -> Option<(String, usize)> {
-  counts
-    .iter()
-    .max_by_key(|(_, count)| **count)
-    .map(|(node, count)| (node.clone(), *count))
-}
-
-fn least_loaded(counts: &std::collections::HashMap<String, usize>) -> Option<(String, usize)> {
-  counts
-    .iter()
-    .min_by_key(|(_, count)| **count)
-    .map(|(node, count)| (node.clone(), *count))
 }

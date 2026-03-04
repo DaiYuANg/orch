@@ -1,0 +1,13 @@
+[package]
+name = "warden-runtime-process"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+warden-runtime = { path = "../warden-runtime" }
+warden-types = { path = "../warden-types" }

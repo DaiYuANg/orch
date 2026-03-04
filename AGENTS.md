@@ -1,423 +1,258 @@
-# AGENTS.md — Warden
+# AGENTS.md - Warden
 
-Warden is a lightweight runtime + control layer for long-lived, stateful services (DB/MQ/Object Storage, etc.) running outside of traditional container orchestrators.
+Warden is a lightweight runtime and control layer for long-lived, stateful services
+(DB/MQ/Object Storage, etc.) outside traditional container orchestrators.
 
-This file defines how an agent should work in this repo: how to build/run/test, where to implement changes, and project conventions.
+This file defines how an agent should work in this repository: build/run/test flows,
+where to implement changes, and project conventions.
 
 ---
 
 ## Core goals
 
-- Manage **stateful, long-lived workloads** with minimal operational overhead.
-- Support **multiple runtimes/executors** (docker/containerd/systemd/firecracker/windows-service, etc.).
-- Provide **service discovery** (DNS / mDNS), health, ingress, and an API layer.
-- Keep the architecture **modular and evolvable** (fx modules; explicit boundaries).
+- Manage stateful, long-lived workloads with low operational overhead.
+- Support multiple runtimes/executors (`docker`, `containerd`, `firecracker`, future `systemd/windows-service`).
+- Provide service discovery (DNS), ingress, health, API, and cluster scheduling controls.
+- Keep architecture modular and evolvable via Rust workspace crates.
 
-Non-goals (for now):
+Non-goals for now:
+
 - Full Kubernetes replacement.
-- Heavy operator/controller patterns for stateful HA (may be added later, but keep core lean).
+- Heavy operator/controller patterns before core runtime parity is solid.
+
+---
+
+## Tech baseline (current)
+
+- Language: Rust (workspace, edition 2024).
+- API: `axum` + `utoipa` + Swagger UI.
+- Config: `figment` (defaults + config files + env overrides).
+- Storage: `redb` backend through `warden-store` abstraction.
+- Runtime adapters: `warden-runtime-*` crates.
+- Raft: `openraft` integration path.
+- Tooling:
+  - `just` for daily developer commands.
+  - `cargo xtask` for complex orchestration (cluster/e2e/package).
+  - `mdBook` for docs (`docs/`).
 
 ---
 
 ## Repo layout (high-level)
 
-- `cmd/`
-  - `cmd/server/`: server process CLI (Cobra). Entry: `cmd/server/main.go`
-  - `cmd/cli/`: user operations CLI (deploy/list/get/stop/logs/token/info/cluster)
-  - `cmd/pack/`: packaging/search CLI (WIP)
-  - `cmd/access_client/`: access client (WIP)
-- `internal/` (core)
-  - `config/`: config loading via `toolkit4go/configx` (dotenv + defaults + env override + files)
-  - `dsl/`: workload/unit/task definitions and parsing (HCL + YAML tags)
-  - `runtime_engine/`: executors/drivers (docker/containerd/systemd/firecracker/windows service)
-  - `raft/`: raft manager / replicated state plumbing
-  - `registry/`: registry repository (bbolt + raft repository abstraction)
-  - `dns/`, `mdns/`: discovery
-  - `http/`, `endpoint/`, `ingress/`: API + endpoint routing + ingress
-  - `task/`, `schedule/`: task & scheduling
-  - `auth/`: JWT auth / token issuing
-  - `uds/`: unix domain socket client/server helpers
-- `pkg/`: reusable exported packages
-- `dashboard/`: UI console
-- `docs/`: design notes / docs
+- `apps/`
+  - `apps/warden-server-rs/`: server binary entrypoint.
+  - `apps/warden-cli-rs/`: user CLI entrypoint.
+- `crates/`
+  - `warden-api`: HTTP routing, handlers, OpenAPI registration.
+  - `warden-client`: CLI/API client transport (`auto`, `unix://`, `npipe://`, `http(s)://`).
+  - `warden-config`: config structs + loader + validation.
+  - `warden-http`: listener runtime (TCP + UDS on unix + named pipe proxy on windows).
+  - `warden-runtime`: runtime abstraction and provider registry.
+  - `warden-runtime-docker`: Docker runtime provider.
+  - `warden-runtime-containerd`: containerd runtime provider.
+  - `warden-runtime-firecracker`: Firecracker runtime provider.
+  - `warden-task`: deploy/stop/migrate/failover/rebalance scheduling logic.
+  - `warden-dns`: DNS record service.
+  - `warden-ingress`: ingress routing/proxy service.
+  - `warden-registry`: registry service over store.
+  - `warden-raft`: raft service abstraction (`openraft`-backed path).
+  - `warden-store`: persistent state abstraction/backend.
+  - `warden-types`: shared API/domain types.
+  - `warden-dsl`: DSL parse/plan/apply support.
+  - `warden-logger`: tracing/log bootstrap.
+- `xtask/`: `cargo xtask` command implementations.
+- `examples/`: local configs and DSL examples.
+- `docs/`: mdBook sources (`docs/book.toml`, `docs/src/*`).
+
+Note: Frontend dashboard source has been removed from this repository and is maintained externally.
 
 ---
 
-## How the server boots (important)
+## Boot path (important)
 
-`warden-server run` (Cobra) creates an `fx.App` with modules:
+`warden-server-rs` startup flow in `apps/warden-server-rs/src/main.rs`:
 
-- `internal/config`
-- `internal/auth`
-- `internal/mdns`
-- `internal/raft`
-- `internal/registry`
-- `internal/common`
-- `internal/task`
-- `internal/endpoint`
-- `internal/http`
-- `internal/ingress`
-- `internal/dns`
+1. Parse `--conf` arguments.
+2. Load validated config via `warden-config`.
+3. Initialize logger.
+4. Build store and seed demo baseline data.
+5. Create registry, DNS, ingress, runtime engine, raft service, task service.
+6. Register runtime providers (`docker`, `containerd`, `firecracker`).
+7. Start DNS, ingress, task, raft services.
+8. Build API router and run HTTP transport listeners.
 
-If you add a new subsystem, implement it as an **fx module** under `internal/<name>/module.go`, then wire it in `cmd/server/serverCmd.go`.
+When adding a new subsystem, wire it explicitly in this composition root.
 
 ---
 
-## Build / run / test
+## Build, run, test
 
-This repo uses Taskfile.
+Primary workflow uses `just`:
 
-### Build (current platform)
-- Server:
-  - `task build:server`
-  - output: `dist/server`
-- Pack:
-  - `task build:pack`
-  - output: `dist/pack`
+- `just check` -> `cargo check --workspace`
+- `just fmt` / `just fmt-check`
+- `just lint` -> `cargo clippy --workspace --all-targets -- -D warnings`
+- `just test` -> `cargo test --workspace`
+- `just run --conf examples/local-raft/node1.yaml`
 
-### Run (developer)
-- Quick run:
-  - `go run ./cmd/server run`
-- With config files (later overrides earlier):
-  - `go run ./cmd/server run --conf config.yaml --conf config.local.yaml`
-- User CLI examples:
-  - `go run ./cmd/cli service list --api http://127.0.0.1:7443`
+Direct cargo equivalents are acceptable:
 
-### Checks / lint
-- `task check` → staticcheck
-- `task lint` → golangci-lint
+- `cargo check --workspace`
+- `cargo fmt --all`
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo test --workspace`
 
-### Tests
-- `go test ./...`
+Complex workflows use `cargo xtask`:
 
-Notes:
-- Config loader supports `.env`, defaults, env override, and optional config files.
+- `cargo xtask cluster run --nodes 3 --start-port 7443`
+- `cargo xtask cluster status`
+- `cargo xtask cluster stop`
+- `cargo xtask e2e ...`
+- `cargo xtask package`
+
+Docs:
+
+- `just docs-build` or `mdbook build docs`
+- `just docs-serve` or `mdbook serve docs`
 
 ---
 
-## Local development: minimal runnable config (template)
+## Local development quick start
 
-Create `config.yaml` at repo root (or pass via `--conf`).
+Single node:
 
-> This template aims for: server boots + HTTP API up + DNS/mdns optional.
-> Depending on which subsystems are mandatory at startup, you may need to adjust ports/paths.
-
-```yaml
-app:
-  name: warden
-  env: dev
-
-log:
-  level: info
-
-http:
-  enabled: true
-  listen: "0.0.0.0:8080"
-  # cors / tls / etc can be added later
-
-auth:
-  enabled: true
-  # For dev only. Replace in prod.
-  jwt:
-    issuer: "warden-dev"
-    audience: "warden"
-    secret: "dev-secret-change-me"
-    expire: "24h"
-
-registry:
-  # local store path for dev
-  data_dir: "./data/registry"
-
-raft:
-  enabled: false
-  # enable later for multi-node; keep off for local dev minimal boot
-  # node_id: "node-1"
-  # bind: "0.0.0.0:9000"
-  # data_dir: "./data/raft"
-  # peers: []
-
-dns:
-  enabled: false
-  # listen: "0.0.0.0:5353"
-  # domain: "warden.local"
-
-mdns:
-  enabled: true
-  # service: "_warden._tcp"
-  # port: 8080
-
-runtime_engine:
-  # choose one or more drivers enabled in dev.
-  drivers:
-    docker:
-      enabled: true
-      # docker_host: "unix:///var/run/docker.sock"
-    systemd:
-      enabled: false
-    containerd:
-      enabled: false
-    firecracker:
-      enabled: false
-
-# Optional: workload examples may live under ./workloads
-workload:
-  dir: "./workloads"
+```bash
+cargo run -p warden-server-rs -- --conf examples/local-raft/node1.yaml
 ```
-# Suggested dev commands
 
-First run:
+CLI query:
 
-mkdir -p data/registry workloads
+```bash
+cargo run -p warden-cli-rs -- --api auto workloads
+```
 
-go run ./cmd/server run --conf config.yaml
+Local multi-node simulation:
 
-If your config loader supports .env:
+```bash
+cargo xtask cluster run --nodes 4 --start-port 7443
+```
 
-create .env and set overrides using prefix WARDEN_...
+Use `examples/local-raft/node*.yaml` for explicit per-node config.
 
-# Contribution guidelines
-## Branching
+---
 
-main is always releasable.
+## Config conventions
 
-Work on feature branches:
+Source of truth: `crates/warden-config/src/lib.rs`.
 
-feat/<topic>
+- Keep config changes additive.
+- Provide sensible defaults in `impl Default for Config`.
+- Validate with `validator` rules before runtime uses config.
+- Supported file formats: `.yaml/.yml/.toml/.json`.
+- Env overrides:
+  - `WARDEN__...` (preferred nested form).
+  - `WARDEN_...` (compatibility form).
 
-fix/<topic>
+When adding config:
 
-chore/<topic>
+1. Add field in config struct.
+2. Add default value.
+3. Add validation where needed.
+4. Update docs/examples if behavior changes.
 
-docs/<topic>
+---
 
-## Commit message (Conventional Commits)
+## API and transport conventions
 
-Use:
+- Handlers should stay thin: parse/validate -> service call -> envelope mapping.
+- Keep business logic in service crates (`warden-task`, `warden-registry`, etc.), not in handler functions.
+- Keep OpenAPI in sync:
+  - Add route docs annotations in handlers.
+  - Register schema/path in `crates/warden-api/src/doc.rs`.
+- Swagger UI is served from `/swagger-ui`.
 
-feat: ... new capability
+CLI/server transport:
 
-fix: ... bug fix
+- Prefer platform-local endpoints first via `--api auto`:
+  - unix: `unix://...` then `http://127.0.0.1:7443`
+  - windows: `npipe://...` then `http://127.0.0.1:7443`
+- Explicit endpoint forms supported: `auto`, `unix://`, `npipe://`, `http://`, `https://`.
 
-refactor: ... non-functional refactor
+---
 
-perf: ... performance improvement
+## Runtime and scheduling conventions
 
-test: ... tests only
+- `warden-runtime` is the abstraction boundary.
+- Driver-specific logic must live in driver crates (`warden-runtime-docker`, etc.).
+- Do not leak driver concrete types into API/type crates.
+- Keep scheduling decisions in `warden-task`.
+- Mutating operations that require consensus should go through raft apply paths.
 
-docs: ... docs only
+When adding a runtime driver:
 
-chore: ... tooling/CI/build
+1. Add `crates/warden-runtime-<driver>/`.
+2. Implement provider trait(s) from `warden-runtime`.
+3. Register in server composition root.
+4. Add focused tests for lifecycle parity (deploy/stop/logs/recovery basics).
 
-Prefer small commits with clear intent.
+---
 
-## PR / change request expectations
+## CLI conventions
 
-A PR should include:
+- CLI is a composition layer in `apps/warden-cli-rs`.
+- Command definitions live in `cli_args.rs`.
+- DSL-specific command logic lives in `dsl_cmd.rs`.
+- Keep output stable JSON for automation-friendly usage.
 
-What changed + why (problem statement)
+When adding a new command:
 
-How to test (exact commands)
+1. Add clap args/subcommand definitions.
+2. Add client call path in `main.rs` (or extracted command module).
+3. Reuse `warden-client`; do not duplicate transport logic.
+4. Add/update docs examples.
 
-Risks / roll-back notes if behavior changes
+---
 
-Any new config keys + defaults
+## Coding standards
 
-## Release / versioning
+- No hidden global mutable state.
+- Return contextual errors with `anyhow::Context`.
+- Use structured logs (`tracing`) with clear targets and fields.
+- Prefer small modules and explicit boundaries.
+- Keep hot-path code simple; avoid unnecessary allocations/abstractions.
 
-If you use goreleaser: ensure changelog-worthy commits use feat/fix/perf.
+No Go-era conventions apply anymore:
 
-Do not break config compatibility without a migration note in docs/.
+- Do not introduce new Go code.
+- Do not add `fx` module wiring patterns.
+- Do not reintroduce Taskfile as primary workflow.
 
-## CI expectations (local before pushing)
+---
 
-go test ./...
+## Contribution and commit conventions
 
-task check
+Branch naming:
 
-task lint
+- `feat/<topic>`
+- `fix/<topic>`
+- `chore/<topic>`
+- `docs/<topic>`
 
-Configuration conventions
+Commit messages: Conventional Commits (`feat:`, `fix:`, `refactor:`, `perf:`, `test:`, `docs:`, `chore:`).
 
-Config struct: internal/config/config.go
+Before finishing changes:
 
-Defaults are defined in defaultConfig().
+- `cargo fmt --all`
+- `cargo check --workspace`
+- `cargo test --workspace`
+- `cargo clippy --workspace --all-targets -- -D warnings` (or explain why not)
+- Update docs/README/ROADMAP when behavior changes.
 
-Load path:
-
-CLI: --conf accepts multiple files, later overrides earlier
-
-If no --conf, it looks for: config.yaml|yml|toml|json and mock/mock.* if present
-
-Env prefix: WARDEN_ (see internal/constant), env overrides are allowed.
-
-When adding new config:
-
-Add fields to internal/config/config.go with koanf tags.
-
-Extend defaults in defaultConfig().
-
-Avoid breaking changes: prefer additive config.
-
-# Coding conventions (must follow)
-## Dependency injection / modularity
-
-Prefer fx.Module + fx.Provide with explicit constructors.
-
-Avoid hidden singletons; avoid package-level mutable state.
-
-Keep cross-module dependencies explicit and minimal.
-
-## Error handling
-
-Return errors with context (fmt.Errorf("...: %w", err)).
-
-Do not swallow errors in core orchestration paths.
-
-## Logging
-
-Use slog where already adopted; keep logs structured (key/value).
-
-Avoid noisy logs in hot paths unless behind debug level.
-
-## API / endpoints
-
-Keep handlers thin: validate → call service → map response.
-
-Prefer small interfaces for services to simplify testing.
-
-## DSL
-
-Any DSL change must update:
-
-definition structs / tags
-
-normalization logic (if needed)
-
-validation (if present)
-
-docs/examples (if exist in docs/)
-
-## Runtime/executor drivers
-
-Changes must preserve behavior across runtimes; do not hardcode docker-only assumptions.
-
-If you add a new driver:
-
-isolate it under internal/runtime_engine/<driver>/
-
-add an interface + registration point (do not leak driver types across the codebase)
-
-# Adopt samber/lo and samber/mo (required for new code where it improves clarity)
-
-This repo may use:
-
-github.com/samber/lo for collection/functional helpers (map/filter/group/reduce, etc.)
-
-github.com/samber/mo for Option[T] / Result[T] to reduce nil/err boilerplate
-
-# Rules of use (avoid abuse)
-
-Use lo/mo to simplify local transformations and optional values.
-
-Do NOT turn simple readable loops into unreadable pipelines.
-
-Avoid lo.Must / panic-style helpers in production paths.
-
-For hot paths, prefer simple loops if profiling indicates overhead.
-
-# Option patterns (mo.Option[T])
-
-Use Option to represent "may be missing" without nil footguns.
-
-Prefer:
-
-- mo.Some(v) / mo.None[T]() (or equivalent)
-
-- opt.OrElse(defaultValue) / opt.OrEmpty() patterns
-
-- opt.Match(someFn, noneFn) to keep branching explicit
-
-Guidelines:
-
-Input parsing / config: return Option for optional fields
-
-Domain model: avoid *T when optional semantics matter; use Option[T] (unless JSON tags force pointers)
-
-# Result patterns (mo.Result[T])
-
-Use Result when you frequently need: value + error with map/flatMap chains.
-
-Prefer:
-
-- mo.Ok(v) / mo.Err[T](err)
-
-- res.Map(fn) / res.FlatMap(fn) for pipelines
-
-- res.Match(okFn, errFn) when branching
-
-## lo patterns
-
-Use lo for:
-
-`lo.Map`, `lo.Filter`, `lo.Reduce`, `lo.GroupBy`
-
-`lo.Associate`, `lo.KeyBy`, `lo.UniqBy`
-
-Avoid:
-
-deep nesting of lambdas
-
-heavy allocations inside tight loops
-
-Migration principle
-
-New code should consider lo/mo first.
-
-Existing code may be gradually refactored when touched, but avoid churn-only PRs.
-
-# How to implement common changes
-## Add a new server subsystem
-
-1. Create internal/<name>/module.go with fx.Module("<name>", fx.Provide(...))
-
-2. Add services/structs under internal/<name>/
-
-3. Wire module in cmd/server/serverCmd.go modules = []fx.Option{ ... }
-
-4. Add tests for the core logic (not necessarily fx wiring)
-
-## Add a new CLI command
-
-- User-facing command:
-  - Add file under `cmd/cli/<xxx>Cmd.go`
-  - Register it in `cmd/cli/rootCmd.go`
-
-- Server process command:
-  - Add file under `cmd/server/<xxx>Cmd.go`
-  - Register it in `cmd/server/rootCmd.go`
-
-- Keep CLI commands as composition roots; business logic should live under internal/
-
-## Review checklist for agents
-
-Before finishing a change:
-
-- go test ./... passes
-
-- task check and task lint pass (or explain why not)
-
-- No new cyclic dependencies across internal/*
-
-- Config changes are additive + defaults updated
-
-- Any public behavior change has docs note under docs/ or README.md
+---
 
 ## When unsure
 
-If requirements are unclear:
-
 - Prefer minimal, additive changes.
-
+- Do not invent API contracts; inspect existing crates first.
 - Leave TODOs only with concrete next steps and file pointers.
-
-- Do not invent API contracts—search existing internal/http, internal/endpoint, internal/dsl patterns first.
+- If design is unclear, align with existing crate boundaries rather than introducing a new architecture.

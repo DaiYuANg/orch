@@ -149,6 +149,10 @@ async fn deploy(
       service_port: None,
       ingress_port: None,
       backend: None,
+      process_command: None,
+      process_args: Vec::new(),
+      process_env: std::collections::BTreeMap::new(),
+      process_cwd: None,
     })
     .await
 }

@@ -2,10 +2,11 @@ use crate::handlers;
 use axum::Router;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use warden_types::dsl::{DslApplyRequest, DslApplyResult};
 use warden_types::{
   BatchActionResult, ClusterInfo, ClusterNodeInfo, CpuInfo, DeployWorkloadRequest, DiskInfo,
   DnsRecord, EndpointRecord, FailoverRequest, MemInfo, MigrateWorkloadRequest, RebalanceRequest,
-  RouteRecord, RuntimeInfo, RuntimeManagedEntry, SystemInfo, WorkloadSummary,
+  RouteRecord, RuntimeInfo, RuntimeManagedEntry, SystemInfo, TaskLogsResponse, WorkloadSummary,
 };
 
 #[derive(OpenApi)]
@@ -16,6 +17,8 @@ use warden_types::{
     handlers::tasks::list_tasks,
     handlers::tasks::get_task,
     handlers::tasks::deploy_task,
+    handlers::dsl::apply_dsl,
+    handlers::task_logs::task_logs,
     handlers::tasks::stop_task,
     handlers::tasks::migrate_task,
     handlers::tasks::failover_tasks,
@@ -33,7 +36,10 @@ use warden_types::{
       MigrateWorkloadRequest,
       FailoverRequest,
       RebalanceRequest,
+      DslApplyRequest,
+      DslApplyResult,
       BatchActionResult,
+      TaskLogsResponse,
       WorkloadSummary,
       EndpointRecord,
       RouteRecord,

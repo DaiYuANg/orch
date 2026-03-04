@@ -1,6 +1,6 @@
 use crate::TaskService;
 use chrono::Utc;
-use tracing::info;
+use tracing::{info, warn};
 use warden_types::{
   DeployWorkloadRequest, DnsRecord, EndpointRecord, RouteRecord, WorkloadSummary,
 };
@@ -25,6 +25,14 @@ impl TaskService {
       .unwrap_or_else(|| String::from("/"));
     let ingress_port = req.ingress_port.unwrap_or(8088);
     let target_node = self.pick_deploy_node().await;
+    info!(
+      target: "warden::task",
+      workload_id = %id,
+      name = %req.name,
+      runtime = %runtime,
+      target_node = %target_node,
+      "deploy request accepted"
+    );
     let launched = self.runtime.deploy(&id, &req).await?;
 
     let summary = self
@@ -87,7 +95,14 @@ impl TaskService {
   pub async fn stop(&self, id: &str) -> anyhow::Result<Option<WorkloadSummary>> {
     let mut workload = match self.store.get_workload(id).await {
       Some(item) => item,
-      None => return Ok(None),
+      None => {
+        warn!(
+          target: "warden::task",
+          workload_id = %id,
+          "stop requested for missing workload"
+        );
+        return Ok(None);
+      }
     };
     self.runtime.stop(id).await?;
     workload.status = String::from("stopped");

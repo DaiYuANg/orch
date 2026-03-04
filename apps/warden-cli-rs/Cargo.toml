@@ -11,4 +11,5 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 warden-client = { path = "../../crates/warden-client" }
+warden-dsl = { path = "../../crates/warden-dsl" }
 warden-types = { path = "../../crates/warden-types" }

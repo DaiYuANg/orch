@@ -22,7 +22,8 @@ Snapshot date: March 4, 2026
 - [x] Baseline tests for `task` deployment lifecycle and runtime injection
 - [x] Baseline tests for `registry` route resolution and owner cleanup
 - [x] Baseline tests for `ingress` host normalization and TCP route sync
-- [x] Dashboard shell migrated to Refine + shadcn-style UI primitives
+- [x] Frontend packages removed from this repository (dashboard extracted to standalone project)
+- [x] Documentation stack migrated to mdBook (`docs/`)
 - [x] Raft FSM command apply (`set/delete`) with snapshot/restore implementation
 - [x] Raft-enabled registry mutating operations routed through consensus apply
 - [x] Leader-only deploy guard with replicated scheduling-assignment records
@@ -43,7 +44,6 @@ Snapshot date: March 4, 2026
 - [ ] Containerd parity gaps (logs, managed-recovery parity, richer network semantics)
 - [ ] Cross-node reconcile/restart/log aggregation path for remote worker instances (baseline wired, needs production hardening)
 - [ ] Stateful-safe migration/failover/rebalance policies beyond guardrails (drain, pre-check, rollback, disruption budgets)
-- [ ] Dashboard integration depth (auth/token flow, deploy actions, logs and richer runtime operations)
 - [ ] Pack CLI and package workflow beyond static catalog
 - [ ] Better operator UX for auth/token/config management
 - [ ] More automated tests in `cmd/*`, plus deeper edge-case coverage in runtime/ingress flows
@@ -65,7 +65,7 @@ Snapshot date: March 4, 2026
 
 ### Developer and user experience
 
-- [ ] Stable dashboard release with operations views and deployment actions
+- [ ] External dashboard project stabilization and integration boundary docs
 - [ ] Pack format, metadata, and remote registry/distribution model
 - [ ] Operational docs for single-node and multi-node production setups
 - [ ] Compatibility matrix and release quality gates

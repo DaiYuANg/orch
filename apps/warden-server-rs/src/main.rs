@@ -12,6 +12,7 @@ use warden_runtime::RuntimeEngine;
 use warden_runtime_containerd::ContainerdRuntimeProvider;
 use warden_runtime_docker::DockerRuntimeProvider;
 use warden_runtime_firecracker::FirecrackerRuntimeProvider;
+use warden_runtime_process::ProcessRuntimeProvider;
 use warden_store::new_store;
 use warden_task::TaskService;
 
@@ -30,9 +31,25 @@ async fn main() -> anyhow::Result<()> {
 
   warden_logger::init(&cfg.logger);
   info!(target: "warden::server", files = ?conf_files, "config loaded");
+  info!(
+    target: "warden::server",
+    http_port = cfg.http.port,
+    dns_listen = %cfg.network.dns_listen,
+    ingress_listen = %cfg.network.ingress_http_listen,
+    raft_enabled = cfg.raft.enable,
+    raft_node_id = cfg.raft.node_id,
+    "server startup begin"
+  );
 
   let store = new_store(&cfg.store.engine, &cfg.store.path)?;
+  info!(
+    target: "warden::server",
+    store_engine = %cfg.store.engine,
+    store_path = %cfg.store.path,
+    "state store initialized"
+  );
   store.seed_demo_data().await?;
+  info!(target: "warden::server", "demo seed completed");
 
   let registry = RegistryService::new(store.clone());
   let dns = DnsService::with_options(
@@ -64,6 +81,10 @@ async fn main() -> anyhow::Result<()> {
   runtime
     .register_provider(Arc::new(FirecrackerRuntimeProvider::new()))
     .await;
+  runtime
+    .register_provider(Arc::new(ProcessRuntimeProvider::new()))
+    .await;
+  info!(target: "warden::server", "runtime providers registered");
   let raft = RaftService::new(
     cfg.raft.enable,
     cfg.raft.node_id,
@@ -78,9 +99,13 @@ async fn main() -> anyhow::Result<()> {
     cfg.raft.worker_nodes.clone(),
   );
 
+  info!(target: "warden::server", listen = %cfg.network.dns_listen, "starting dns service");
   dns.start(&cfg.network.dns_listen).await?;
+  info!(target: "warden::server", listen = %cfg.network.ingress_http_listen, "starting ingress service");
   ingress.start().await;
+  info!(target: "warden::server", "starting task service");
   task.start().await;
+  info!(target: "warden::server", "starting raft service");
   raft.start().await;
 
   let app = router(ApiState {
@@ -89,5 +114,6 @@ async fn main() -> anyhow::Result<()> {
     task,
     raft,
   });
+  info!(target: "warden::server", "starting http service");
   warden_http::run(&cfg, app).await
 }

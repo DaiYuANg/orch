@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use utoipa::ToSchema;
+
+pub mod dsl;
 
 pub mod api_code {
   pub const OK: i32 = 0;
@@ -85,6 +88,12 @@ pub struct DeployWorkloadRequest {
   pub service_port: Option<u16>,
   pub ingress_port: Option<u16>,
   pub backend: Option<String>,
+  pub process_command: Option<String>,
+  #[serde(default)]
+  pub process_args: Vec<String>,
+  #[serde(default)]
+  pub process_env: BTreeMap<String, String>,
+  pub process_cwd: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -113,6 +122,14 @@ pub struct BatchActionResult {
   pub moved: Vec<String>,
   pub skipped: Vec<String>,
   pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskLogsResponse {
+  pub workload_id: String,
+  pub runtime: String,
+  pub tail: usize,
+  pub lines: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

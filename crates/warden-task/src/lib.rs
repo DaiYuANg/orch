@@ -1,5 +1,7 @@
 mod deploy;
+mod logs;
 mod scheduling;
+mod scheduling_helper;
 
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -60,6 +62,12 @@ impl TaskService {
   }
 
   pub async fn start(&self) {
+    info!(
+      target: "warden::task",
+      local_node_id = %self.local_node_id,
+      worker_nodes = ?self.worker_nodes,
+      "task service startup begin"
+    );
     self.runtime.start().await;
     self.restore_managed_workloads().await;
     info!(target: "warden::task", "task service startup complete");
@@ -83,12 +91,19 @@ impl TaskService {
 
   async fn restore_managed_workloads(&self) {
     let workloads = self.store.list_workloads().await;
+    let mut restored = 0usize;
     for item in workloads {
       if !item.status.eq_ignore_ascii_case("running") {
         continue;
       }
       self.runtime.recover_managed(&item.id, &item.runtime).await;
+      restored += 1;
     }
+    info!(
+      target: "warden::task",
+      restored,
+      "restore managed workloads finished"
+    );
   }
 
   pub(crate) async fn known_nodes(&self) -> Vec<String> {

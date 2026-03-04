@@ -1,13 +1,15 @@
 mod cli_args;
+mod dsl_cmd;
 
-use crate::cli_args::{Cli, Command, TaskArgs};
+use crate::cli_args::{Cli, Command, DslCommand, TaskArgs};
 use clap::Parser;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::time::Duration;
 use warden_client::{WardenClient, parse_endpoint};
 use warden_types::{
   BatchActionResult, DeployWorkloadRequest, DnsRecord, EndpointRecord, FailoverRequest,
-  MigrateWorkloadRequest, RebalanceRequest, RouteRecord, WorkloadSummary,
+  MigrateWorkloadRequest, RebalanceRequest, RouteRecord, TaskLogsResponse, WorkloadSummary,
 };
 
 #[tokio::main]
@@ -33,7 +35,30 @@ async fn main() -> anyhow::Result<()> {
       let items: Vec<DnsRecord> = client.get("/system/dns/records").await?;
       print_json(&items)?;
     }
+    Command::Dsl { cmd } => match cmd {
+      DslCommand::Plan(args) => {
+        let plan = dsl_cmd::run_plan(&client, &args).await?;
+        if args.json {
+          print_json(&plan)?;
+        } else {
+          println!("{}", dsl_cmd::format_plan(&plan));
+        }
+      }
+      DslCommand::Render(args) => {
+        let compiled = dsl_cmd::run_render(&args)?;
+        print_json(&compiled)?;
+      }
+      DslCommand::Apply(args) => {
+        let result = dsl_cmd::run_apply(&client, &args).await?;
+        print_json(&result)?;
+      }
+      DslCommand::Delete(args) => {
+        let result = dsl_cmd::run_delete(&client, &args).await?;
+        print_json(&result)?;
+      }
+    },
     Command::Deploy(args) => {
+      let process_env = parse_process_env(&args.process_env)?;
       let req = DeployWorkloadRequest {
         name: args.name,
         runtime: args.runtime,
@@ -46,6 +71,10 @@ async fn main() -> anyhow::Result<()> {
         service_port: Some(args.port),
         ingress_port: Some(args.ingress_port),
         backend: args.backend,
+        process_command: args.process_command,
+        process_args: args.process_args,
+        process_env,
+        process_cwd: args.process_cwd,
       };
       let item: WorkloadSummary = client.post("/tasks/deploy", &req).await?;
       print_json(&item)?;
@@ -93,6 +122,12 @@ async fn main() -> anyhow::Result<()> {
         let item: WorkloadSummary = client.get(&format!("/tasks/{id}")).await?;
         print_json(&item)?;
       }
+      TaskArgs::Logs { id, tail } => {
+        let item: TaskLogsResponse = client
+          .get(&format!("/tasks/{id}/logs?tail={}", tail.max(1)))
+          .await?;
+        print_json(&item)?;
+      }
     },
   }
 
@@ -102,4 +137,23 @@ async fn main() -> anyhow::Result<()> {
 fn print_json<T: Serialize>(value: &T) -> anyhow::Result<()> {
   println!("{}", serde_json::to_string_pretty(value)?);
   Ok(())
+}
+
+fn parse_process_env(entries: &[String]) -> anyhow::Result<BTreeMap<String, String>> {
+  let mut envs = BTreeMap::new();
+  for raw in entries {
+    let value = raw.trim();
+    if value.is_empty() {
+      continue;
+    }
+    let Some((key, val)) = value.split_once('=') else {
+      anyhow::bail!("invalid --process-env entry: {value} (expected KEY=VALUE)");
+    };
+    let key = key.trim();
+    if key.is_empty() {
+      anyhow::bail!("invalid --process-env entry: empty key in {value}");
+    }
+    envs.insert(key.to_string(), val.to_string());
+  }
+  Ok(envs)
 }

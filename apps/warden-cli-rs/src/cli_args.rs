@@ -23,6 +23,10 @@ pub enum Command {
   Endpoints,
   Routes,
   Dns,
+  Dsl {
+    #[command(subcommand)]
+    cmd: DslCommand,
+  },
   Deploy(DeployArgs),
   Stop(StopArgs),
   Migrate(MigrateArgs),
@@ -58,6 +62,14 @@ pub struct DeployArgs {
   pub ingress_port: u16,
   #[arg(long)]
   pub backend: Option<String>,
+  #[arg(long)]
+  pub process_command: Option<String>,
+  #[arg(long = "process-arg")]
+  pub process_args: Vec<String>,
+  #[arg(long = "process-env")]
+  pub process_env: Vec<String>,
+  #[arg(long)]
+  pub process_cwd: Option<String>,
 }
 
 #[derive(Debug, Parser)]
@@ -99,7 +111,58 @@ pub struct RebalanceArgs {
 #[derive(Debug, Subcommand)]
 pub enum TaskArgs {
   List,
-  Get { id: String },
+  Get {
+    id: String,
+  },
+  Logs {
+    id: String,
+    #[arg(long, default_value_t = 200)]
+    tail: usize,
+  },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DslCommand {
+  Plan(DslPlanArgs),
+  Render(DslFileArgs),
+  Apply(DslApplyArgs),
+  Delete(DslDeleteArgs),
+}
+
+#[derive(Debug, Parser)]
+pub struct DslFileArgs {
+  #[arg(short = 'f', long = "file")]
+  pub file: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct DslApplyArgs {
+  #[arg(short = 'f', long = "file")]
+  pub file: String,
+  #[arg(long, default_value_t = false)]
+  pub prune: bool,
+  #[arg(long, default_value_t = false)]
+  pub strict: bool,
+  #[arg(long, default_value_t = 4)]
+  pub concurrency: usize,
+}
+
+#[derive(Debug, Parser)]
+pub struct DslPlanArgs {
+  #[arg(short = 'f', long = "file")]
+  pub file: String,
+  #[arg(long, default_value_t = false)]
+  pub strict: bool,
+  #[arg(long, default_value_t = false)]
+  pub json: bool,
+}
+
+#[derive(Debug, Parser)]
+pub struct DslDeleteArgs {
+  #[arg(short = 'f', long = "file")]
+  pub file: String,
+  #[arg(long, default_value_t = false)]
+  pub strict: bool,
 }
 
 fn default_api() -> String {

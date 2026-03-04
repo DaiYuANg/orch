@@ -1,0 +1,30 @@
+apiVersion: warden.io/v1alpha1
+kind: Application
+metadata:
+  name: demo
+  namespace: default
+spec:
+  workloads:
+    - name: web
+      runtime: containerd
+      image: docker.io/library/nginx:stable-alpine
+      service:
+        port: 8080
+      ingress:
+        enabled: true
+        host: demo.local
+        path: /
+        listenPort: 18088
+      dns:
+        enabled: true
+        ttl: 60
+      scheduling:
+        stateful: false
+        allowLeader: true
+        preferredNodes:
+          - node-1
+          - node-2
+    - name: vm-sidecar
+      runtime: firecracker
+      firecracker:
+        config: ./examples/firecracker-vm.json

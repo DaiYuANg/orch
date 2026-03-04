@@ -21,5 +21,6 @@ warden-runtime = { path = "../../crates/warden-runtime" }
 warden-runtime-containerd = { path = "../../crates/warden-runtime-containerd" }
 warden-runtime-docker = { path = "../../crates/warden-runtime-docker" }
 warden-runtime-firecracker = { path = "../../crates/warden-runtime-firecracker" }
+warden-runtime-process = { path = "../../crates/warden-runtime-process" }
 warden-store = { path = "../../crates/warden-store" }
 warden-task = { path = "../../crates/warden-task" }

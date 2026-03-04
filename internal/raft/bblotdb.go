@@ -8,7 +8,7 @@ import (
 )
 
 func newBblot(raftDir string, logger *slog.Logger) (*bbolt.DB, error) {
-	path := filepath.Join(raftDir, "metadata_db.db")
+	path := filepath.Join(raftDir, "registry.db")
 	logger.Debug("bbolt path", "path", path)
 	options := bbolt.DefaultOptions
 	db, err := bbolt.Open(path, 0600, options)

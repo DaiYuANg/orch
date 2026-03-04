@@ -36,5 +36,12 @@ func defaultConfig() Config {
 			DNSListen:         ":1053",
 			IngressHTTPListen: ":8088",
 		},
+		Raft: Raft{
+			Enable:            false,
+			BindAddr:          "127.0.0.1:12000",
+			Bootstrap:         true,
+			ApplyTimeout:      "3s",
+			LeaderWaitTimeout: "10s",
+		},
 	}
 }

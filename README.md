@@ -14,6 +14,9 @@ Implemented:
 - Docker runtime execution, health checks, restart/reconcile loop, and managed container recovery
 - Runtime execution is now abstracted behind a task-level runtime interface (Docker adapter is the default implementation)
 - Registry persistence with `bbolt` + route/endpoint resolution
+- Raft-backed registry write path (when enabled) with FSM apply/snapshot/restore
+- Leader-only scheduling guard for deploy operations with replicated assignment records
+- Badger-backed hot cache in raft FSM for recently written consensus data
 - Built-in ingress (HTTP/TCP/UDP) backed by registry routes
 - DNS resolution for registered services
 - JWT middleware with local root token generation
@@ -25,6 +28,7 @@ Implemented:
 Not finished yet:
 
 - Production-ready non-docker runtime scheduling path (systemd/containerd/firecracker/windows-service)
+- Cross-node remote execution after leader placement decision (current baseline is leader-local scheduling)
 - Secrets management
 - HA migration/orchestration workflows
 - Full dashboard feature coverage (auth, deploy form, logs/actions, richer observability views)

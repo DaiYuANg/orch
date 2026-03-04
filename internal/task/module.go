@@ -5,7 +5,7 @@ import "go.uber.org/fx"
 var Module = fx.Module(
 	"task",
 	fx.Provide(
-		NewService,
+		newServiceWithRaft,
 	),
 	fx.Invoke(
 		lifecycle,

@@ -11,45 +11,73 @@ import (
 
 	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/adrg/xdg"
+	"github.com/goccy/go-json"
 	"github.com/samber/lo"
 	"github.com/samber/mo"
 	"go.etcd.io/bbolt"
 )
 
+const (
+	endpointBucket = "service_endpoints"
+	routeBucket    = "service_routes"
+)
+
 type Service struct {
 	logger *slog.Logger
+
+	raft *raft.Service
 
 	db           *bbolt.DB
 	endpointRepo *raft.Repository[ServiceEndpoint]
 	routeRepo    *raft.Repository[Route]
+	ownsDB       bool
 
 	mu         sync.Mutex
 	roundRobin map[string]uint64
 }
 
 func NewService(logger *slog.Logger) (*Service, error) {
+	return newService(logger, nil)
+}
+
+func NewServiceWithRaft(logger *slog.Logger, raftService *raft.Service) (*Service, error) {
+	return newService(logger, raftService)
+}
+
+func newService(logger *slog.Logger, raftService *raft.Service) (*Service, error) {
 	dataDir := filepath.Join(xdg.DataHome, "warden")
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return nil, fmt.Errorf("mkdir registry data dir: %w", err)
 	}
 
-	dbPath := filepath.Join(dataDir, "registry.db")
-	db, err := bbolt.Open(dbPath, 0o700, nil)
-	if err != nil {
-		return nil, fmt.Errorf("open registry db: %w", err)
+	ownsDB := true
+	db := (*bbolt.DB)(nil)
+	if raftService != nil && raftService.Enabled() && raftService.MetadataDB() != nil {
+		db = raftService.MetadataDB()
+		ownsDB = false
+	}
+	if db == nil {
+		dbPath := filepath.Join(dataDir, "registry.db")
+		var err error
+		db, err = bbolt.Open(dbPath, 0o700, nil)
+		if err != nil {
+			return nil, fmt.Errorf("open registry db: %w", err)
+		}
 	}
 
 	return &Service{
 		logger:       logger,
+		raft:         raftService,
 		db:           db,
-		endpointRepo: raft.NewRepository[ServiceEndpoint](db, "service_endpoints"),
-		routeRepo:    raft.NewRepository[Route](db, "service_routes"),
+		endpointRepo: raft.NewRepository[ServiceEndpoint](db, endpointBucket),
+		routeRepo:    raft.NewRepository[Route](db, routeBucket),
+		ownsDB:       ownsDB,
 		roundRobin:   make(map[string]uint64),
 	}, nil
 }
 
 func (s *Service) Close() error {
-	if s.db == nil {
+	if s.db == nil || !s.ownsDB {
 		return nil
 	}
 	return s.db.Close()
@@ -73,11 +101,19 @@ func (s *Service) UpsertEndpoint(endpoint ServiceEndpoint) error {
 		endpoint.CreatedAt = now
 	}
 	endpoint.UpdatedAt = now
-	return s.endpointRepo.Set(endpoint.ID, endpoint)
+	if !s.shouldUseRaftWrite() {
+		return s.endpointRepo.Set(endpoint.ID, endpoint)
+	}
+	return s.raftSet(endpointBucket, endpoint.ID, endpoint)
 }
 
 func (s *Service) DeleteEndpoint(endpointID string) error {
-	err := s.endpointRepo.Delete(endpointID)
+	var err error
+	if s.shouldUseRaftWrite() {
+		err = s.raftDelete(endpointBucket, endpointID)
+	} else {
+		err = s.endpointRepo.Delete(endpointID)
+	}
 	if isBucketNotFound(err) {
 		return nil
 	}
@@ -94,7 +130,10 @@ func (s *Service) SetEndpointHealth(endpointID string, healthy bool) error {
 	}
 	current.Healthy = healthy
 	current.UpdatedAt = time.Now()
-	return s.endpointRepo.Set(endpointID, current)
+	if !s.shouldUseRaftWrite() {
+		return s.endpointRepo.Set(endpointID, current)
+	}
+	return s.raftSet(endpointBucket, endpointID, current)
 }
 
 func (s *Service) ListEndpoints(service string, healthyOnly bool) ([]ServiceEndpoint, error) {
@@ -144,11 +183,19 @@ func (s *Service) UpsertRoute(route Route) error {
 		route.CreatedAt = now
 	}
 	route.UpdatedAt = now
-	return s.routeRepo.Set(route.ID, route)
+	if !s.shouldUseRaftWrite() {
+		return s.routeRepo.Set(route.ID, route)
+	}
+	return s.raftSet(routeBucket, route.ID, route)
 }
 
 func (s *Service) DeleteRoute(routeID string) error {
-	err := s.routeRepo.Delete(routeID)
+	var err error
+	if s.shouldUseRaftWrite() {
+		err = s.raftDelete(routeBucket, routeID)
+	} else {
+		err = s.routeRepo.Delete(routeID)
+	}
 	if isBucketNotFound(err) {
 		return nil
 	}
@@ -329,6 +376,28 @@ func ensurePath(path string) string {
 		return p
 	}
 	return "/" + p
+}
+
+func (s *Service) shouldUseRaftWrite() bool {
+	return s.raft != nil && s.raft.Enabled()
+}
+
+func (s *Service) raftSet(bucket, key string, value any) error {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	if err := s.raft.ApplySet(bucket, key, raw); err != nil {
+		return fmt.Errorf("raft set %s/%s: %w", bucket, key, err)
+	}
+	return nil
+}
+
+func (s *Service) raftDelete(bucket, key string) error {
+	if err := s.raft.ApplyDelete(bucket, key); err != nil {
+		return fmt.Errorf("raft delete %s/%s: %w", bucket, key, err)
+	}
+	return nil
 }
 
 func isBucketNotFound(err error) bool {

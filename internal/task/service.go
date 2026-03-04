@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DaiYuANg/warden/internal/dsl"
+	"github.com/DaiYuANg/warden/internal/raft"
 	"github.com/DaiYuANg/warden/internal/registry"
 	"github.com/DaiYuANg/warden/pkg"
 	"github.com/google/uuid"
@@ -45,6 +46,7 @@ type Service struct {
 	logger *slog.Logger
 
 	mu          sync.RWMutex
+	raft        *raft.Service
 	runtime     RuntimeExecutor
 	runtimeInit RuntimeFactory
 	registry    *registry.Service
@@ -59,10 +61,18 @@ type Service struct {
 }
 
 func NewService(logger *slog.Logger, registryService *registry.Service) *Service {
-	return NewServiceWithRuntimeFactory(logger, registryService, newDockerRuntimeExecutor)
+	return newService(logger, registryService, nil, newDockerRuntimeExecutor)
 }
 
 func NewServiceWithRuntimeFactory(logger *slog.Logger, registryService *registry.Service, runtimeFactory RuntimeFactory) *Service {
+	return newService(logger, registryService, nil, runtimeFactory)
+}
+
+func newServiceWithRaft(logger *slog.Logger, registryService *registry.Service, raftService *raft.Service) *Service {
+	return newService(logger, registryService, raftService, newDockerRuntimeExecutor)
+}
+
+func newService(logger *slog.Logger, registryService *registry.Service, raftService *raft.Service, runtimeFactory RuntimeFactory) *Service {
 	if runtimeFactory == nil {
 		runtimeFactory = newDockerRuntimeExecutor
 	}
@@ -76,6 +86,7 @@ func NewServiceWithRuntimeFactory(logger *slog.Logger, registryService *registry
 	}
 	return &Service{
 		logger:            logger,
+		raft:              raftService,
 		runtimeInit:       runtimeFactory,
 		registry:          registryService,
 		nodeID:            nodeID,
@@ -130,6 +141,9 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 	if err := dsl.ValidateWorkload(workload); err != nil {
 		return nil, err
 	}
+	if err := s.ensureLeaderForScheduling(); err != nil {
+		return nil, err
+	}
 
 	exec, err := s.ensureRuntime(ctx)
 	if err != nil {
@@ -137,6 +151,16 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 	}
 
 	deploymentID := uuid.NewString()
+	if err := s.upsertSchedulingAssignment(deploymentID, workload.Name); err != nil {
+		return nil, err
+	}
+	cleanupAssignment := true
+	defer func() {
+		if cleanupAssignment {
+			_ = s.deleteSchedulingAssignment(deploymentID)
+		}
+	}()
+
 	now := time.Now()
 	deployment := &deploymentRecord{
 		DeploymentInfo: DeploymentInfo{
@@ -204,6 +228,7 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 	for _, instance := range created {
 		s.instances[instance.ID] = instance
 	}
+	cleanupAssignment = false
 
 	return &DeployResult{
 		DeploymentID: deploymentID,
@@ -278,6 +303,9 @@ func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error
 	}
 	s.mu.Unlock()
 	if err := s.deleteRoutesByOwner(deploymentID); err != nil && firstErr == nil {
+		firstErr = err
+	}
+	if err := s.deleteSchedulingAssignment(deploymentID); err != nil && firstErr == nil {
 		firstErr = err
 	}
 

@@ -21,10 +21,15 @@ Snapshot date: March 4, 2026
 - [x] Baseline tests for `registry` route resolution and owner cleanup
 - [x] Baseline tests for `ingress` host normalization and TCP route sync
 - [x] Dashboard shell migrated to Refine + shadcn-style UI primitives
+- [x] Raft FSM command apply (`set/delete`) with snapshot/restore implementation
+- [x] Raft-enabled registry mutating operations routed through consensus apply
+- [x] Leader-only deploy guard with replicated scheduling-assignment records
+- [x] Badger hot-cache integration for raft FSM read/write path
 
 ## In Progress
 
 - [ ] Runtime abstraction hardening for non-docker executors (systemd/containerd/firecracker/windows-service)
+- [ ] Cross-node remote execution dispatch after leader placement (current scheduling baseline is leader-local)
 - [ ] Dashboard integration depth (auth/token flow, deploy actions, logs and richer runtime operations)
 - [ ] Pack CLI and package workflow beyond static catalog
 - [ ] Better operator UX for auth/token/config management

@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"errors"
 	"log/slog"
 
 	"github.com/dgraph-io/badger/v3"
@@ -48,6 +49,16 @@ func (b *badgerDB) Read(key []byte) ([]byte, error) {
 		return nil, err
 	}
 	return valCopy, nil
+}
+
+func (b *badgerDB) Delete(key []byte) error {
+	return b.db.Update(func(txn *badger.Txn) error {
+		err := txn.Delete(key)
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return nil
+		}
+		return err
+	})
 }
 
 // Close 关闭数据库连接

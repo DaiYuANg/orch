@@ -14,6 +14,7 @@ Snapshot date: March 4, 2026
 - [x] Built-in ingress for HTTP/TCP/UDP route forwarding
 - [x] Reconcile loop: container restart and managed container recovery
 - [x] Task runtime interface abstraction with Docker adapter
+- [x] Driver-based runtime resolver baseline with containerd adapter wiring
 - [x] CLI operations for service deploy/list/get/stop/logs
 - [x] JWT auth middleware and root token generation
 - [x] Persistent auth signing key for restart-safe token validation
@@ -34,8 +35,9 @@ Snapshot date: March 4, 2026
 
 ## In Progress
 
-- [ ] Runtime abstraction hardening for non-docker executors (systemd/containerd/firecracker/windows-service)
-- [ ] Cross-node reconcile/restart/log aggregation path for remote worker instances
+- [ ] Runtime abstraction hardening for non-docker executors (systemd/firecracker/windows-service)
+- [ ] Containerd parity gaps (logs, managed-recovery parity, richer network semantics)
+- [ ] Cross-node reconcile/restart/log aggregation path for remote worker instances (baseline wired, needs production hardening)
 - [ ] Dashboard integration depth (auth/token flow, deploy actions, logs and richer runtime operations)
 - [ ] Pack CLI and package workflow beyond static catalog
 - [ ] Better operator UX for auth/token/config management

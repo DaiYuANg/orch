@@ -47,11 +47,11 @@ func validateTask(loc string, task Task) error {
 	if driver == "" {
 		return fmt.Errorf("%s.driver is required", loc)
 	}
-	if driver != "docker" {
-		return fmt.Errorf("%s.driver=%q is unsupported now, only docker is enabled", loc, task.Driver)
+	if !isSupportedDriver(driver) {
+		return fmt.Errorf("%s.driver=%q is unsupported, allowed: docker|containerd|systemd|firecracker|windows-service", loc, task.Driver)
 	}
-	if strings.TrimSpace(task.Image) == "" {
-		return fmt.Errorf("%s.image is required when driver=docker", loc)
+	if (driver == "docker" || driver == "containerd") && strings.TrimSpace(task.Image) == "" {
+		return fmt.Errorf("%s.image is required when driver=%s", loc, driver)
 	}
 	if task.Replicas < 0 {
 		return fmt.Errorf("%s.replicas must be >= 0", loc)
@@ -94,4 +94,13 @@ func validateHealthCheck(loc string, check *HealthCheck) error {
 		return fmt.Errorf("%s.retries must be >= 0", loc)
 	}
 	return nil
+}
+
+func isSupportedDriver(driver string) bool {
+	switch driver {
+	case "docker", "containerd", "systemd", "firecracker", "windows-service":
+		return true
+	default:
+		return false
+	}
 }

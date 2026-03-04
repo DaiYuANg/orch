@@ -39,16 +39,22 @@ func TestWorkerAPIClient(t *testing.T) {
 		httpClient: &http.Client{Timeout: 3 * time.Second},
 	}
 
-	result, err := service.runContainerOnWorker(context.Background(), "node-b", RuntimeRunSpec{
-		Image: "nginx:latest",
+	result, err := service.runContainerOnWorker(context.Background(), "node-b", InternalRunRequest{
+		Driver: "docker",
+		Spec: RuntimeRunSpec{
+			Image: "nginx:latest",
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "ctr-remote", result.ContainerID)
 	assert.Equal(t, "node-b", result.NodeID)
 
-	require.NoError(t, service.stopContainerOnWorker(context.Background(), "node-b", "ctr-remote"))
+	require.NoError(t, service.stopContainerOnWorker(context.Background(), "node-b", InternalStopRequest{
+		ContainerID: "ctr-remote",
+		Driver:      "docker",
+	}))
 
-	logs, err := service.readContainerLogsOnWorker(context.Background(), "node-b", "ctr-remote", 20)
+	logs, err := service.readContainerLogsOnWorker(context.Background(), "node-b", "ctr-remote", "docker", 20)
 	require.NoError(t, err)
 	assert.Equal(t, "remote-log", logs)
 }

@@ -12,7 +12,7 @@ Implemented:
 - DSL parsing and validation (`yaml` and `hcl`) for workload deployment
 - Task deployment API and CLI (`deploy`, `list`, `get`, `stop`, `logs`)
 - Docker runtime execution, health checks, restart/reconcile loop, and managed container recovery
-- Runtime execution is now abstracted behind a task-level runtime interface (Docker adapter is the default implementation)
+- Runtime execution is abstracted behind a task-level runtime interface with driver-based resolver (`docker` + `containerd` baseline)
 - Registry persistence with `bbolt` + route/endpoint resolution
 - Raft-backed registry write path (when enabled) with FSM apply/snapshot/restore
 - Leader-only scheduling guard for deploy operations with replicated assignment records
@@ -31,7 +31,8 @@ Implemented:
 
 Not finished yet:
 
-- Production-ready non-docker runtime scheduling path (systemd/containerd/firecracker/windows-service)
+- Production-ready non-docker runtime scheduling path (systemd/firecracker/windows-service)
+- Containerd logs and full recovery parity with docker runtime
 - Cross-node runtime reconcile/repair loop after remote placement (current reconcile loop is leader-local only)
 - Secrets management
 - HA migration/orchestration workflows

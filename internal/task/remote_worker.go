@@ -132,31 +132,42 @@ func (s *Service) resolveClusterToken() string {
 	return strings.TrimSpace(string(raw))
 }
 
-func (s *Service) runContainerOnWorker(ctx context.Context, workerID string, spec RuntimeRunSpec) (InternalRunResult, error) {
+func (s *Service) runContainerOnWorker(ctx context.Context, workerID string, in InternalRunRequest) (InternalRunResult, error) {
 	var result InternalRunResult
-	if err := s.workerAPIRequest(ctx, workerID, http.MethodPost, "/tasks/internal/run", InternalRunRequest{
-		Spec: spec,
-	}, &result); err != nil {
+	if err := s.workerAPIRequest(ctx, workerID, http.MethodPost, "/tasks/internal/run", in, &result); err != nil {
 		return InternalRunResult{}, err
 	}
 	return result, nil
 }
 
-func (s *Service) stopContainerOnWorker(ctx context.Context, workerID, containerID string) error {
-	return s.workerAPIRequest(ctx, workerID, http.MethodPost, "/tasks/internal/stop", map[string]string{
-		"container_id": strings.TrimSpace(containerID),
-	}, &map[string]any{})
+func (s *Service) stopContainerOnWorker(ctx context.Context, workerID string, req InternalStopRequest) error {
+	return s.workerAPIRequest(ctx, workerID, http.MethodPost, "/tasks/internal/stop", req, &map[string]any{})
 }
 
-func (s *Service) readContainerLogsOnWorker(ctx context.Context, workerID, containerID string, tail int) (string, error) {
+func (s *Service) readContainerLogsOnWorker(ctx context.Context, workerID, containerID, driver string, tail int) (string, error) {
 	var payload struct {
 		Logs string `json:"logs"`
 	}
 	path := fmt.Sprintf("/tasks/internal/logs/%s?tail=%d", url.PathEscape(strings.TrimSpace(containerID)), tail)
+	if value := strings.TrimSpace(driver); value != "" {
+		path += "&driver=" + url.QueryEscape(value)
+	}
 	if err := s.workerAPIRequest(ctx, workerID, http.MethodGet, path, nil, &payload); err != nil {
 		return "", err
 	}
 	return payload.Logs, nil
+}
+
+func (s *Service) readContainerStatusOnWorker(ctx context.Context, workerID, containerID, driver string) (RuntimeStatus, error) {
+	var status RuntimeStatus
+	path := fmt.Sprintf("/tasks/internal/status/%s", url.PathEscape(strings.TrimSpace(containerID)))
+	if value := strings.TrimSpace(driver); value != "" {
+		path += "?driver=" + url.QueryEscape(value)
+	}
+	if err := s.workerAPIRequest(ctx, workerID, http.MethodGet, path, nil, &status); err != nil {
+		return RuntimeStatus{}, err
+	}
+	return status, nil
 }
 
 func (s *Service) workerAPIRequest(ctx context.Context, workerID, method, path string, in any, out any) error {

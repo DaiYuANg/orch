@@ -19,4 +19,5 @@ func (e Endpoint) Register(openapi huma.API) {
 	huma.Post(openapi, "/tasks/internal/run", e.internalRun, tag)
 	huma.Post(openapi, "/tasks/internal/stop", e.internalStop, tag)
 	huma.Get(openapi, "/tasks/internal/logs/{container_id}", e.internalLogs, tag)
+	huma.Get(openapi, "/tasks/internal/status/{container_id}", e.internalStatus, tag)
 }

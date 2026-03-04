@@ -39,3 +39,26 @@ func TestValidateWorkloadInvalid(t *testing.T) {
 		t.Fatalf("expected validation error")
 	}
 }
+
+func TestValidateWorkloadContainerdDriver(t *testing.T) {
+	w := &Workload{
+		Name: "demo",
+		Units: []Unit{
+			{
+				Name: "backend",
+				Tasks: []Task{
+					{
+						Name:   "api",
+						Type:   "service",
+						Driver: "containerd",
+						Image:  "nginx:latest",
+					},
+				},
+			},
+		},
+	}
+
+	if err := ValidateWorkload(w); err != nil {
+		t.Fatalf("validate workload with containerd: %v", err)
+	}
+}

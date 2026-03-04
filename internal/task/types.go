@@ -95,7 +95,8 @@ type healthCheckSpec struct {
 }
 
 type InternalRunRequest struct {
-	Spec RuntimeRunSpec `json:"spec"`
+	Driver string         `json:"driver,omitempty"`
+	Spec   RuntimeRunSpec `json:"spec"`
 }
 
 type InternalRunResult struct {
@@ -103,4 +104,9 @@ type InternalRunResult struct {
 	Driver      string `json:"driver"`
 	NodeID      string `json:"node_id"`
 	NodeIP      string `json:"node_ip"`
+}
+
+type InternalStopRequest struct {
+	ContainerID string `json:"container_id"`
+	Driver      string `json:"driver,omitempty"`
 }

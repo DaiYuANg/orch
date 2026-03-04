@@ -47,19 +47,19 @@ const (
 type Service struct {
 	logger *slog.Logger
 
-	mu          sync.RWMutex
-	raft        *raft.Service
-	runtime     RuntimeExecutor
-	runtimeInit RuntimeFactory
-	registry    *registry.Service
-	nodeID      string
-	nodeIP      string
-	nodeAPI     map[string]string
-	dnsIP       string
-	httpClient  *http.Client
-	dnsServer   *internaldns.DNSServer
-	deployments map[string]*deploymentRecord
-	instances   map[string]*instanceRecord
+	mu           sync.RWMutex
+	raft         *raft.Service
+	runtimes     map[string]RuntimeExecutor
+	runtimeInits map[string]RuntimeFactory
+	registry     *registry.Service
+	nodeID       string
+	nodeIP       string
+	nodeAPI      map[string]string
+	dnsIP        string
+	httpClient   *http.Client
+	dnsServer    *internaldns.DNSServer
+	deployments  map[string]*deploymentRecord
+	instances    map[string]*instanceRecord
 
 	reconcileInterval time.Duration
 	stopCh            chan struct{}
@@ -112,7 +112,8 @@ func newService(
 	return &Service{
 		logger:            logger,
 		raft:              raftService,
-		runtimeInit:       runtimeFactory,
+		runtimes:          make(map[string]RuntimeExecutor),
+		runtimeInits:      newRuntimeFactories(runtimeFactory),
 		registry:          registryService,
 		nodeID:            nodeID,
 		nodeIP:            nodeIP,
@@ -131,7 +132,7 @@ func newService(
 func (s *Service) Start(_ context.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := s.ensureRuntime(ctx); err != nil {
+	if _, err := s.ensureRuntime(ctx, driverDocker); err != nil {
 		s.logger.Warn("runtime unavailable at startup", "error", err)
 	} else {
 		if err := s.recoverManagedContainers(ctx); err != nil {
@@ -201,18 +202,10 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 		instances: make(map[string]*instanceRecord),
 	}
 
-	localExec := mo.None[RuntimeExecutor]()
-	if assignment.WorkerNode == s.nodeID {
-		exec, runtimeErr := s.ensureRuntime(ctx)
-		if runtimeErr != nil {
-			return nil, runtimeErr
-		}
-		localExec = mo.Some(exec)
-	}
-
 	created := make([]*instanceRecord, 0)
 	for _, unit := range workload.Units {
 		for _, taskSpec := range unit.Tasks {
+			driverName := normalizeRuntimeDriver(taskSpec.Driver)
 			serviceName := buildServiceName(workload.Name, unit.Name, taskSpec.Name)
 			routeDefs := s.buildRoutesForTask(deploymentID, serviceName, workload.Name, unit.Name, taskSpec)
 			for _, route := range routeDefs {
@@ -228,15 +221,18 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 				replicas = 1
 			}
 			for replica := 0; replica < replicas; replica++ {
-				runtimeName := "docker"
-				if localExec.IsPresent() {
-					runtimeName = localExec.OrEmpty().Driver()
-				}
-				instance := s.newInstanceRecord(deploymentID, runtimeName, serviceName, workload.Name, unit.Name, taskSpec, replica)
+				instance := s.newInstanceRecord(deploymentID, driverName, serviceName, workload.Name, unit.Name, taskSpec, replica)
 
 				containerID := ""
-				if localExec.IsPresent() {
-					runExec := localExec.OrEmpty()
+				if assignment.WorkerNode == s.nodeID {
+					runExec, runtimeErr := s.ensureRuntime(ctx, driverName)
+					if runtimeErr != nil {
+						lo.ForEach(created, func(item *instanceRecord, _ int) {
+							_ = s.stopInstanceContainer(ctx, item)
+						})
+						_ = s.deleteRoutesByOwner(deploymentID)
+						return nil, fmt.Errorf("init runtime %s: %w", driverName, runtimeErr)
+					}
 					var runErr error
 					containerID, runErr = runExec.Run(ctx, instance.RunSpec)
 					if runErr != nil {
@@ -246,8 +242,12 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 						_ = s.deleteRoutesByOwner(deploymentID)
 						return nil, fmt.Errorf("start workload %s/%s/%s[%d]: %w", workload.Name, unit.Name, taskSpec.Name, replica, runErr)
 					}
+					instance.Driver = runExec.Driver()
 				} else {
-					workerRun, runErr := s.runContainerOnWorker(ctx, assignment.WorkerNode, instance.RunSpec)
+					workerRun, runErr := s.runContainerOnWorker(ctx, assignment.WorkerNode, InternalRunRequest{
+						Driver: driverName,
+						Spec:   instance.RunSpec,
+					})
 					if runErr != nil {
 						lo.ForEach(created, func(item *instanceRecord, _ int) {
 							_ = s.stopInstanceContainer(ctx, item)
@@ -384,10 +384,10 @@ func (s *Service) Logs(ctx context.Context, instanceID string, tail int) (string
 	}
 
 	if strings.TrimSpace(instance.NodeID) != "" && instance.NodeID != s.nodeID {
-		return s.readContainerLogsOnWorker(ctx, instance.NodeID, instance.ContainerID, tail)
+		return s.readContainerLogsOnWorker(ctx, instance.NodeID, instance.ContainerID, instance.Driver, tail)
 	}
 
-	exec, err := s.ensureRuntime(ctx)
+	exec, err := s.ensureRuntime(ctx, instance.Driver)
 	if err != nil {
 		return "", err
 	}
@@ -435,13 +435,14 @@ func (s *Service) reconcileInstance(instanceID string) {
 		return
 	}
 	if strings.TrimSpace(snapshot.NodeID) != "" && snapshot.NodeID != s.nodeID {
+		s.reconcileRemoteInstance(instanceID, snapshot)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	exec, err := s.ensureRuntime(ctx)
+	exec, err := s.ensureRuntime(ctx, snapshot.Driver)
 	if err != nil {
 		s.markInstanceFailed(instanceID, fmt.Sprintf("runtime unavailable: %v", err))
 		return
@@ -496,6 +497,93 @@ func (s *Service) reconcileInstance(instanceID string) {
 	_ = s.setEndpointHealth(snapshot.ID, true)
 }
 
+func (s *Service) reconcileRemoteInstance(instanceID string, snapshot instanceRecord) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	status, err := s.readContainerStatusOnWorker(ctx, snapshot.NodeID, snapshot.ContainerID, snapshot.Driver)
+	if err != nil || !status.Running {
+		_ = s.setEndpointHealth(snapshot.ID, false)
+		reason := "remote container not running"
+		if err != nil {
+			reason = err.Error()
+		}
+		s.restartRemoteInstance(instanceID, snapshot, reason)
+		return
+	}
+
+	s.mu.Lock()
+	if real, exists := s.instances[instanceID]; exists {
+		real.Status = InstanceStatusRunning
+		real.ConsecutiveFailed = 0
+		real.LastError = ""
+		real.UpdatedAt = time.Now()
+		s.refreshDeploymentStatusLocked(real.DeploymentID)
+	}
+	s.mu.Unlock()
+	_ = s.setEndpointHealth(snapshot.ID, true)
+}
+
+func (s *Service) restartRemoteInstance(instanceID string, snapshot instanceRecord, reason string) {
+	if snapshot.RestartCount >= snapshot.MaxRestarts {
+		s.markInstanceFailed(instanceID, fmt.Sprintf("remote restart budget exhausted: %s", reason))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	_ = s.stopContainerOnWorker(ctx, snapshot.NodeID, InternalStopRequest{
+		ContainerID: snapshot.ContainerID,
+		Driver:      snapshot.Driver,
+	})
+
+	result, err := s.runContainerOnWorker(ctx, snapshot.NodeID, InternalRunRequest{
+		Driver: snapshot.Driver,
+		Spec:   snapshot.RunSpec,
+	})
+	if err != nil {
+		s.mu.Lock()
+		if real, exists := s.instances[instanceID]; exists {
+			real.RestartCount++
+			real.LastError = err.Error()
+			real.UpdatedAt = time.Now()
+			if real.RestartCount >= real.MaxRestarts {
+				real.Status = InstanceStatusFailed
+			}
+			s.refreshDeploymentStatusLocked(real.DeploymentID)
+		}
+		s.mu.Unlock()
+		_ = s.setEndpointHealth(snapshot.ID, false)
+		return
+	}
+
+	s.mu.Lock()
+	if real, exists := s.instances[instanceID]; exists {
+		real.ContainerID = result.ContainerID
+		real.RestartCount++
+		real.ConsecutiveFailed = 0
+		real.LastError = ""
+		real.Status = InstanceStatusRunning
+		real.UpdatedAt = time.Now()
+		if strings.TrimSpace(result.NodeIP) != "" {
+			real.NodeIP = result.NodeIP
+		}
+		if strings.TrimSpace(result.NodeID) != "" {
+			real.NodeID = result.NodeID
+		}
+		if strings.TrimSpace(result.Driver) != "" {
+			real.Driver = result.Driver
+		}
+		s.refreshDeploymentStatusLocked(real.DeploymentID)
+	}
+	s.mu.Unlock()
+
+	if refreshed, ok := s.getInstance(instanceID); ok {
+		_ = s.upsertRegistryEndpoint(refreshed, true)
+	}
+}
+
 func (s *Service) restartInstance(instanceID string, reason string) {
 	s.mu.RLock()
 	instance, ok := s.instances[instanceID]
@@ -514,7 +602,7 @@ func (s *Service) restartInstance(instanceID string, reason string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	exec, err := s.ensureRuntime(ctx)
+	exec, err := s.ensureRuntime(ctx, snapshot.Driver)
 	if err != nil {
 		s.markInstanceFailed(instanceID, fmt.Sprintf("runtime unavailable for restart: %v", err))
 		return
@@ -555,7 +643,7 @@ func (s *Service) restartInstance(instanceID string, reason string) {
 }
 
 func (s *Service) recoverManagedContainers(ctx context.Context) error {
-	exec, err := s.ensureRuntime(ctx)
+	exec, err := s.ensureRuntime(ctx, driverDocker)
 	if err != nil {
 		return err
 	}
@@ -657,28 +745,40 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) ensureRuntime(ctx context.Context) (RuntimeExecutor, error) {
+func (s *Service) ensureRuntime(ctx context.Context, driver string) (RuntimeExecutor, error) {
+	normalized := normalizeRuntimeDriver(driver)
+
 	s.mu.RLock()
-	exec := s.runtime
+	exec, exists := s.runtimes[normalized]
+	factory, hasFactory := s.runtimeInits[normalized]
 	s.mu.RUnlock()
-	if exec != nil {
+
+	if exists {
 		return exec, exec.Ping(ctx)
+	}
+	if !hasFactory {
+		return nil, fmt.Errorf("runtime driver %q is unsupported", normalized)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.runtime != nil {
-		return s.runtime, s.runtime.Ping(ctx)
+	if cached, ok := s.runtimes[normalized]; ok {
+		return cached, cached.Ping(ctx)
 	}
-	runtime, err := s.runtimeInit()
+
+	created, err := factory()
 	if err != nil {
 		return nil, err
 	}
-	if err := runtime.Ping(ctx); err != nil {
+	if err := created.Ping(ctx); err != nil {
 		return nil, err
 	}
-	s.runtime = runtime
-	return s.runtime, nil
+	s.runtimes[normalized] = created
+	reported := normalizeRuntimeDriver(created.Driver())
+	if reported != normalized {
+		s.runtimes[reported] = created
+	}
+	return created, nil
 }
 
 func (s *Service) runHTTPHealthCheck(check healthCheckSpec) error {
@@ -1199,9 +1299,12 @@ func (s *Service) stopInstanceContainer(ctx context.Context, instance *instanceR
 	}
 	workerID := strings.TrimSpace(instance.NodeID)
 	if workerID != "" && workerID != s.nodeID {
-		return s.stopContainerOnWorker(ctx, workerID, instance.ContainerID)
+		return s.stopContainerOnWorker(ctx, workerID, InternalStopRequest{
+			ContainerID: instance.ContainerID,
+			Driver:      instance.Driver,
+		})
 	}
-	exec, err := s.ensureRuntime(ctx)
+	exec, err := s.ensureRuntime(ctx, instance.Driver)
 	if err != nil {
 		return err
 	}
@@ -1209,7 +1312,7 @@ func (s *Service) stopInstanceContainer(ctx context.Context, instance *instanceR
 }
 
 func (s *Service) InternalRun(ctx context.Context, req InternalRunRequest) (*InternalRunResult, error) {
-	exec, err := s.ensureRuntime(ctx)
+	exec, err := s.ensureRuntime(ctx, req.Driver)
 	if err != nil {
 		return nil, err
 	}
@@ -1226,20 +1329,28 @@ func (s *Service) InternalRun(ctx context.Context, req InternalRunRequest) (*Int
 	}, nil
 }
 
-func (s *Service) InternalStop(ctx context.Context, containerID string) error {
-	exec, err := s.ensureRuntime(ctx)
+func (s *Service) InternalStop(ctx context.Context, req InternalStopRequest) error {
+	exec, err := s.ensureRuntime(ctx, req.Driver)
 	if err != nil {
 		return err
 	}
-	return exec.Stop(ctx, strings.TrimSpace(containerID))
+	return exec.Stop(ctx, strings.TrimSpace(req.ContainerID))
 }
 
-func (s *Service) InternalLogs(ctx context.Context, containerID string, tail int) (string, error) {
-	exec, err := s.ensureRuntime(ctx)
+func (s *Service) InternalLogs(ctx context.Context, containerID string, driver string, tail int) (string, error) {
+	exec, err := s.ensureRuntime(ctx, driver)
 	if err != nil {
 		return "", err
 	}
 	return exec.Logs(ctx, strings.TrimSpace(containerID), tail)
+}
+
+func (s *Service) InternalStatus(ctx context.Context, containerID string, driver string) (RuntimeStatus, error) {
+	exec, err := s.ensureRuntime(ctx, driver)
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
+	return exec.Status(ctx, strings.TrimSpace(containerID))
 }
 
 func (s *Service) buildRoutesForTask(

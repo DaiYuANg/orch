@@ -82,3 +82,4 @@ Temporary Items
 dist
 .gocache
 .pnpm-store
+.npm-cache

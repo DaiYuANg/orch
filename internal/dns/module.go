@@ -18,7 +18,7 @@ type newDNSDependency struct {
 	Registry *registry.Service
 }
 
-func newDNS(dep newDNSDependency) *DNSServer {
+func newDNS(dep newDNSDependency) (*DNSServer, error) {
 	return NewDNSServer(dep.Logger, dep.Registry)
 }
 

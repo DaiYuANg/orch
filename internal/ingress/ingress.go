@@ -40,9 +40,16 @@ type Ingress struct {
 
 	tcpListeners map[int]*tcpListener
 	udpListeners map[int]*udpListener
+	httpCache    map[string]httpBackendCacheItem
+	httpCacheTTL time.Duration
 
 	httpServer *fasthttp.Server
 	stopCh     chan struct{}
+}
+
+type httpBackendCacheItem struct {
+	backend   string
+	expiresAt time.Time
 }
 
 var Module = fx.Module("ingress", fx.Provide(newIngress), fx.Invoke(lifecycle))
@@ -65,6 +72,8 @@ func newIngress(dep newIngressDependency) *Ingress {
 		registry:     dep.Registry,
 		tcpListeners: make(map[int]*tcpListener),
 		udpListeners: make(map[int]*udpListener),
+		httpCache:    make(map[string]httpBackendCacheItem),
+		httpCacheTTL: 2 * time.Second,
 		stopCh:       make(chan struct{}),
 	}
 }
@@ -112,6 +121,7 @@ func (i *Ingress) Stop() error {
 	lo.ForEach(lo.Keys(i.udpListeners), func(port int, _ int) {
 		_ = i.unregisterUDP(Route{ListenPort: port})
 	})
+	i.httpCache = make(map[string]httpBackendCacheItem)
 	i.mu.Unlock()
 
 	if i.httpServer != nil {
@@ -124,6 +134,11 @@ func (i *Ingress) handleHTTP(ctx *fasthttp.RequestCtx) {
 	host := normalizeHostWithPort(string(ctx.Host()))
 	path := string(ctx.Path())
 
+	if backend, ok := i.getCachedHTTPBackend(host, path); ok {
+		i.reverseProxy(ctx, backend)
+		return
+	}
+
 	_, _, backend, err := i.registry.ResolveHTTPBackend(host, path)
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
@@ -131,6 +146,7 @@ func (i *Ingress) handleHTTP(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	i.storeHTTPBackend(host, path, backend)
 	i.reverseProxy(ctx, backend)
 }
 
@@ -235,4 +251,58 @@ func normalizeHostWithPort(host string) string {
 		return raw[:idx]
 	}
 	return raw
+}
+
+func (i *Ingress) getCachedHTTPBackend(host, path string) (string, bool) {
+	key := httpCacheKey(host, path)
+
+	i.mu.RLock()
+	item, ok := i.httpCache[key]
+	i.mu.RUnlock()
+	if !ok {
+		return "", false
+	}
+
+	if !item.expiresAt.IsZero() && time.Now().After(item.expiresAt) {
+		i.mu.Lock()
+		delete(i.httpCache, key)
+		i.mu.Unlock()
+		return "", false
+	}
+
+	return item.backend, item.backend != ""
+}
+
+func (i *Ingress) storeHTTPBackend(host, path, backend string) {
+	if strings.TrimSpace(backend) == "" {
+		return
+	}
+
+	key := httpCacheKey(host, path)
+	entry := httpBackendCacheItem{
+		backend:   backend,
+		expiresAt: time.Now().Add(i.httpCacheTTL),
+	}
+
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	if len(i.httpCache) >= 2048 {
+		for cacheKey, cacheItem := range i.httpCache {
+			if !cacheItem.expiresAt.IsZero() && time.Now().After(cacheItem.expiresAt) {
+				delete(i.httpCache, cacheKey)
+			}
+		}
+	}
+	if len(i.httpCache) >= 2048 {
+		for cacheKey := range i.httpCache {
+			delete(i.httpCache, cacheKey)
+			break
+		}
+	}
+	i.httpCache[key] = entry
+}
+
+func httpCacheKey(host, path string) string {
+	return strings.ToLower(strings.TrimSpace(host)) + "|" + strings.TrimSpace(path)
 }

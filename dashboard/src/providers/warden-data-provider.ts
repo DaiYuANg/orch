@@ -25,7 +25,7 @@ const apiBaseURL =
   import.meta.env.VITE_WARDEN_API_URL?.toString().trim() || "http://127.0.0.1:8080";
 const apiToken = import.meta.env.VITE_WARDEN_API_TOKEN?.toString().trim() || "";
 
-const asPath = (path: string) => {
+const asURL = (path: string) => {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
@@ -39,14 +39,14 @@ const toQueryString = (query?: Record<string, unknown>) => {
   if (!query) {
     return "";
   }
-  const values = Object.entries(query).reduce((params, [key, value]) => {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
     if (value === undefined || value === null) {
-      return params;
+      continue;
     }
-    params.set(key, `${value}`);
-    return params;
-  }, new URLSearchParams());
-  return values.toString();
+    params.set(key, String(value));
+  }
+  return params.toString();
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -59,11 +59,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set("Authorization", `Bearer ${apiToken}`);
   }
 
-  const response = await fetch(asPath(path), {
+  const response = await fetch(asURL(path), {
     ...init,
     headers,
   });
-
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`request failed: ${response.status} ${response.statusText} ${body}`.trim());
@@ -77,11 +76,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     return wrapped.data;
   }
-
   return raw as T;
 }
 
-const unsupportedResource = (resource: string) => {
+const assertSupported = (resource: string) => {
+  if (resource === "deployments" || resource === "system") {
+    return;
+  }
   throw new Error(`resource is not supported yet: ${resource}`);
 };
 
@@ -90,23 +91,36 @@ export const wardenDataProvider: DataProvider = {
   getList: async <TData extends BaseRecord = BaseRecord>(
     params: GetListParams,
   ): Promise<GetListResponse<TData>> => {
-    if (params.resource !== "deployments") {
-      unsupportedResource(params.resource);
+    assertSupported(params.resource);
+
+    if (params.resource === "deployments") {
+      const data = await request<TData[]>("/tasks");
+      return { data, total: data.length };
     }
-    const data = await request<TData[]>("/tasks");
-    return {
-      data,
-      total: data.length,
-    };
+
+    if (params.resource === "system") {
+      const data = await request<TData[]>("/system/info");
+      return { data, total: data.length };
+    }
+
+    return { data: [], total: 0 };
   },
   getOne: async <TData extends BaseRecord = BaseRecord>(
     params: GetOneParams,
   ): Promise<GetOneResponse<TData>> => {
-    if (params.resource !== "deployments") {
-      unsupportedResource(params.resource);
+    assertSupported(params.resource);
+
+    if (params.resource === "deployments") {
+      const data = await request<TData>(`/tasks/${params.id}`);
+      return { data };
     }
-    const data = await request<TData>(`/tasks/${params.id}`);
-    return { data };
+
+    if (params.resource === "system") {
+      const data = await request<TData>("/system/info");
+      return { data };
+    }
+
+    throw new Error(`resource is not supported for getOne: ${params.resource}`);
   },
   create: async <
     TData extends BaseRecord = BaseRecord,
@@ -114,9 +128,11 @@ export const wardenDataProvider: DataProvider = {
   >(
     params: CreateParams<TVariables>,
   ): Promise<CreateResponse<TData>> => {
+    assertSupported(params.resource);
     if (params.resource !== "deployments") {
-      unsupportedResource(params.resource);
+      throw new Error(`resource is not supported for create: ${params.resource}`);
     }
+
     const data = await request<TData>("/tasks/deploy", {
       method: "POST",
       body: JSON.stringify(params.variables),
@@ -129,27 +145,28 @@ export const wardenDataProvider: DataProvider = {
   >(
     params: UpdateParams<TVariables>,
   ): Promise<UpdateResponse<TData>> => {
+    assertSupported(params.resource);
     if (params.resource !== "deployments") {
-      unsupportedResource(params.resource);
+      throw new Error(`resource is not supported for update: ${params.resource}`);
     }
+
     const body = params.variables as { action?: string };
     if (body.action === "stop") {
-      const data = await request<TData>(`/tasks/${params.id}/stop`, {
-        method: "POST",
-      });
+      const data = await request<TData>(`/tasks/${params.id}/stop`, { method: "POST" });
       return { data };
     }
+
     throw new Error("deployments update currently supports only action=stop");
   },
   deleteOne: async <TData extends BaseRecord = BaseRecord, TVariables = Record<string, unknown>>(
     params: DeleteOneParams<TVariables>,
   ): Promise<DeleteOneResponse<TData>> => {
+    assertSupported(params.resource);
     if (params.resource !== "deployments") {
-      unsupportedResource(params.resource);
+      throw new Error(`resource is not supported for delete: ${params.resource}`);
     }
-    const data = await request<TData>(`/tasks/${params.id}/stop`, {
-      method: "POST",
-    });
+
+    const data = await request<TData>(`/tasks/${params.id}/stop`, { method: "POST" });
     return { data };
   },
   custom: async <
@@ -159,9 +176,10 @@ export const wardenDataProvider: DataProvider = {
   >(
     params: CustomParams<TQuery, TPayload>,
   ): Promise<CustomResponse<TData>> => {
-    const queryText = toQueryString(params.query as Record<string, unknown> | undefined);
-    const path = queryText === "" ? params.url : `${params.url}?${queryText}`;
-    const data = await request<TData>(path, {
+    const queryString = toQueryString(params.query as Record<string, unknown> | undefined);
+    const target = queryString === "" ? params.url : `${params.url}?${queryString}`;
+
+    const data = await request<TData>(target, {
       method: params.method.toUpperCase(),
       headers: params.headers as HeadersInit | undefined,
       body: params.payload ? JSON.stringify(params.payload) : undefined,

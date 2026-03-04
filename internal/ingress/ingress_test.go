@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/DaiYuANg/warden/internal/registry"
 	"github.com/adrg/xdg"
@@ -38,6 +39,8 @@ func newTestIngress(registryService *registry.Service) *Ingress {
 		registry:     registryService,
 		tcpListeners: make(map[int]*tcpListener),
 		udpListeners: make(map[int]*udpListener),
+		httpCache:    make(map[string]httpBackendCacheItem),
+		httpCacheTTL: 2 * time.Second,
 		stopCh:       make(chan struct{}),
 	}
 }
@@ -121,4 +124,22 @@ func TestSyncStreamRoutesRegistersAndUnregistersTCP(t *testing.T) {
 
 	ing.syncStreamRoutes(registry.RouteProtocolTCP)
 	assert.NotContains(t, ing.tcpListeners, listenPort)
+}
+
+func TestHTTPBackendCacheExpires(t *testing.T) {
+	registryService := newRegistryForIngressTest(t)
+	ing := newTestIngress(registryService)
+	ing.httpCacheTTL = 100 * time.Millisecond
+
+	ing.storeHTTPBackend("api.warden.local", "/v1/tasks", "127.0.0.1:8080")
+
+	backend, ok := ing.getCachedHTTPBackend("api.warden.local", "/v1/tasks")
+	require.True(t, ok)
+	assert.Equal(t, "127.0.0.1:8080", backend)
+
+	time.Sleep(150 * time.Millisecond)
+
+	backend, ok = ing.getCachedHTTPBackend("api.warden.local", "/v1/tasks")
+	assert.False(t, ok)
+	assert.Empty(t, backend)
 }

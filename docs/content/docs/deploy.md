@@ -1,59 +1,67 @@
 # Deploy
 
-## Simple
-```text
-workload{
-  "postgresql": {
-    docker{
-      image: "postgres:17"
-      port: 5432
-    }
-  }
-}
+## Minimal Runnable Demo
+
+### 1. Start server
+
+```powershell
+go run ./cmd/server server
 ```
 
+Default HTTP API listens on `http://127.0.0.1:7443`.
 
-## Advance
-```text
-// postgresql.svcmod
-module "PostgreSQL" (
-  // 暴露给用户的参数 (自动生成配置表单)
-  param version: string = "15" 
-    options ["14", "15", "16"] 
-    description "PostgreSQL主版本"
-    
-  param storage: int = 100 
-    range [10, 10000] 
-    unit "GB" 
-    description "数据盘大小"
-  
-  param ha_enabled: bool = false 
-    condition "replica_count>1"  // 开启HA时自动增加副本
-) {
-  // 隐藏的复杂逻辑 (用户不可见)
-  resources = calculate_resources(version, storage)
-  
-  // 多运行时适配
-  deploy docker: {
-    image = "postgres:${version}"
-    volumes = ["/data:/var/lib/postgresql"]
-  }
-  
-  deploy systemd: {
-    service_file = template("""
-      [Unit]
-      Description=PostgreSQL ${version}
-      [Service]
-      ExecStart=/usr/bin/postgres -D /data
-      LimitNOFILE=65536
-      """)
-  }
-  
-  // 自动化运维钩子
-  lifecycle {
-    pre_install = "apt-get install -y postgresql-${version}"
-    health_check = "pg_isready -U postgres"
-    backup = "pg_dumpall > /backups/dump.sql"
-  }
-}
+### 2. Get root token
+
+Start a new terminal and print the token:
+
+```powershell
+go run ./cmd/server token
+```
+
+Or print token file path only:
+
+```powershell
+go run ./cmd/server token --path
+```
+
+By default token is generated to:
+
+- Windows: `%TEMP%\warden.token`
+- Linux/macOS: `/tmp/warden.token`
+
+### 3. Deploy sample workload
+
+Repo already includes `examples/minimal-nginx.yaml`.
+
+```powershell
+go run ./cmd/server service deploy `
+  --file ./examples/minimal-nginx.yaml `
+  --api http://127.0.0.1:7443
+```
+
+### 4. Verify deployment
+
+List deployments:
+
+```powershell
+go run ./cmd/server service list --api http://127.0.0.1:7443
+```
+
+Get one deployment detail:
+
+```powershell
+go run ./cmd/server service get <deployment-id> --api http://127.0.0.1:7443
+```
+
+Query system info:
+
+```powershell
+go run ./cmd/server info --api http://127.0.0.1:7443
+```
+
+### 5. View logs and stop
+
+```powershell
+go run ./cmd/server service logs <instance-id> --tail 200 --api http://127.0.0.1:7443
+go run ./cmd/server service stop <deployment-id> --api http://127.0.0.1:7443
 ```

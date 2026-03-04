@@ -2,6 +2,7 @@ package raft
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,8 @@ type User struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
+
+var userCounter int64
 
 // 创建临时数据库
 func createTempDB(t *testing.T) (*bbolt.DB, func()) {
@@ -34,17 +37,12 @@ func createRepo[T any](t *testing.T, db *bbolt.DB, bucket string) *Repository[T]
 
 // 随机生成用户数据
 func generateRandomUser() User {
+	id := int(atomic.AddInt64(&userCounter, 1))
 	return User{
-		ID:    gofakeit.IntRange(1, 99999),
-		Name:  gofakeit.Name(),
-		Email: gofakeit.Email(),
+		ID:    id,
+		Name:  fmt.Sprintf("user-%d", id),
+		Email: fmt.Sprintf("user-%d@example.com", id),
 	}
-}
-
-func generateRandomUserViaStruct() User {
-	var u User
-	gofakeit.Struct(&u)
-	return u
 }
 
 // 测试 Set 和 Get 方法

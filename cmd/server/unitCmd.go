@@ -1,16 +1,13 @@
 package main
 
-import (
-	"fmt"
-
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 var unitCmd = &cobra.Command{
-	Use:   "unit",
-	Short: "Run a unit",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("unit called")
+	Use:    "unit",
+	Short:  "Legacy alias of service list",
+	Hidden: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runServiceList(cmd, args)
 	},
 }
 

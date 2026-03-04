@@ -11,6 +11,9 @@ func TestWindowsServiceManager_Lifecycle(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("This test can only run on Windows.")
 	}
+	if !isAdmin() {
+		t.Skip("This test requires administrator privileges.")
+	}
 
 	manager, err := NewWindowsServiceManager()
 	if err != nil {
@@ -25,11 +28,11 @@ func TestWindowsServiceManager_Lifecycle(t *testing.T) {
 
 	// 清理残留服务（可选）
 	_ = manager.StopService(serviceName)
-	//_ = manager.DeleteService(serviceName)
+	_ = manager.DeleteService(serviceName)
 	time.Sleep(1 * time.Second)
 
 	// Create
-	if err := manager.CreateService(serviceName, exePath, "/C", "echo", "hello from service"); err != nil {
+	if err := manager.CreateService(serviceName, serviceName, exePath, "/C", "echo", "hello from service"); err != nil {
 		t.Errorf("CreateService failed: %v", err)
 	}
 

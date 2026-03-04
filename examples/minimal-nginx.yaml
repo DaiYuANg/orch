@@ -1,0 +1,25 @@
+name: demo-nginx
+description: Minimal runnable demo workload
+units:
+  - name: web
+    tasks:
+      - name: nginx
+        type: service
+        driver: docker
+        image: nginx:stable-alpine
+        replicas: 1
+        labels:
+          warden.ingress.http.enable: "true"
+          warden.ingress.http.host: "demo.warden.local"
+          warden.ingress.http.path: "/"
+          warden.ingress.http.port: "8080"
+        network:
+          name: demo-net
+          port:
+            http: 8080
+        check:
+          type: http
+          path: /
+          interval: 10s
+          timeout: 3s
+          retries: 3

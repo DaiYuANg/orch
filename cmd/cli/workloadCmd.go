@@ -21,17 +21,35 @@ var workloadCmd = &cobra.Command{
 }
 
 func init() {
-	workloadCmd.AddCommand(serviceListCmd, serviceGetCmd, serviceDeployCmd, serviceStopCmd, serviceLogsCmd, unitCmd)
+	workloadCmd.AddCommand(
+		serviceListCmd,
+		serviceGetCmd,
+		serviceDeployCmd,
+		serviceStopCmd,
+		serviceLogsCmd,
+		serviceMigrateCmd,
+		serviceFailoverCmd,
+		serviceRebalanceCmd,
+		unitCmd,
+	)
 	serviceDeployCmd.Flags().StringVarP(&deployFile, "file", "f", "", "dsl file path (.yaml/.yml/.hcl)")
 	serviceDeployCmd.Flags().StringVar(&deployContent, "content", "", "dsl content")
 	serviceDeployCmd.Flags().StringVar(&deployFormat, "format", "", "dsl format override: yaml|hcl")
 	serviceLogsCmd.Flags().IntVar(&serviceLogsTail, "tail", 200, "number of log lines")
+	serviceMigrateCmd.Flags().StringVar(&serviceMigrateTargetNode, "target-node", "", "target worker node id")
+	serviceFailoverCmd.Flags().StringVar(&serviceFailoverFailedNode, "failed-node", "", "failed worker node id")
+	serviceFailoverCmd.Flags().StringVar(&serviceFailoverTargetNode, "target-node", "", "optional explicit failover target node id")
+	serviceRebalanceCmd.Flags().IntVar(&serviceRebalanceMaxMigrations, "max-migrations", 0, "max migrations in one rebalance run (0 means auto)")
 }
 
 var deployFile string
 var deployContent string
 var deployFormat string
 var serviceLogsTail int
+var serviceMigrateTargetNode string
+var serviceFailoverFailedNode string
+var serviceFailoverTargetNode string
+var serviceRebalanceMaxMigrations int
 
 var serviceListCmd = &cobra.Command{
 	Use:   "list",
@@ -140,6 +158,73 @@ var serviceLogsCmd = &cobra.Command{
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), payload.Logs)
 		return nil
+	},
+}
+
+var serviceMigrateCmd = &cobra.Command{
+	Use:   "migrate <deployment-id>",
+	Short: "Migrate deployment instances to another worker node",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := newDefaultAPIClient()
+		if err != nil {
+			return err
+		}
+
+		req := tasksvc.MigrateDeploymentRequest{
+			TargetNode: strings.TrimSpace(serviceMigrateTargetNode),
+		}
+		var result tasksvc.MigrateDeploymentResult
+		if err := client.Post("/tasks/"+url.PathEscape(args[0])+"/migrate", req, &result); err != nil {
+			return err
+		}
+		return printJSON(result)
+	},
+}
+
+var serviceFailoverCmd = &cobra.Command{
+	Use:   "failover",
+	Short: "Fail over deployments from a failed worker node",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		failedNode := strings.TrimSpace(serviceFailoverFailedNode)
+		if failedNode == "" {
+			return errors.New("--failed-node is required")
+		}
+
+		client, err := newDefaultAPIClient()
+		if err != nil {
+			return err
+		}
+
+		req := tasksvc.FailoverRequest{
+			FailedNode: failedNode,
+			TargetNode: strings.TrimSpace(serviceFailoverTargetNode),
+		}
+		var result tasksvc.FailoverResult
+		if err := client.Post("/tasks/failover", req, &result); err != nil {
+			return err
+		}
+		return printJSON(result)
+	},
+}
+
+var serviceRebalanceCmd = &cobra.Command{
+	Use:   "rebalance",
+	Short: "Rebalance running deployments across worker nodes",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := newDefaultAPIClient()
+		if err != nil {
+			return err
+		}
+
+		req := tasksvc.RebalanceRequest{
+			MaxMigrations: serviceRebalanceMaxMigrations,
+		}
+		var result tasksvc.RebalanceResult
+		if err := client.Post("/tasks/rebalance", req, &result); err != nil {
+			return err
+		}
+		return printJSON(result)
 	},
 }
 

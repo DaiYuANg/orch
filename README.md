@@ -19,6 +19,7 @@ Implemented:
 - Leader keeps worker capability enabled (leader-as-worker) and can dispatch workload runtime execution to configured remote workers (`raft.node_api`)
 - Badger-backed hot cache in raft FSM for recently written consensus data
 - Cluster status and membership management APIs (`/system/cluster`, `/system/cluster/join`, `/system/cluster/remove`)
+- Placement control APIs for migration/failover/rebalance (`/tasks/{id}/migrate`, `/tasks/failover`, `/tasks/rebalance`)
 - Process split between server runtime (`cmd/server`) and user operations CLI (`cmd/cli`)
 - Built-in ingress (HTTP/TCP/UDP) backed by registry routes
 - DNS resolution for registered services with deploy/stop driven DNS record lifecycle updates
@@ -33,7 +34,7 @@ Not finished yet:
 
 - Production-ready non-docker runtime scheduling path (systemd/firecracker/windows-service)
 - Containerd logs and full recovery parity with docker runtime
-- Cross-node runtime reconcile/repair loop after remote placement (current reconcile loop is leader-local only)
+- Migration/failover/rebalance strategy hardening for stateful workload safety guarantees
 - Secrets management
 - HA migration/orchestration workflows
 - Full dashboard feature coverage (auth, deploy form, logs/actions, richer observability views)

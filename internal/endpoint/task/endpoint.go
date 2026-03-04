@@ -48,6 +48,14 @@ type internalStatusPathInput struct {
 	Driver      string `query:"driver,omitempty"`
 }
 
+type failoverInput struct {
+	Body tasksvc.FailoverRequest
+}
+
+type rebalanceInput struct {
+	Body tasksvc.RebalanceRequest
+}
+
 func (e *Endpoint) submitTask(ctx context.Context, input *deployInput) (*struct {
 	Body model.Response[tasksvc.DeployResult]
 }, error) {
@@ -91,6 +99,19 @@ func (e *Endpoint) stopDeployment(ctx context.Context, input *deploymentPathInpu
 	}{
 		Stopped: true,
 	}), nil
+}
+
+func (e *Endpoint) migrateDeployment(ctx context.Context, input *struct {
+	ID   string `path:"id"`
+	Body tasksvc.MigrateDeploymentRequest
+}) (*struct {
+	Body model.Response[tasksvc.MigrateDeploymentResult]
+}, error) {
+	result, err := e.service.MigrateDeployment(ctx, input.ID, input.Body)
+	if err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(*result), nil
 }
 
 func (e *Endpoint) getInstanceLogs(ctx context.Context, input *instanceLogsPathInput) (*struct {
@@ -158,4 +179,24 @@ func (e *Endpoint) internalStatus(ctx context.Context, input *internalStatusPath
 		return nil, err
 	}
 	return model.WrapResponse(status), nil
+}
+
+func (e *Endpoint) failover(ctx context.Context, input *failoverInput) (*struct {
+	Body model.Response[tasksvc.FailoverResult]
+}, error) {
+	result, err := e.service.Failover(ctx, input.Body)
+	if err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(*result), nil
+}
+
+func (e *Endpoint) rebalance(ctx context.Context, input *rebalanceInput) (*struct {
+	Body model.Response[tasksvc.RebalanceResult]
+}, error) {
+	result, err := e.service.Rebalance(ctx, input.Body)
+	if err != nil {
+		return nil, err
+	}
+	return model.WrapResponse(*result), nil
 }

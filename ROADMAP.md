@@ -28,6 +28,8 @@ Snapshot date: March 4, 2026
 - [x] Badger hot-cache integration for raft FSM read/write path
 - [x] Leader-as-worker scheduling baseline with desired/worker assignment metadata
 - [x] Cross-node runtime dispatch baseline via worker API (`raft.node_api`) with leader fallback
+- [x] Placement control baseline via deployment migration API (`/tasks/{id}/migrate`)
+- [x] Explicit failover/rebalance control baselines (`/tasks/failover`, `/tasks/rebalance`)
 - [x] Cluster observability and membership APIs (`/system/cluster`, `join`, `remove`)
 - [x] CLI/process split: `cmd/server` for server runtime and `cmd/cli` for user operations
 - [x] Deploy/stop DNS record lifecycle binding for HTTP ingress hosts
@@ -38,6 +40,7 @@ Snapshot date: March 4, 2026
 - [ ] Runtime abstraction hardening for non-docker executors (systemd/firecracker/windows-service)
 - [ ] Containerd parity gaps (logs, managed-recovery parity, richer network semantics)
 - [ ] Cross-node reconcile/restart/log aggregation path for remote worker instances (baseline wired, needs production hardening)
+- [ ] Stateful-safe migration/failover/rebalance policies (drain, pre-check, rollback, disruption budgets)
 - [ ] Dashboard integration depth (auth/token flow, deploy actions, logs and richer runtime operations)
 - [ ] Pack CLI and package workflow beyond static catalog
 - [ ] Better operator UX for auth/token/config management
@@ -48,8 +51,8 @@ Snapshot date: March 4, 2026
 ### Runtime and orchestration
 
 - [ ] First-class support for systemd/containerd/firecracker/windows-service execution flows
-- [ ] Placement and migration strategies for stateful workloads
-- [ ] HA failover primitives and explicit rebalancing operations
+- [ ] Advanced placement and migration strategies for stateful workloads
+- [ ] HA failover and explicit rebalancing with policy-driven automation
 
 ### Platform capabilities
 

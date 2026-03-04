@@ -110,3 +110,39 @@ type InternalStopRequest struct {
 	ContainerID string `json:"container_id"`
 	Driver      string `json:"driver,omitempty"`
 }
+
+type MigrateDeploymentRequest struct {
+	TargetNode string `json:"target_node,omitempty"`
+}
+
+type MigrateDeploymentResult struct {
+	DeploymentID string `json:"deployment_id"`
+	Workload     string `json:"workload"`
+	FromNode     string `json:"from_node"`
+	ToNode       string `json:"to_node"`
+	Instances    int    `json:"instances"`
+	Migrated     int    `json:"migrated"`
+}
+
+type FailoverRequest struct {
+	FailedNode string `json:"failed_node"`
+	TargetNode string `json:"target_node,omitempty"`
+}
+
+type FailoverResult struct {
+	FailedNode  string                    `json:"failed_node"`
+	TargetNode  string                    `json:"target_node,omitempty"`
+	Deployments int                       `json:"deployments"`
+	Migrations  []MigrateDeploymentResult `json:"migrations"`
+}
+
+type RebalanceRequest struct {
+	MaxMigrations int `json:"max_migrations,omitempty"`
+}
+
+type RebalanceResult struct {
+	Workers    []string                  `json:"workers"`
+	Candidates int                       `json:"candidates"`
+	Applied    int                       `json:"applied"`
+	Migrations []MigrateDeploymentResult `json:"migrations"`
+}

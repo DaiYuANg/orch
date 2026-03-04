@@ -45,15 +45,30 @@ func (s *Service) upsertSchedulingAssignment(deploymentID, workload string) (sch
 		}, nil
 	}
 	desired, worker := s.selectWorkerNode(deploymentID)
+	return s.setSchedulingAssignment(deploymentID, workload, desired, worker)
+}
+
+func (s *Service) setSchedulingAssignment(deploymentID, workload, desired, worker string) (schedulingAssignment, error) {
 	now := time.Now()
 	record := schedulingAssignment{
 		DeploymentID: deploymentID,
 		Workload:     workload,
-		DesiredNode:  desired,
-		WorkerNode:   worker,
+		DesiredNode:  strings.TrimSpace(desired),
+		WorkerNode:   strings.TrimSpace(worker),
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
+	if record.DesiredNode == "" {
+		record.DesiredNode = s.nodeID
+	}
+	if record.WorkerNode == "" {
+		record.WorkerNode = s.nodeID
+	}
+
+	if s.raft == nil || !s.raft.Enabled() {
+		return record, nil
+	}
+
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return schedulingAssignment{}, err

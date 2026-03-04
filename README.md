@@ -12,11 +12,14 @@ Implemented:
 - DSL parsing and validation (`yaml` and `hcl`) for workload deployment
 - Task deployment API and CLI (`deploy`, `list`, `get`, `stop`, `logs`)
 - Docker runtime execution, health checks, restart/reconcile loop, and managed container recovery
+- Runtime execution is now abstracted behind a task-level runtime interface (Docker adapter is the default implementation)
 - Registry persistence with `bbolt` + route/endpoint resolution
 - Built-in ingress (HTTP/TCP/UDP) backed by registry routes
 - DNS resolution for registered services
 - JWT middleware with local root token generation
 - Persistent signing key storage for stable token validation across restarts
+- Baseline automated tests for `internal/task`, `internal/registry`, and `internal/ingress`
+- Dashboard shell rebuilt with Refine + shadcn-style component primitives
 - `pack` CLI basic catalog commands (`list`, `search`)
 
 Not finished yet:
@@ -24,7 +27,7 @@ Not finished yet:
 - Production-ready non-docker runtime scheduling path (systemd/containerd/firecracker/windows-service)
 - Secrets management
 - HA migration/orchestration workflows
-- Full dashboard experience
+- Full dashboard feature coverage (auth, deploy form, logs/actions, richer observability views)
 - Pack ecosystem and distribution pipeline
 
 See [ROADMAP.md](/D:/Projects/warden/ROADMAP.md) for detailed plan.

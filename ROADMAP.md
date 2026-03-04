@@ -13,17 +13,22 @@ Snapshot date: March 4, 2026
 - [x] DNS resolution from service registry
 - [x] Built-in ingress for HTTP/TCP/UDP route forwarding
 - [x] Reconcile loop: container restart and managed container recovery
+- [x] Task runtime interface abstraction with Docker adapter
 - [x] CLI operations for service deploy/list/get/stop/logs
 - [x] JWT auth middleware and root token generation
 - [x] Persistent auth signing key for restart-safe token validation
+- [x] Baseline tests for `task` deployment lifecycle and runtime injection
+- [x] Baseline tests for `registry` route resolution and owner cleanup
+- [x] Baseline tests for `ingress` host normalization and TCP route sync
+- [x] Dashboard shell migrated to Refine + shadcn-style UI primitives
 
 ## In Progress
 
-- [ ] Runtime abstraction hardening beyond Docker path
-- [ ] Dashboard integration with live backend data
+- [ ] Runtime abstraction hardening for non-docker executors (systemd/containerd/firecracker/windows-service)
+- [ ] Dashboard integration depth (auth/token flow, deploy actions, logs and richer runtime operations)
 - [ ] Pack CLI and package workflow beyond static catalog
 - [ ] Better operator UX for auth/token/config management
-- [ ] More automated tests in `cmd/*`, `task`, `registry`, and ingress paths
+- [ ] More automated tests in `cmd/*`, plus deeper edge-case coverage in runtime/ingress flows
 
 ## Planned
 

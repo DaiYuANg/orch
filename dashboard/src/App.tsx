@@ -1,33 +1,54 @@
-import './App.css'
-import Dashboard from "./pages/Dashboard.tsx";
-import {BrowserRouter, Route, Routes} from "react-router";
-import {Layout} from "./component/Layout.tsx";
+import { Refine } from "@refinedev/core";
+import routerProvider, {
+  CatchAllNavigate,
+  DocumentTitleHandler,
+  NavigateToResource,
+  UnsavedChangesNotifier,
+} from "@refinedev/react-router";
+import { BrowserRouter, Route, Routes } from "react-router";
+
+import { DashboardLayout } from "./layout/dashboard-layout";
+import { DeploymentShowPage } from "./pages/deployment-show";
+import { DeploymentsListPage } from "./pages/deployments-list";
+import { SystemOverviewPage } from "./pages/system-overview";
+import { wardenDataProvider } from "./providers/wardenDataProvider";
 
 function App() {
   return (
-    <>
-      <BrowserRouter>
+    <BrowserRouter>
+      <Refine
+        dataProvider={wardenDataProvider}
+        routerProvider={routerProvider}
+        options={{
+          syncWithLocation: true,
+          warnWhenUnsavedChanges: true,
+        }}
+        resources={[
+          {
+            name: "deployments",
+            list: "/deployments",
+            show: "/deployments/:id",
+          },
+          {
+            name: "system",
+            list: "/system",
+          },
+        ]}
+      >
         <Routes>
-          <Route element={<Layout/>}>
-            <Route path={"/"} element={<Dashboard/>}/>
+          <Route path="/" element={<NavigateToResource resource="deployments" />} />
+          <Route element={<DashboardLayout />}>
+            <Route path="/deployments" element={<DeploymentsListPage />} />
+            <Route path="/deployments/:id" element={<DeploymentShowPage />} />
+            <Route path="/system" element={<SystemOverviewPage />} />
           </Route>
+          <Route path="*" element={<CatchAllNavigate to="/deployments" />} />
         </Routes>
-      </BrowserRouter>
-      {/*<main className="h-screen w-screen p-0">*/}
-      {/*  <PanelGroup direction="horizontal" className="h-full border overflow-hidden">*/}
-      {/*    <Panel defaultSize={30} minSize={20} maxSize={50} className="p-4 bg-gray-100">*/}
-      {/*      <Sidebar/>*/}
-      {/*    </Panel>*/}
-
-      {/*    <PanelResizeHandle className="w-2 bg-gray-300 hover:bg-gray-400 cursor-col-resize"/>*/}
-
-      {/*    <Panel className="p-4 bg-white">*/}
-      {/*      <Dashboard/>*/}
-      {/*    </Panel>*/}
-      {/*  </PanelGroup>*/}
-      {/*</main>*/}
-    </>
-  )
+        <UnsavedChangesNotifier />
+        <DocumentTitleHandler />
+      </Refine>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;

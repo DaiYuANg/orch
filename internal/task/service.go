@@ -13,7 +13,6 @@ import (
 
 	"github.com/DaiYuANg/warden/internal/dsl"
 	"github.com/DaiYuANg/warden/internal/registry"
-	dockerrt "github.com/DaiYuANg/warden/internal/runtime_engine/docker"
 	"github.com/DaiYuANg/warden/pkg"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -28,6 +27,7 @@ const (
 	labelTask         = "warden.task"
 	labelReplica      = "warden.replica"
 	labelInstanceID   = "warden.instance.id"
+	labelRuntime      = "warden.runtime"
 	labelPortPrefix   = "warden.port."
 	labelCheckType    = "warden.check.type"
 	labelCheckPath    = "warden.check.path"
@@ -42,7 +42,8 @@ type Service struct {
 	logger *slog.Logger
 
 	mu          sync.RWMutex
-	docker      *dockerrt.Executor
+	runtime     RuntimeExecutor
+	runtimeInit RuntimeFactory
 	registry    *registry.Service
 	nodeID      string
 	nodeIP      string
@@ -55,6 +56,13 @@ type Service struct {
 }
 
 func NewService(logger *slog.Logger, registryService *registry.Service) *Service {
+	return NewServiceWithRuntimeFactory(logger, registryService, newDockerRuntimeExecutor)
+}
+
+func NewServiceWithRuntimeFactory(logger *slog.Logger, registryService *registry.Service, runtimeFactory RuntimeFactory) *Service {
+	if runtimeFactory == nil {
+		runtimeFactory = newDockerRuntimeExecutor
+	}
 	nodeID, _ := pkg.MachineID()
 	nodeIP := detectNodeIP()
 	if nodeID == "" {
@@ -65,6 +73,7 @@ func NewService(logger *slog.Logger, registryService *registry.Service) *Service
 	}
 	return &Service{
 		logger:            logger,
+		runtimeInit:       runtimeFactory,
 		registry:          registryService,
 		nodeID:            nodeID,
 		nodeIP:            nodeIP,
@@ -79,8 +88,8 @@ func NewService(logger *slog.Logger, registryService *registry.Service) *Service
 func (s *Service) Start(_ context.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if _, err := s.ensureDocker(ctx); err != nil {
-		s.logger.Warn("docker runtime unavailable at startup", "error", err)
+	if _, err := s.ensureRuntime(ctx); err != nil {
+		s.logger.Warn("runtime unavailable at startup", "error", err)
 	} else {
 		if err := s.recoverManagedContainers(ctx); err != nil {
 			s.logger.Warn("recover managed containers failed", "error", err)
@@ -119,7 +128,7 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 		return nil, err
 	}
 
-	exec, err := s.ensureDocker(ctx)
+	exec, err := s.ensureRuntime(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -155,11 +164,11 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 				replicas = 1
 			}
 			for replica := 0; replica < replicas; replica++ {
-				instance := s.newInstanceRecord(deploymentID, serviceName, workload.Name, unit.Name, taskSpec, replica)
-				containerID, runErr := exec.RunContainer(ctx, instance.RunSpec)
+				instance := s.newInstanceRecord(deploymentID, exec.Driver(), serviceName, workload.Name, unit.Name, taskSpec, replica)
+				containerID, runErr := exec.Run(ctx, instance.RunSpec)
 				if runErr != nil {
 					for _, item := range created {
-						_ = exec.StopAndRemove(ctx, item.ContainerID)
+						_ = exec.Stop(ctx, item.ContainerID)
 					}
 					_ = s.deleteRoutesByOwner(deploymentID)
 					return nil, fmt.Errorf("start docker workload %s/%s/%s[%d]: %w", workload.Name, unit.Name, taskSpec.Name, replica, runErr)
@@ -168,9 +177,9 @@ func (s *Service) Deploy(ctx context.Context, req DeployRequest) (*DeployResult,
 				instance.Status = InstanceStatusRunning
 				instance.UpdatedAt = time.Now()
 				if err := s.upsertRegistryEndpoint(instance, true); err != nil {
-					_ = exec.StopAndRemove(ctx, instance.ContainerID)
+					_ = exec.Stop(ctx, instance.ContainerID)
 					for _, item := range created {
-						_ = exec.StopAndRemove(ctx, item.ContainerID)
+						_ = exec.Stop(ctx, item.ContainerID)
 					}
 					_ = s.deleteRoutesByOwner(deploymentID)
 					return nil, fmt.Errorf("register endpoint %s: %w", instance.ID, err)
@@ -226,7 +235,7 @@ func (s *Service) ListDeployments() []DeploymentInfo {
 }
 
 func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error {
-	exec, err := s.ensureDocker(ctx)
+	exec, err := s.ensureRuntime(ctx)
 	if err != nil {
 		return err
 	}
@@ -245,7 +254,7 @@ func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error
 
 	var firstErr error
 	for _, item := range instances {
-		if stopErr := exec.StopAndRemove(ctx, item.ContainerID); stopErr != nil && firstErr == nil {
+		if stopErr := exec.Stop(ctx, item.ContainerID); stopErr != nil && firstErr == nil {
 			firstErr = stopErr
 		}
 		if err := s.deleteEndpoint(item.ID); err != nil && firstErr == nil {
@@ -273,7 +282,7 @@ func (s *Service) StopDeployment(ctx context.Context, deploymentID string) error
 }
 
 func (s *Service) Logs(ctx context.Context, instanceID string, tail int) (string, error) {
-	exec, err := s.ensureDocker(ctx)
+	exec, err := s.ensureRuntime(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -332,9 +341,9 @@ func (s *Service) reconcileInstance(instanceID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	exec, err := s.ensureDocker(ctx)
+	exec, err := s.ensureRuntime(ctx)
 	if err != nil {
-		s.markInstanceFailed(instanceID, fmt.Sprintf("docker unavailable: %v", err))
+		s.markInstanceFailed(instanceID, fmt.Sprintf("runtime unavailable: %v", err))
 		return
 	}
 
@@ -405,14 +414,14 @@ func (s *Service) restartInstance(instanceID string, reason string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	exec, err := s.ensureDocker(ctx)
+	exec, err := s.ensureRuntime(ctx)
 	if err != nil {
-		s.markInstanceFailed(instanceID, fmt.Sprintf("docker unavailable for restart: %v", err))
+		s.markInstanceFailed(instanceID, fmt.Sprintf("runtime unavailable for restart: %v", err))
 		return
 	}
 
-	_ = exec.StopAndRemove(ctx, snapshot.ContainerID)
-	newContainerID, err := exec.RunContainer(ctx, snapshot.RunSpec)
+	_ = exec.Stop(ctx, snapshot.ContainerID)
+	newContainerID, err := exec.Run(ctx, snapshot.RunSpec)
 	if err != nil {
 		s.mu.Lock()
 		if real, exists := s.instances[instanceID]; exists {
@@ -446,12 +455,12 @@ func (s *Service) restartInstance(instanceID string, reason string) {
 }
 
 func (s *Service) recoverManagedContainers(ctx context.Context) error {
-	exec, err := s.ensureDocker(ctx)
+	exec, err := s.ensureRuntime(ctx)
 	if err != nil {
 		return err
 	}
 
-	items, err := exec.ListContainers(ctx, true, map[string][]string{
+	items, err := exec.List(ctx, true, map[string][]string{
 		"label": []string{labelManaged + "=true"},
 	})
 	if err != nil {
@@ -491,6 +500,10 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 		if serviceName == "" {
 			serviceName = buildServiceName(c.Labels[labelWorkload], c.Labels[labelUnit], c.Labels[labelTask])
 		}
+		driver := strings.TrimSpace(c.Labels[labelRuntime])
+		if driver == "" {
+			driver = exec.Driver()
+		}
 		instance := &instanceRecord{
 			InstanceInfo: InstanceInfo{
 				ID:           instanceID,
@@ -500,13 +513,13 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 				Unit:         c.Labels[labelUnit],
 				Task:         c.Labels[labelTask],
 				Replica:      replica,
-				Driver:       "docker",
+				Driver:       driver,
 				ContainerID:  c.ID,
 				Status:       InstanceStatusRunning,
 				CreatedAt:    time.Now(),
 				UpdatedAt:    time.Now(),
 			},
-			RunSpec: dockerrt.RunSpec{
+			RunSpec: RuntimeRunSpec{
 				Name:   trimContainerName(c.Names),
 				Image:  c.Image,
 				Labels: c.Labels,
@@ -540,9 +553,9 @@ func (s *Service) recoverManagedContainers(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) ensureDocker(ctx context.Context) (*dockerrt.Executor, error) {
+func (s *Service) ensureRuntime(ctx context.Context) (RuntimeExecutor, error) {
 	s.mu.RLock()
-	exec := s.docker
+	exec := s.runtime
 	s.mu.RUnlock()
 	if exec != nil {
 		return exec, exec.Ping(ctx)
@@ -550,18 +563,18 @@ func (s *Service) ensureDocker(ctx context.Context) (*dockerrt.Executor, error) 
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.docker != nil {
-		return s.docker, s.docker.Ping(ctx)
+	if s.runtime != nil {
+		return s.runtime, s.runtime.Ping(ctx)
 	}
-	dockerExecutor, err := dockerrt.NewExecutor()
+	runtime, err := s.runtimeInit()
 	if err != nil {
 		return nil, err
 	}
-	if err := dockerExecutor.Ping(ctx); err != nil {
+	if err := runtime.Ping(ctx); err != nil {
 		return nil, err
 	}
-	s.docker = dockerExecutor
-	return s.docker, nil
+	s.runtime = runtime
+	return s.runtime, nil
 }
 
 func (s *Service) runHTTPHealthCheck(check healthCheckSpec) error {
@@ -626,15 +639,18 @@ func (s *Service) refreshDeploymentStatusLocked(deploymentID string) {
 	}
 }
 
-func (s *Service) newInstanceRecord(deploymentID, serviceName, workloadName, unitName string, taskSpec dsl.Task, replica int) *instanceRecord {
+func (s *Service) newInstanceRecord(deploymentID, runtimeName, serviceName, workloadName, unitName string, taskSpec dsl.Task, replica int) *instanceRecord {
+	if strings.TrimSpace(runtimeName) == "" {
+		runtimeName = "docker"
+	}
 	instanceID := uuid.NewString()
 	check := buildHealthCheck(taskSpec)
-	labels := buildLabels(deploymentID, serviceName, workloadName, unitName, taskSpec.Name, instanceID, replica, check, taskSpec.Network)
+	labels := buildLabels(deploymentID, runtimeName, serviceName, workloadName, unitName, taskSpec.Name, instanceID, replica, check, taskSpec.Network)
 	for key, value := range collectTaskLabels(taskSpec) {
 		labels[key] = value
 	}
 
-	spec := dockerrt.RunSpec{
+	spec := RuntimeRunSpec{
 		Name:   sanitizeContainerName(fmt.Sprintf("warden-%s-%s-%s-%d", workloadName, unitName, taskSpec.Name, replica)),
 		Image:  taskSpec.Image,
 		Cmd:    taskSpec.Command,
@@ -653,7 +669,7 @@ func (s *Service) newInstanceRecord(deploymentID, serviceName, workloadName, uni
 			Unit:         unitName,
 			Task:         taskSpec.Name,
 			Replica:      replica,
-			Driver:       "docker",
+			Driver:       runtimeName,
 			Status:       InstanceStatusUnknown,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -717,6 +733,7 @@ func extractPorts(network *dsl.NetworkConfig) map[string]int {
 
 func buildLabels(
 	deploymentID string,
+	runtimeName string,
 	serviceName string,
 	workloadName string,
 	unitName string,
@@ -729,6 +746,7 @@ func buildLabels(
 	labels := map[string]string{
 		labelManaged:      "true",
 		labelDeploymentID: deploymentID,
+		labelRuntime:      runtimeName,
 		labelService:      serviceName,
 		labelWorkload:     workloadName,
 		labelUnit:         unitName,
@@ -882,7 +900,7 @@ func (s *Service) upsertRegistryEndpoint(instance *instanceRecord, healthy bool)
 		Service:  instance.Service,
 		NodeID:   s.nodeID,
 		NodeIP:   s.nodeIP,
-		Runtime:  "docker",
+		Runtime:  instance.Driver,
 		Protocol: registry.RouteProtocolHTTP,
 		Ports:    instance.RunSpec.Ports,
 		Healthy:  healthy,

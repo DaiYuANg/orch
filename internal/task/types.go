@@ -2,8 +2,6 @@ package task
 
 import (
 	"time"
-
-	"github.com/DaiYuANg/warden/internal/runtime_engine/docker"
 )
 
 type DeploymentStatus string
@@ -76,7 +74,7 @@ type deploymentRecord struct {
 
 type instanceRecord struct {
 	InstanceInfo
-	RunSpec     docker.RunSpec
+	RunSpec     RuntimeRunSpec
 	HealthCheck healthCheckSpec
 	MaxRestarts int
 	LastCheckAt time.Time

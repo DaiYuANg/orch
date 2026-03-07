@@ -12,3 +12,6 @@ serde_json.workspace = true
 chrono.workspace = true
 duct.workspace = true
 sysinfo = "0.37"
+
+[build-dependencies]
+rhusky = "0.0.2"

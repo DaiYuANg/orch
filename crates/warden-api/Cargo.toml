@@ -19,6 +19,7 @@ warden-raft = { path = "../warden-raft" }
 warden-registry = { path = "../warden-registry" }
 warden-task = { path = "../warden-task" }
 warden-types = { path = "../warden-types" }
+fluxdi = {workspace = true}
 
 [dev-dependencies]
 tokio.workspace = true

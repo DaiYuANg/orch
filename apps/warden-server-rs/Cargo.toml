@@ -24,3 +24,4 @@ warden-runtime-firecracker = { path = "../../crates/warden-runtime-firecracker" 
 warden-runtime-process = { path = "../../crates/warden-runtime-process" }
 warden-store = { path = "../../crates/warden-store" }
 warden-task = { path = "../../crates/warden-task" }
+fluxdi = { workspace = true, features = ["logging", "async-factory", "tracing", "macros", "metrics"] }

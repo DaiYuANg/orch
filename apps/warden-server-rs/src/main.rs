@@ -1,8 +1,11 @@
+mod cli;
+
 use clap::Parser;
 use std::sync::Arc;
 use std::time::Duration;
+use fluxdi::Application;
 use tracing::info;
-use warden_api::{ApiState, router};
+use warden_api::{ApiState, router, APIModule};
 use warden_config::{load, parse_conf_args};
 use warden_dns::{DnsOptions, DnsService};
 use warden_ingress::{IngressOptions, IngressService};
@@ -15,20 +18,15 @@ use warden_runtime_firecracker::FirecrackerRuntimeProvider;
 use warden_runtime_process::ProcessRuntimeProvider;
 use warden_store::new_store;
 use warden_task::TaskService;
-
-#[derive(Debug, Parser)]
-#[command(name = "warden-server-rs", about = "Warden Rust control plane server")]
-struct Args {
-  #[arg(long = "conf")]
-  conf: Vec<String>,
-}
+use crate::cli::Args;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
   let args = Args::parse();
   let conf_files = parse_conf_args(&args.conf);
   let cfg = load(&conf_files)?;
-
+  let mut app = Application::new(APIModule);
+  app.bootstrap().await.expect("TODO: panic message");
   warden_logger::init(&cfg.logger);
   info!(target: "warden::server", files = ?conf_files, "config loaded");
   info!(

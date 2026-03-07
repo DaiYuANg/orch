@@ -7,6 +7,7 @@ use axum::{
   middleware::{self},
   routing::{get, post},
 };
+use fluxdi::{Injector, Module};
 use warden_dns::DnsService;
 use warden_raft::RaftService;
 use warden_registry::RegistryService;
@@ -54,4 +55,11 @@ pub fn router(state: ApiState) -> Router {
 
 pub fn openapi_json() -> utoipa::openapi::OpenApi {
   doc::openapi_json()
+}
+
+pub struct APIModule;
+
+impl Module for APIModule {
+  fn providers(&self, _injector: &Injector) {
+  }
 }

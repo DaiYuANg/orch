@@ -1,0 +1,12 @@
+[package]
+name = "warden-orcha-hir"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+la-arena = "0.3.1"
+rustc-hash = "2.1.1"
+indexmap = "2.13.0"
+smol_str = "0.3.5"
+thiserror = "2.0.18"

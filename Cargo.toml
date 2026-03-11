@@ -20,7 +20,7 @@ members = [
   "crates/warden-runtime-docker",
   "crates/warden-runtime-containerd",
   "crates/warden-runtime-firecracker",
-  "crates/warden-runtime-process",
+  "crates/warden-runtime-process", "apps/warden-access-client", "crates/warden-dsl-core", "crates/warden-dsl-ast", "crates/warden-dsl-lexer", "crates/warden-dsl-parser", "crates/warden-dsl-hir", "crates/warden-dsl-sema", "crates/warden-dsl-ir", "crates/warden-dsl-planner",
 ]
 resolver = "2"
 
@@ -59,8 +59,3 @@ sysinfo = "0.38.3"
 containerd-client = "0.8.0"
 fluxdi = "1.2.1"
 fluxdi-macros = "1.2.1"
-
-[workspace.dev-dependencies.cargo-husky]
-version = "1"
-default-features = false
-features = ["precommit-hook", "run-cargo-clippy", "run-cargo-fmt"]

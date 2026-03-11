@@ -1,0 +1,12 @@
+[package]
+name = "warden-orcha-parser"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+chumsky = { version = "0.12.0", features = ["pratt"] }
+ariadne = "0.6.0"
+warden-orcha-lexer = {path = "../warden-dsl-lexer" }
+warden-orcha-ast = {path = "../warden-dsl-ast" }
+warden-orcha-core = {path = "../warden-dsl-core" }

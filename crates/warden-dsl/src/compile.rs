@@ -8,6 +8,7 @@ pub struct CompiledManifest {
   pub namespace: String,
   pub prefix: String,
   pub workloads: Vec<CompiledWorkload>,
+  pub ingress_routes: Vec<CompiledIngressRoute>,
   pub warnings: Vec<String>,
 }
 
@@ -17,6 +18,19 @@ pub struct CompiledWorkload {
   pub request: DeployWorkloadRequest,
   pub depends_on: Vec<String>,
   pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompiledIngressRoute {
+  pub id: String,
+  pub protocol: String,
+  pub host: String,
+  pub path_prefix: String,
+  pub listen_port: u16,
+  pub backend_workload_name: String,
+  pub backend_endpoint_name: String,
+  pub dns_enabled: bool,
+  pub dns_ttl: u32,
 }
 
 pub fn compile_manifest(manifest: &ApplicationManifest) -> anyhow::Result<CompiledManifest> {
@@ -35,12 +49,19 @@ pub fn compile_manifest(manifest: &ApplicationManifest) -> anyhow::Result<Compil
     .iter()
     .flat_map(|item| item.warnings.iter().cloned())
     .collect::<Vec<_>>();
+  let ingress_routes = manifest
+    .spec
+    .workloads
+    .iter()
+    .filter_map(|workload| compile_ingress_route(&namespace, &application, workload))
+    .collect::<Vec<_>>();
 
   Ok(CompiledManifest {
     application,
     namespace,
     prefix,
     workloads,
+    ingress_routes,
     warnings: sorted_unique(warnings),
   })
 }
@@ -108,27 +129,6 @@ fn compile_workload(
     .collect::<Vec<_>>();
 
   let mut warnings = Vec::new();
-  if matches!(
-    workload.ingress.as_ref().and_then(|v| v.enabled),
-    Some(false)
-  ) {
-    warnings.push(format!(
-      "workload {} sets ingress.enabled=false, but current server always creates route",
-      name
-    ));
-  }
-  if matches!(workload.dns.as_ref().and_then(|v| v.enabled), Some(false)) {
-    warnings.push(format!(
-      "workload {} sets dns.enabled=false, but current server may still create dns record",
-      name
-    ));
-  }
-  if workload.dns.as_ref().and_then(|v| v.ttl).is_some() {
-    warnings.push(format!(
-      "workload {} sets dns.ttl, but current deploy api does not expose ttl",
-      name
-    ));
-  }
   if workload.scheduling.is_some() {
     warnings.push(format!(
       "workload {} sets scheduling, but current deploy api does not expose scheduling policy",
@@ -147,6 +147,41 @@ fn compile_workload(
     depends_on,
     warnings: sorted_unique(warnings),
   }
+}
+
+fn compile_ingress_route(
+  namespace: &str,
+  application: &str,
+  workload: &crate::model::WorkloadSpec,
+) -> Option<CompiledIngressRoute> {
+  let ingress = workload.ingress.as_ref()?;
+  if matches!(ingress.enabled, Some(false)) {
+    return None;
+  }
+
+  let workload_name = format!("{namespace}.{application}.{}", workload.name.trim());
+  let host =
+    non_empty(ingress.host.as_deref()).unwrap_or_else(|| format!("{workload_name}.warden.local"));
+  let path_prefix = non_empty(ingress.path.as_deref()).unwrap_or_else(|| String::from("/"));
+  let listen_port = ingress.listen_port.unwrap_or(8088);
+  let dns_enabled = workload
+    .dns
+    .as_ref()
+    .and_then(|v| v.enabled)
+    .unwrap_or(true);
+  let dns_ttl = workload.dns.as_ref().and_then(|v| v.ttl).unwrap_or(60);
+
+  Some(CompiledIngressRoute {
+    id: format!("route-{workload_name}"),
+    protocol: String::from("http"),
+    host,
+    path_prefix,
+    listen_port,
+    backend_workload_name: workload_name,
+    backend_endpoint_name: String::from("http"),
+    dns_enabled,
+    dns_ttl,
+  })
 }
 
 fn sorted_unique(mut items: Vec<String>) -> Vec<String> {

@@ -55,6 +55,7 @@ pub struct AppDeclAst {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum StmtAst {
   Let(LetDeclAst),
+  Import(ImportStmtAst),
   Create(CreateDeclAst),
   Block(BlockAst),
   Invoke(InvokeStmtAst),
@@ -64,6 +65,11 @@ pub enum StmtAst {
 pub struct LetDeclAst {
   pub name: SmolStr,
   pub value: ExprAst,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ImportStmtAst {
+  pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -142,6 +148,12 @@ fn push_stmt(builder: &mut rowan::GreenNodeBuilder<'_>, stmt: &StmtAst) {
       token(builder, "let");
       token(builder, value.name.as_str());
       push_expr(builder, &value.value);
+    }
+    StmtAst::Import(value) => {
+      token(builder, "import");
+      token(builder, "(");
+      token(builder, &format!("{:?}", value.path));
+      token(builder, ")");
     }
     StmtAst::Create(value) => {
       token(builder, "val");

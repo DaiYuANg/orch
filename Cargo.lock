@@ -3830,7 +3830,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "warden-cli-rs"
+name = "warden-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -3840,6 +3840,7 @@ dependencies = [
  "tokio",
  "warden-client",
  "warden-dsl",
+ "warden-dsl-planner",
  "warden-types",
 ]
 
@@ -3907,6 +3908,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "warden-dsl-binder"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+ "warden-dsl-ast",
+ "warden-dsl-hir",
+ "warden-dsl-parser",
+]
+
+[[package]]
+name = "warden-dsl-canonical"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+ "warden-dsl-ast",
+ "warden-dsl-binder",
+ "warden-dsl-hir",
+ "warden-dsl-ir",
+ "warden-dsl-parser",
+]
+
+[[package]]
 name = "warden-dsl-core"
 version = "0.1.0"
 dependencies = [
@@ -3966,12 +3991,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ariadne",
- "clap",
  "petgraph 0.8.3",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "warden-dsl-ast",
+ "warden-dsl-binder",
+ "warden-dsl-canonical",
  "warden-dsl-core",
  "warden-dsl-hir",
  "warden-dsl-ir",
@@ -4005,15 +4032,61 @@ dependencies = [
 name = "warden-ingress"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "axum 0.8.8",
+ "tokio",
+ "tracing",
+ "warden-ingress-http",
+ "warden-ingress-resolver",
+ "warden-ingress-stream",
+ "warden-ingress-types",
+ "warden-registry",
+]
+
+[[package]]
+name = "warden-ingress-http"
+version = "0.1.0"
+dependencies = [
  "axum 0.8.8",
  "moka",
  "reqwest",
  "tokio",
- "tracing",
+ "warden-ingress-proxy",
+ "warden-ingress-resolver",
+ "warden-ingress-types",
+ "warden-registry",
+]
+
+[[package]]
+name = "warden-ingress-proxy"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.8",
+ "reqwest",
+]
+
+[[package]]
+name = "warden-ingress-resolver"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "warden-ingress-types",
  "warden-registry",
  "warden-types",
 ]
+
+[[package]]
+name = "warden-ingress-stream"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tokio",
+ "tracing",
+ "warden-ingress-types",
+]
+
+[[package]]
+name = "warden-ingress-types"
+version = "0.1.0"
 
 [[package]]
 name = "warden-logger"
@@ -4106,7 +4179,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "warden-server-rs"
+name = "warden-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",

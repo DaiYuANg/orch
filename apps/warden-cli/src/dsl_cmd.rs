@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use warden_client::WardenClient;
 use warden_dsl::{CompiledManifest, ManifestPlan, build_plan, compile_manifest, load_manifest};
+use warden_dsl_planner::{PlannerError, PlannerOutput, plan_file, print_diagnostic};
 use warden_types::WorkloadSummary;
 use warden_types::dsl::{DslApplyRequest, DslApplyResult};
 
@@ -29,6 +30,17 @@ pub async fn run_plan(client: &WardenClient, args: &DslPlanArgs) -> anyhow::Resu
 
 pub fn run_render(args: &DslFileArgs) -> anyhow::Result<CompiledManifest> {
   load_and_compile(&args.file)
+}
+
+pub fn run_planner(args: &DslFileArgs) -> anyhow::Result<PlannerOutput> {
+  match plan_file(Path::new(&args.file)) {
+    Ok(output) => Ok(output),
+    Err(PlannerError::ParseFile { file, input, err }) => {
+      print_diagnostic(&file, &input, &err);
+      Err(anyhow::anyhow!("{err}"))
+    }
+    Err(err) => Err(anyhow::anyhow!("{err}")),
+  }
 }
 
 pub async fn run_apply(

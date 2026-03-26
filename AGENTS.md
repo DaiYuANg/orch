@@ -40,8 +40,8 @@ Non-goals for now:
 ## Repo layout (high-level)
 
 - `apps/`
-  - `apps/warden-server-rs/`: server binary entrypoint.
-  - `apps/warden-cli-rs/`: user CLI entrypoint.
+  - `apps/warden-server/`: server binary entrypoint.
+  - `apps/warden-cli/`: user CLI entrypoint.
 - `crates/`
   - `warden-api`: HTTP routing, handlers, OpenAPI registration.
   - `warden-client`: CLI/API client transport (`auto`, `unix://`, `npipe://`, `http(s)://`).
@@ -70,7 +70,7 @@ Note: Frontend dashboard source has been removed from this repository and is mai
 
 ## Boot path (important)
 
-`warden-server-rs` startup flow in `apps/warden-server-rs/src/main.rs`:
+`warden-server` startup flow in `apps/warden-server/src/main.rs`:
 
 1. Parse `--conf` arguments.
 2. Load validated config via `warden-config`.
@@ -122,13 +122,13 @@ Docs:
 Single node:
 
 ```bash
-cargo run -p warden-server-rs -- --conf examples/local-raft/node1.yaml
+cargo run -p warden-server -- --conf examples/local-raft/node1.yaml
 ```
 
 CLI query:
 
 ```bash
-cargo run -p warden-cli-rs -- --api auto workloads
+cargo run -p warden-cli -- --api auto workloads
 ```
 
 Local multi-node simulation:
@@ -199,7 +199,7 @@ When adding a runtime driver:
 
 ## CLI conventions
 
-- CLI is a composition layer in `apps/warden-cli-rs`.
+- CLI is a composition layer in `apps/warden-cli`.
 - Command definitions live in `cli_args.rs`.
 - DSL-specific command logic lives in `dsl_cmd.rs`.
 - Keep output stable JSON for automation-friendly usage.

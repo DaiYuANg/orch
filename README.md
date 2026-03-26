@@ -9,33 +9,42 @@ Warden is now Rust-first and focuses on:
 - Multi-runtime workload execution (`docker`, `containerd`, `firecracker`)
 - Built-in ingress and DNS record lifecycle
 - Raft-aware scheduling (deploy/migrate/failover/rebalance)
-- Declarative DSL v1 (`Application` manifest with `plan/render/apply/delete`)
+- Declarative Workload DSL direction with compatibility inputs and `plan/render/apply/delete`
 
 ## Quick Start
 
 ### Run server
 
 ```bash
-cargo run -p warden-server-rs -- --conf examples/local-raft/node1.yaml
+cargo run -p warden-server -- --conf examples/local-raft/node1.yaml
 ```
 
 ### Query workloads
 
 ```bash
-cargo run -p warden-cli-rs -- --api http://127.0.0.1:7443 workloads
+cargo run -p warden-cli -- --api http://127.0.0.1:7443 workloads
 ```
 
 ### Read task logs
 
 ```bash
-cargo run -p warden-cli-rs -- --api auto task logs <workload-id> --tail 200
+cargo run -p warden-cli -- --api auto task logs <workload-id> --tail 200
 ```
 
-### Use DSL v1
+### Use Current DSL Flow
+
+The repository currently has two DSL-related paths:
+
+- The older transitional manifest-oriented `dsl plan/apply/delete` flow
+- The newer canonical compiler pipeline inspectable through `dsl planner`
+
+The current implemented canonical subset, supported syntax, and current limits
+are tracked in `docs/src/dsl.md`.
 
 ```bash
-cargo run -p warden-cli-rs -- --api http://127.0.0.1:7443 dsl plan --file examples/dsl-v1-demo.yaml --json
-cargo run -p warden-cli-rs -- --api http://127.0.0.1:7443 dsl apply --file examples/dsl-v1-demo.yaml --prune --concurrency 8
+cargo run -p warden-cli -- --api http://127.0.0.1:7443 dsl plan --file examples/dsl-v1-demo.yaml --json
+cargo run -p warden-cli -- --api http://127.0.0.1:7443 dsl apply --file examples/dsl-v1-demo.yaml --prune --concurrency 8
+cargo run -p warden-cli -- dsl planner --file path/to/app.wd
 ```
 
 ## Documentation (mdBook)
@@ -51,7 +60,10 @@ See:
 - [Introduction](docs/src/introduction.md)
 - [Project Status](docs/src/project-status.md)
 - [Quick Start](docs/src/quick-start.md)
-- [DSL v1](docs/src/dsl-v1.md)
+- [Workload DSL v1 (EN)](docs/src/dsl.md)
+- [Workload DSL v1（中文）](docs/src/dsl.zh.md)
+- [Ingress Design v1 (EN)](docs/src/ingress.md)
+- [Ingress 设计 v1（中文）](docs/src/ingress.zh.md)
 - [Local Raft Cluster](docs/src/local-raft.md)
 
 ## Development

@@ -44,6 +44,10 @@ async fn main() -> anyhow::Result<()> {
           println!("{}", dsl_cmd::format_plan(&plan));
         }
       }
+      DslCommand::Planner(args) => {
+        let output = dsl_cmd::run_planner(&args)?;
+        print_json(&output)?;
+      }
       DslCommand::Render(args) => {
         let compiled = dsl_cmd::run_render(&args)?;
         print_json(&compiled)?;

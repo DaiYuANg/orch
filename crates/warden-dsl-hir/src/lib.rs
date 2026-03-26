@@ -1,7 +1,8 @@
 //! High-level IR: normalized view of an invocation DSL document after AST lowering.
 //!
-//! Top-level `services { ... }` and `ingress("name") { ... }` blocks are extracted;
-//! `let` bindings are collected in source order.
+//! Top-level `services { ... }`, `workload("name") { ... }`, and
+//! `ingress("name") { ... }` blocks are extracted; `let` bindings are collected
+//! in source order.
 
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -16,9 +17,25 @@ pub enum HirError {
   DuplicateLet(SmolStr),
   #[error("invalid `services` block: only `val ... = create(...)` entries are allowed")]
   InvalidServicesBody,
+  #[error("workload(...) requires a single string argument")]
+  MalformedWorkload,
+  #[error("duplicate volume name: {0}")]
+  DuplicateVolume(String),
+  #[error("volume(...) requires a single string argument")]
+  MalformedVolume,
+  #[error("duplicate config name: {0}")]
+  DuplicateConfig(String),
+  #[error("config(...) requires a single string argument")]
+  MalformedConfig,
+  #[error("duplicate secret name: {0}")]
+  DuplicateSecret(String),
+  #[error("secret(...) requires a single string argument")]
+  MalformedSecret,
   #[error("ingress(...) requires a single string argument")]
   MalformedIngress,
-  #[error("unexpected top-level statement (expected let, services {{ }}, or ingress(...))")]
+  #[error(
+    "unexpected top-level statement (expected let, services {{ }}, workload(...), volume(...), config(...), secret(...), or ingress(...))"
+  )]
   UnexpectedTopLevel,
 }
 
@@ -27,6 +44,9 @@ pub struct HirDocument {
   pub app_name: String,
   pub lets: Vec<HirLet>,
   pub services: Vec<HirService>,
+  pub volumes: Vec<HirVolume>,
+  pub configs: Vec<HirConfig>,
+  pub secrets: Vec<HirSecret>,
   pub ingress_blocks: Vec<HirIngressBlock>,
   /// Top-level statements that are not yet modeled as dedicated HIR (forward compat).
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -47,6 +67,24 @@ pub struct HirService {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HirVolume {
+  pub name: String,
+  pub body: Vec<StmtAst>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HirConfig {
+  pub name: String,
+  pub body: Vec<StmtAst>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HirSecret {
+  pub name: String,
+  pub body: Vec<StmtAst>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HirIngressBlock {
   pub name: String,
   pub body: Vec<StmtAst>,
@@ -59,6 +97,12 @@ pub fn lower(doc: &DocumentAst) -> Result<HirDocument, HirError> {
   let mut let_names = rustc_hash::FxHashSet::<SmolStr>::default();
   let mut services = Vec::new();
   let mut service_names = rustc_hash::FxHashSet::<String>::default();
+  let mut volumes = Vec::new();
+  let mut volume_names = rustc_hash::FxHashSet::<String>::default();
+  let mut configs = Vec::new();
+  let mut config_names = rustc_hash::FxHashSet::<String>::default();
+  let mut secrets = Vec::new();
+  let mut secret_names = rustc_hash::FxHashSet::<String>::default();
   let mut ingress_blocks = Vec::new();
   let mut orphan_top_level = Vec::new();
 
@@ -90,6 +134,47 @@ pub fn lower(doc: &DocumentAst) -> Result<HirDocument, HirError> {
           }
         }
       }
+      StmtAst::Block(b) if path_is_single(&b.callee, "workload") => {
+        let name = first_string_arg(&b.args).ok_or(HirError::MalformedWorkload)?;
+        if !service_names.insert(name.clone()) {
+          return Err(HirError::DuplicateService(name));
+        }
+        services.push(HirService {
+          binding: SmolStr::from(name.clone()),
+          name,
+          body: b.body.clone(),
+        });
+      }
+      StmtAst::Block(b) if path_is_single(&b.callee, "volume") => {
+        let name = first_string_arg(&b.args).ok_or(HirError::MalformedVolume)?;
+        if !volume_names.insert(name.clone()) {
+          return Err(HirError::DuplicateVolume(name));
+        }
+        volumes.push(HirVolume {
+          name,
+          body: b.body.clone(),
+        });
+      }
+      StmtAst::Block(b) if path_is_single(&b.callee, "config") => {
+        let name = first_string_arg(&b.args).ok_or(HirError::MalformedConfig)?;
+        if !config_names.insert(name.clone()) {
+          return Err(HirError::DuplicateConfig(name));
+        }
+        configs.push(HirConfig {
+          name,
+          body: b.body.clone(),
+        });
+      }
+      StmtAst::Block(b) if path_is_single(&b.callee, "secret") => {
+        let name = first_string_arg(&b.args).ok_or(HirError::MalformedSecret)?;
+        if !secret_names.insert(name.clone()) {
+          return Err(HirError::DuplicateSecret(name));
+        }
+        secrets.push(HirSecret {
+          name,
+          body: b.body.clone(),
+        });
+      }
       StmtAst::Block(b) if path_is_single(&b.callee, "ingress") => {
         let name = first_string_arg(&b.args).ok_or(HirError::MalformedIngress)?;
         ingress_blocks.push(HirIngressBlock {
@@ -105,6 +190,9 @@ pub fn lower(doc: &DocumentAst) -> Result<HirDocument, HirError> {
     app_name,
     lets,
     services,
+    volumes,
+    configs,
+    secrets,
     ingress_blocks,
     orphan_top_level,
   })
@@ -176,8 +264,40 @@ app("mall") {
     assert_eq!(hir.app_name, "mall");
     assert_eq!(hir.lets.len(), 1);
     assert_eq!(hir.services.len(), 2);
+    assert!(hir.volumes.is_empty());
+    assert!(hir.configs.is_empty());
+    assert!(hir.secrets.is_empty());
     assert_eq!(hir.ingress_blocks.len(), 1);
     assert_eq!(hir.ingress_blocks[0].name, "gw");
+    let (names, deps) = service_graph_inputs(&hir);
+    assert!(names.contains(&"redis".to_string()));
+    assert!(deps.contains(&("gateway".to_string(), "redis".to_string())));
+  }
+
+  #[test]
+  fn lowers_top_level_workload_blocks() {
+    let raw = r#"
+app("mall") {
+  volume("redisData") {}
+  config("appConfig") {}
+  secret("dbPassword") {}
+  workload("redis") {
+    runtime(containerd)
+  }
+  workload("gateway") {
+    dependsOn(workloads.redis)
+  }
+}
+"#;
+    let ast = parse(raw).unwrap();
+    let hir = lower(&ast).unwrap();
+    assert_eq!(hir.volumes.len(), 1);
+    assert_eq!(hir.volumes[0].name, "redisData");
+    assert_eq!(hir.configs[0].name, "appConfig");
+    assert_eq!(hir.secrets[0].name, "dbPassword");
+    assert_eq!(hir.services.len(), 2);
+    assert_eq!(hir.services[0].binding.as_str(), "redis");
+    assert_eq!(hir.services[1].binding.as_str(), "gateway");
     let (names, deps) = service_graph_inputs(&hir);
     assert!(names.contains(&"redis".to_string()));
     assert!(deps.contains(&("gateway".to_string(), "redis".to_string())));

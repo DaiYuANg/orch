@@ -1,5 +1,5 @@
 [package]
-name = "warden-server-rs"
+name = "warden-server"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

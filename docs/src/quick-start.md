@@ -16,15 +16,15 @@ cargo test --workspace
 ## Run a local server
 
 ```bash
-cargo run -p warden-server-rs -- --conf examples/local-raft/node1.yaml
+cargo run -p warden-server -- --conf examples/local-raft/node1.yaml
 ```
 
 ## Basic CLI checks
 
 ```bash
-cargo run -p warden-cli-rs -- --api http://127.0.0.1:7443 workloads
-cargo run -p warden-cli-rs -- --api http://127.0.0.1:7443 routes
-cargo run -p warden-cli-rs -- --api http://127.0.0.1:7443 dns
+cargo run -p warden-cli -- --api http://127.0.0.1:7443 workloads
+cargo run -p warden-cli -- --api http://127.0.0.1:7443 routes
+cargo run -p warden-cli -- --api http://127.0.0.1:7443 dns
 ```
 
 ## Start local multi-node cluster

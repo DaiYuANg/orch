@@ -5,11 +5,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 axum.workspace = true
-moka.workspace = true
-reqwest.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+warden-ingress-http = { path = "../warden-ingress-http" }
+warden-ingress-resolver = { path = "../warden-ingress-resolver" }
+warden-ingress-stream = { path = "../warden-ingress-stream" }
+warden-ingress-types = { path = "../warden-ingress-types" }
 warden-registry = { path = "../warden-registry" }
-warden-types = { path = "../warden-types" }

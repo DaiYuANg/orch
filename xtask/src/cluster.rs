@@ -72,7 +72,7 @@ pub fn run_cluster(root: &Path, args: &ClusterRunArgs) -> anyhow::Result<()> {
 
     let child = Command::new("cargo")
       .current_dir(root)
-      .args(["run", "-p", "warden-server-rs", "--", "--conf"])
+      .args(["run", "-p", "warden-server", "--", "--conf"])
       .arg(&config_path)
       .stdin(Stdio::null())
       .stdout(Stdio::from(log_file))

@@ -26,8 +26,12 @@ impl StateStore {
       .upsert_endpoint(EndpointRecord {
         workload_id: String::from("wk-nginx-01"),
         node_id: String::from("node-1"),
+        endpoint_name: String::from("http"),
         protocol: String::from("http"),
         address: String::from("10.88.0.10:80"),
+        healthy: true,
+        ready: true,
+        updated_at: now,
       })
       .await?;
 
@@ -39,6 +43,8 @@ impl StateStore {
         path_prefix: String::from("/"),
         listen_port: 8088,
         backend: String::from("10.88.0.10:80"),
+        backend_workload_id: Some(String::from("wk-nginx-01")),
+        backend_endpoint_name: Some(String::from("http")),
         enabled: true,
       })
       .await?;
@@ -61,8 +67,8 @@ impl StateStore {
   pub async fn upsert_endpoint(&self, item: EndpointRecord) -> anyhow::Result<()> {
     self.put_json(
       &format!(
-        "{PREFIX_ENDPOINTS}{}|{}|{}",
-        item.workload_id, item.node_id, item.protocol
+        "{PREFIX_ENDPOINTS}{}|{}|{}|{}",
+        item.workload_id, item.node_id, item.protocol, item.endpoint_name
       ),
       &item,
     )
@@ -101,7 +107,13 @@ impl StateStore {
     load_sorted(
       self,
       PREFIX_ENDPOINTS,
-      |a: &EndpointRecord, b: &EndpointRecord| a.workload_id.cmp(&b.workload_id),
+      |a: &EndpointRecord, b: &EndpointRecord| {
+        a.workload_id
+          .cmp(&b.workload_id)
+          .then_with(|| a.node_id.cmp(&b.node_id))
+          .then_with(|| a.protocol.cmp(&b.protocol))
+          .then_with(|| a.endpoint_name.cmp(&b.endpoint_name))
+      },
       "endpoints",
     )
   }

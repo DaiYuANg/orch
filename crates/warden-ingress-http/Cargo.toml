@@ -1,0 +1,15 @@
+[package]
+name = "warden-ingress-http"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+axum.workspace = true
+moka.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+warden-ingress-proxy = { path = "../warden-ingress-proxy" }
+warden-ingress-resolver = { path = "../warden-ingress-resolver" }
+warden-ingress-types = { path = "../warden-ingress-types" }
+warden-registry = { path = "../warden-registry" }

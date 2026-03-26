@@ -53,8 +53,16 @@ pub struct WorkloadSummary {
 pub struct EndpointRecord {
   pub workload_id: String,
   pub node_id: String,
+  #[serde(default = "default_endpoint_name")]
+  pub endpoint_name: String,
   pub protocol: String,
   pub address: String,
+  #[serde(default = "default_true")]
+  pub healthy: bool,
+  #[serde(default = "default_true")]
+  pub ready: bool,
+  #[serde(default = "default_updated_at")]
+  pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -65,6 +73,10 @@ pub struct RouteRecord {
   pub path_prefix: String,
   pub listen_port: u16,
   pub backend: String,
+  #[serde(default)]
+  pub backend_workload_id: Option<String>,
+  #[serde(default)]
+  pub backend_endpoint_name: Option<String>,
   pub enabled: bool,
 }
 
@@ -199,4 +211,16 @@ pub struct ClusterInfo {
   pub total_nodes: usize,
   pub total_workloads: usize,
   pub nodes: Vec<ClusterNodeInfo>,
+}
+
+fn default_endpoint_name() -> String {
+  String::from("default")
+}
+
+fn default_true() -> bool {
+  true
+}
+
+fn default_updated_at() -> DateTime<Utc> {
+  Utc::now()
 }

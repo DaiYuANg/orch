@@ -39,6 +39,24 @@ fn compile_generates_stable_workload_names() {
 }
 
 #[test]
+fn compile_emits_explicit_ingress_routes() {
+  let manifest = sample_manifest();
+  let compiled = compile_manifest(&manifest).expect("compile manifest");
+
+  assert_eq!(compiled.ingress_routes.len(), 1);
+  let route = &compiled.ingress_routes[0];
+  assert_eq!(route.id, "route-default.demo.web");
+  assert_eq!(route.protocol, "http");
+  assert_eq!(route.host, "demo.local");
+  assert_eq!(route.path_prefix, "/");
+  assert_eq!(route.listen_port, 18088);
+  assert_eq!(route.backend_workload_name, "default.demo.web");
+  assert_eq!(route.backend_endpoint_name, "http");
+  assert!(route.dns_enabled);
+  assert_eq!(route.dns_ttl, 60);
+}
+
+#[test]
 fn plan_detects_create_keep_delete() {
   let manifest = sample_manifest();
   let compiled = compile_manifest(&manifest).expect("compile manifest");
@@ -190,10 +208,8 @@ spec:
 
   let compiled = compile_manifest(&manifest).expect("compile manifest");
   assert_eq!(compiled.workloads[0].request.runtime, "docker");
-  assert_eq!(compiled.warnings.len(), 4);
-  assert!(compiled.warnings[0] <= compiled.warnings[1]);
-  assert!(compiled.warnings[1] <= compiled.warnings[2]);
-  assert!(compiled.warnings[2] <= compiled.warnings[3]);
+  assert_eq!(compiled.warnings.len(), 1);
+  assert!(compiled.warnings[0].contains("scheduling"));
 }
 
 #[test]

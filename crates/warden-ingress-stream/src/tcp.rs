@@ -1,17 +1,17 @@
-use crate::state::{IngressInner, TcpListenerHandle};
-use std::collections::HashSet;
+use crate::runtime::TcpListenerHandle;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::io::copy_bidirectional;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{RwLock, oneshot};
+use tokio::sync::{Mutex, RwLock, oneshot};
 use tracing::warn;
 
 pub(crate) async fn register(
-  inner: &Arc<IngressInner>,
+  listeners: &Mutex<HashMap<u16, TcpListenerHandle>>,
   listen_port: u16,
   backend: String,
 ) -> anyhow::Result<()> {
-  let mut listeners = inner.tcp_listeners.lock().await;
+  let mut listeners = listeners.lock().await;
   if let Some(existing) = listeners.get(&listen_port) {
     *existing.backend.write().await = backend;
     return Ok(());
@@ -38,16 +38,16 @@ async fn run_listener(
 ) {
   loop {
     tokio::select! {
-        _ = &mut stop_rx => return,
-        accepted = listener.accept() => match accepted {
-            Ok((stream, _)) => {
-                let backend_ref = backend.clone();
-                tokio::spawn(async move {
-                    handle_connection(stream, backend_ref).await;
-                });
-            }
-            Err(err) => warn!(target: "warden::ingress", error = %err, "tcp accept error"),
-        },
+      _ = &mut stop_rx => return,
+      accepted = listener.accept() => match accepted {
+        Ok((stream, _)) => {
+          let backend_ref = backend.clone();
+          tokio::spawn(async move {
+            handle_connection(stream, backend_ref).await;
+          });
+        }
+        Err(err) => warn!(target: "warden::ingress", error = %err, "tcp accept error"),
+      },
     }
   }
 }
@@ -58,10 +58,10 @@ async fn handle_connection(mut client: TcpStream, backend: Arc<RwLock<String>>) 
     Ok(item) => item,
     Err(err) => {
       warn!(
-          target: "warden::ingress",
-          backend = %backend_addr,
-          error = %err,
-          "tcp dial backend error"
+        target: "warden::ingress",
+        backend = %backend_addr,
+        error = %err,
+        "tcp dial backend error"
       );
       return;
     }
@@ -71,8 +71,11 @@ async fn handle_connection(mut client: TcpStream, backend: Arc<RwLock<String>>) 
   }
 }
 
-pub(crate) async fn unregister_inactive(inner: &Arc<IngressInner>, active_ports: &HashSet<u16>) {
-  let mut listeners = inner.tcp_listeners.lock().await;
+pub(crate) async fn unregister_inactive(
+  listeners: &Mutex<HashMap<u16, TcpListenerHandle>>,
+  active_ports: &HashSet<u16>,
+) {
+  let mut listeners = listeners.lock().await;
   let stale = listeners
     .keys()
     .filter(|port| !active_ports.contains(port))

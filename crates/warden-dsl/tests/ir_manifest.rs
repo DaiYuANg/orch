@@ -50,7 +50,10 @@ app("mall") {
 
   assert_eq!(from_pipeline.metadata.name, legacy.metadata.name);
   assert_eq!(from_pipeline.metadata.namespace, legacy.metadata.namespace);
-  assert_eq!(from_pipeline.spec.workloads.len(), legacy.spec.workloads.len());
+  assert_eq!(
+    from_pipeline.spec.workloads.len(),
+    legacy.spec.workloads.len()
+  );
 
   for leg in &legacy.spec.workloads {
     let from_p = from_pipeline

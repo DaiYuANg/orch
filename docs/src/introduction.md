@@ -11,6 +11,6 @@ Core directions:
 
 Current implementation is Rust-first and centered around:
 
-- `apps/warden-server-rs`
-- `apps/warden-cli-rs`
+- `apps/warden-server`
+- `apps/warden-cli`
 - `crates/warden-*`

@@ -1,18 +1,19 @@
-use crate::state::{IngressInner, UdpListenerHandle};
-use std::collections::HashSet;
+use crate::runtime::UdpListenerHandle;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-use tokio::sync::{RwLock, oneshot};
+use tokio::sync::{Mutex, RwLock, oneshot};
 use tokio::time::timeout;
 use tracing::warn;
 
 pub(crate) async fn register(
-  inner: &Arc<IngressInner>,
+  listeners: &Mutex<HashMap<u16, UdpListenerHandle>>,
   listen_port: u16,
   backend: String,
+  udp_backend_timeout: Duration,
 ) -> anyhow::Result<()> {
-  let mut listeners = inner.udp_listeners.lock().await;
+  let mut listeners = listeners.lock().await;
   if let Some(existing) = listeners.get(&listen_port) {
     *existing.backend.write().await = backend;
     return Ok(());
@@ -32,7 +33,7 @@ pub(crate) async fn register(
     socket,
     backend_ref,
     stop_rx,
-    inner.options.udp_backend_timeout,
+    udp_backend_timeout,
   ));
   Ok(())
 }
@@ -46,25 +47,25 @@ async fn run_listener(
   let mut buf = vec![0u8; 64 * 1024];
   loop {
     tokio::select! {
-        _ = &mut stop_rx => return,
-        packet = socket.recv_from(&mut buf) => match packet {
-            Ok((n, client_addr)) => {
-                let payload = buf[..n].to_vec();
-                let backend_ref = backend.clone();
-                let listener_socket = socket.clone();
-                tokio::spawn(async move {
-                    handle_packet(
-                        listener_socket,
-                        backend_ref,
-                        client_addr,
-                        payload,
-                        udp_backend_timeout,
-                    )
-                    .await;
-                });
-            }
-            Err(err) => warn!(target: "warden::ingress", error = %err, "udp read error"),
-        },
+      _ = &mut stop_rx => return,
+      packet = socket.recv_from(&mut buf) => match packet {
+        Ok((n, client_addr)) => {
+          let payload = buf[..n].to_vec();
+          let backend_ref = backend.clone();
+          let listener_socket = socket.clone();
+          tokio::spawn(async move {
+            handle_packet(
+              listener_socket,
+              backend_ref,
+              client_addr,
+              payload,
+              udp_backend_timeout,
+            )
+            .await;
+          });
+        }
+        Err(err) => warn!(target: "warden::ingress", error = %err, "udp read error"),
+      },
     }
   }
 }
@@ -109,8 +110,11 @@ async fn handle_packet(
   }
 }
 
-pub(crate) async fn unregister_inactive(inner: &Arc<IngressInner>, active_ports: &HashSet<u16>) {
-  let mut listeners = inner.udp_listeners.lock().await;
+pub(crate) async fn unregister_inactive(
+  listeners: &Mutex<HashMap<u16, UdpListenerHandle>>,
+  active_ports: &HashSet<u16>,
+) {
+  let mut listeners = listeners.lock().await;
   let stale = listeners
     .keys()
     .filter(|port| !active_ports.contains(port))

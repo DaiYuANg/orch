@@ -3,8 +3,8 @@ use chumsky::error::Rich;
 use chumsky::prelude::*;
 use smol_str::SmolStr;
 use warden_dsl_ast::{
-  AppDeclAst, BlockAst, CreateDeclAst, DocumentAst, ExprAst, InvokeStmtAst, LetDeclAst, PathAst,
-  StmtAst,
+  AppDeclAst, BlockAst, CreateDeclAst, DocumentAst, ExprAst, ImportStmtAst, InvokeStmtAst,
+  LetDeclAst, PathAst, StmtAst,
 };
 use warden_dsl_core::{DslError, Span};
 
@@ -34,8 +34,26 @@ pub fn parse_to_json(input: &str) -> Result<String, DslError> {
   })
 }
 
-fn chumsky_document_parser<'src>()
--> impl ChumskyParser<'src, &'src str, DocumentAst, extra::Err<Rich<'src, char>>> {
+pub fn parse_fragment(input: &str) -> Result<Vec<StmtAst>, DslError> {
+  let parser = chumsky_fragment_parser();
+  match parser.parse(input).into_result() {
+    Ok(ast) => Ok(ast),
+    Err(errs) => {
+      let err = errs
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| Rich::custom(chumsky::span::SimpleSpan::new((), 0..0), "invalid dsl"));
+      let span = err.span();
+      Err(DslError::Parse {
+        span: Span::new(span.start, span.end),
+        message: err.to_string(),
+      })
+    }
+  }
+}
+
+fn chumsky_statement_parser<'src>()
+-> impl ChumskyParser<'src, &'src str, Vec<StmtAst>, extra::Err<Rich<'src, char>>> {
   let ident = text::ascii::ident()
     .map(|value: &str| SmolStr::new(value))
     .padded();
@@ -119,6 +137,11 @@ fn chumsky_document_parser<'src>()
       .then(expr.clone())
       .map(|(name, value)| StmtAst::Let(LetDeclAst { name, value }));
 
+    let import_stmt = just("import")
+      .padded()
+      .ignore_then(quoted.delimited_by(just('(').padded(), just(')').padded()))
+      .map(|path| StmtAst::Import(ImportStmtAst { path }));
+
     let create_stmt = just("val")
       .padded()
       .ignore_then(ident)
@@ -150,27 +173,39 @@ fn chumsky_document_parser<'src>()
         },
       );
 
-    choice((let_stmt, create_stmt, block_or_invoke))
+    choice((let_stmt, import_stmt, create_stmt, block_or_invoke))
   });
 
+  stmt.repeated().collect::<Vec<_>>()
+}
+
+fn chumsky_document_parser<'src>()
+-> impl ChumskyParser<'src, &'src str, DocumentAst, extra::Err<Rich<'src, char>>> {
   just("app")
     .padded()
-    .ignore_then(quoted.delimited_by(just('(').padded(), just(')').padded()))
-    .then(
-      stmt
-        .repeated()
-        .collect::<Vec<_>>()
-        .delimited_by(just('{').padded(), just('}').padded()),
+    .ignore_then(
+      just('"')
+        .ignore_then(none_of('"').repeated().collect::<String>())
+        .then_ignore(just('"'))
+        .padded()
+        .delimited_by(just('(').padded(), just(')').padded()),
     )
+    .then(chumsky_statement_parser().delimited_by(just('{').padded(), just('}').padded()))
     .map(|(name, body)| DocumentAst {
       app: AppDeclAst { name, body },
     })
     .then_ignore(end())
 }
 
+fn chumsky_fragment_parser<'src>()
+-> impl ChumskyParser<'src, &'src str, Vec<StmtAst>, extra::Err<Rich<'src, char>>> {
+  chumsky_statement_parser().then_ignore(end())
+}
+
 #[cfg(test)]
 mod tests {
-  use super::parse;
+  use super::{parse, parse_fragment};
+  use warden_dsl_ast::StmtAst;
 
   #[test]
   fn parses_full_sample_shape() {
@@ -204,5 +239,19 @@ app("mall") {
     let ast = parse(raw).expect("parse dsl");
     assert_eq!(ast.app.name, "mall");
     assert_eq!(ast.app.body.len(), 4);
+  }
+
+  #[test]
+  fn parses_imports_in_fragments() {
+    let raw = r#"
+import("./modules/redis.wd")
+workload("gateway") {
+  runtime(containerd)
+}
+"#;
+
+    let ast = parse_fragment(raw).expect("parse fragment");
+    assert!(matches!(&ast[0], StmtAst::Import(value) if value.path == "./modules/redis.wd"));
+    assert_eq!(ast.len(), 2);
   }
 }

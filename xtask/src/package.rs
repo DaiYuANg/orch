@@ -12,9 +12,9 @@ pub fn package_release(root: &Path, args: &PackageArgs) -> anyhow::Result<()> {
       "build",
       "--release",
       "-p",
-      "warden-server-rs",
+      "warden-server",
       "-p",
-      "warden-cli-rs",
+      "warden-cli",
     ],
   )?;
 
@@ -22,8 +22,8 @@ pub fn package_release(root: &Path, args: &PackageArgs) -> anyhow::Result<()> {
   fs::create_dir_all(&out_dir).with_context(|| format!("create {}", out_dir.display()))?;
 
   let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
-  let server_bin = format!("warden-server-rs{exe_suffix}");
-  let cli_bin = format!("warden-cli-rs{exe_suffix}");
+  let server_bin = format!("warden-server{exe_suffix}");
+  let cli_bin = format!("warden-cli{exe_suffix}");
   let target_dir = root.join("target").join("release");
 
   copy_file(

@@ -1,7 +1,7 @@
 [workspace]
 members = [
-  "apps/warden-server-rs",
-  "apps/warden-cli-rs",
+  "apps/warden-server",
+  "apps/warden-cli",
   "crates/warden-types",
   "crates/warden-config",
   "crates/warden-logger",
@@ -9,6 +9,11 @@ members = [
   "crates/warden-registry",
   "crates/warden-dns",
   "crates/warden-ingress",
+  "crates/warden-ingress-types",
+  "crates/warden-ingress-http",
+  "crates/warden-ingress-proxy",
+  "crates/warden-ingress-resolver",
+  "crates/warden-ingress-stream",
   "crates/warden-runtime",
   "crates/warden-task",
   "crates/warden-raft",
@@ -20,8 +25,8 @@ members = [
   "crates/warden-runtime-docker",
   "crates/warden-runtime-containerd",
   "crates/warden-runtime-firecracker",
-  "crates/warden-runtime-process", "apps/warden-access-client", "crates/warden-dsl-core", "crates/warden-dsl-ast", "crates/warden-dsl-lexer", "crates/warden-dsl-parser", "crates/warden-dsl-hir", "crates/warden-dsl-sema", "crates/warden-dsl-ir", "crates/warden-dsl-planner",
-]
+  "crates/warden-runtime-process", "apps/warden-access-client", "crates/warden-dsl-core", "crates/warden-dsl-ast", "crates/warden-dsl-lexer", "crates/warden-dsl-parser", "crates/warden-dsl-hir", "crates/warden-dsl-binder", "crates/warden-dsl-sema", "crates/warden-dsl-ir", "crates/warden-dsl-canonical", "crates/warden-dsl-planner",
+  ]
 resolver = "2"
 
 [workspace.package]

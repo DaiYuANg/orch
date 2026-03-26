@@ -4,7 +4,8 @@ use warden_runtime::{RuntimeEngine, RuntimeLaunchResult, RuntimeProvider};
 use warden_store::StateStore;
 use warden_task::TaskService;
 use warden_types::{
-  DeployWorkloadRequest, FailoverRequest, MigrateWorkloadRequest, RebalanceRequest,
+  DeployWorkloadRequest, FailoverRequest, MigrateWorkloadRequest, RebalanceRequest, RouteRecord,
+  dsl::DslIngressRouteRecord,
 };
 
 #[derive(Debug, Default)]
@@ -114,6 +115,70 @@ async fn rebalance_moves_workload_when_distribution_is_skewed() -> anyhow::Resul
   Ok(())
 }
 
+#[tokio::test]
+async fn deploy_from_dsl_skips_legacy_route_side_effects() -> anyhow::Result<()> {
+  let (service, store) = build_service().await;
+  let workload = service
+    .deploy_from_dsl(deploy_request("dsl-no-side-effect"))
+    .await?;
+
+  assert!(
+    store
+      .list_routes_by_backend_workload(&workload.id)
+      .await
+      .is_empty()
+  );
+  assert!(store.list_dns_records().await.is_empty());
+  Ok(())
+}
+
+#[tokio::test]
+async fn sync_dsl_ingress_routes_creates_and_stop_removes_explicit_routes() -> anyhow::Result<()> {
+  let (service, store) = build_service().await;
+  let workload = service
+    .deploy_from_dsl(deploy_request("dsl-ingress"))
+    .await?;
+
+  service
+    .sync_dsl_ingress_routes(
+      std::slice::from_ref(&workload.id),
+      vec![DslIngressRouteRecord {
+        route: RouteRecord {
+          id: String::from("route-default.demo.dsl-ingress"),
+          protocol: String::from("http"),
+          host: String::from("dsl.local"),
+          path_prefix: String::from("/"),
+          listen_port: 8088,
+          backend: String::from("127.0.0.1:20000"),
+          backend_workload_id: Some(workload.id.clone()),
+          backend_endpoint_name: Some(String::from("http")),
+          enabled: true,
+        },
+        dns_enabled: true,
+        dns_ttl: 120,
+      }],
+    )
+    .await?;
+
+  let routes = store.list_routes_by_backend_workload(&workload.id).await;
+  assert_eq!(routes.len(), 1);
+  assert_eq!(routes[0].host, "dsl.local");
+  let dns = store.list_dns_records().await;
+  assert_eq!(dns.len(), 1);
+  assert_eq!(dns[0].domain, "dsl.local");
+  assert_eq!(dns[0].ttl, 120);
+
+  let _ = service.stop(&workload.id).await?;
+  assert!(
+    store
+      .list_routes_by_backend_workload(&workload.id)
+      .await
+      .is_empty()
+  );
+  assert!(store.list_dns_records().await.is_empty());
+  Ok(())
+}
+
 async fn build_service() -> (TaskService, StateStore) {
   let store = StateStore::new();
   let runtime = RuntimeEngine::new();
@@ -136,23 +201,25 @@ async fn deploy(
   service: &TaskService,
   name: &str,
 ) -> anyhow::Result<warden_types::WorkloadSummary> {
-  service
-    .deploy(DeployWorkloadRequest {
-      name: name.to_string(),
-      runtime: String::from("docker"),
-      image: None,
-      firecracker_config: None,
-      firecracker_kernel_image: None,
-      firecracker_rootfs: None,
-      host: None,
-      path_prefix: None,
-      service_port: None,
-      ingress_port: None,
-      backend: None,
-      process_command: None,
-      process_args: Vec::new(),
-      process_env: std::collections::BTreeMap::new(),
-      process_cwd: None,
-    })
-    .await
+  service.deploy(deploy_request(name)).await
+}
+
+fn deploy_request(name: &str) -> DeployWorkloadRequest {
+  DeployWorkloadRequest {
+    name: name.to_string(),
+    runtime: String::from("docker"),
+    image: None,
+    firecracker_config: None,
+    firecracker_kernel_image: None,
+    firecracker_rootfs: None,
+    host: None,
+    path_prefix: None,
+    service_port: None,
+    ingress_port: None,
+    backend: None,
+    process_command: None,
+    process_args: Vec::new(),
+    process_env: std::collections::BTreeMap::new(),
+    process_cwd: None,
+  }
 }

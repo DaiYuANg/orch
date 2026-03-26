@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
-#[command(name = "warden-cli-rs", about = "Warden Rust CLI")]
+#[command(name = "warden-cli", about = "Warden Rust CLI")]
 pub struct Cli {
   #[arg(
     long,
@@ -124,6 +124,7 @@ pub enum TaskArgs {
 #[derive(Debug, Subcommand)]
 pub enum DslCommand {
   Plan(DslPlanArgs),
+  Planner(DslFileArgs),
   Render(DslFileArgs),
   Apply(DslApplyArgs),
   Delete(DslDeleteArgs),

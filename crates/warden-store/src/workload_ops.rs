@@ -48,16 +48,34 @@ impl StateStore {
     Ok(count)
   }
 
+  pub async fn list_routes_by_backend_workload(&self, workload_id: &str) -> Vec<RouteRecord> {
+    let mut routes = self
+      .list_routes()
+      .await
+      .into_iter()
+      .filter(|item| route_matches_workload(item, workload_id))
+      .collect::<Vec<_>>();
+    routes.sort_by(|a, b| a.id.cmp(&b.id));
+    routes
+  }
+
   pub async fn get_route_by_workload(&self, workload_id: &str) -> Option<RouteRecord> {
-    let key = route_key(workload_id);
-    match self.backend.get(&key) {
-      Ok(Some(payload)) => serde_json::from_slice::<RouteRecord>(&payload).ok(),
-      _ => None,
-    }
+    self
+      .list_routes_by_backend_workload(workload_id)
+      .await
+      .into_iter()
+      .next()
+  }
+
+  pub async fn delete_route(&self, route_id: &str) -> anyhow::Result<()> {
+    self.backend.delete(&format!("{PREFIX_ROUTES}{route_id}"))
   }
 
   pub async fn delete_route_by_workload(&self, workload_id: &str) -> anyhow::Result<()> {
-    self.backend.delete(&route_key(workload_id))
+    for route in self.list_routes_by_backend_workload(workload_id).await {
+      self.delete_route(&route.id).await?;
+    }
+    Ok(())
   }
 
   pub async fn delete_dns_record_by_domain(&self, domain: &str) -> anyhow::Result<()> {
@@ -65,6 +83,7 @@ impl StateStore {
   }
 }
 
-fn route_key(workload_id: &str) -> String {
-  format!("{PREFIX_ROUTES}route-{workload_id}")
+fn route_matches_workload(route: &RouteRecord, workload_id: &str) -> bool {
+  route.backend_workload_id.as_deref() == Some(workload_id)
+    || route.id == format!("route-{workload_id}")
 }

@@ -3,8 +3,8 @@
 
 use crate::model::{
   ApplicationManifest, IngressSpec, Metadata, ServiceSpec, Spec, WorkloadSpec,
-  default_namespace_string, default_runtime_string, eval_replicas_expression,
-  interpolate_template, normalize_runtime_symbol,
+  default_namespace_string, default_runtime_string, eval_replicas_expression, interpolate_template,
+  normalize_runtime_symbol,
 };
 use anyhow::Context;
 use std::collections::HashMap;
@@ -50,6 +50,7 @@ fn ingress_bindings_from_ir(ir: &IrApplication) -> HashMap<String, (String, Stri
         continue;
       };
       let alias = backend
+        .workload
         .split('.')
         .next_back()
         .unwrap_or("")
@@ -104,12 +105,14 @@ pub fn application_manifest_from_ir(
             .unwrap_or_else(|| dep.clone())
         })
         .collect::<Vec<_>>();
-      let ingress = ingress_bindings.get(&w.binding).map(|(host, path)| IngressSpec {
-        enabled: Some(true),
-        host: Some(host.clone()),
-        path: Some(path.clone()),
-        listen_port: None,
-      });
+      let ingress = ingress_bindings
+        .get(&w.binding)
+        .map(|(host, path)| IngressSpec {
+          enabled: Some(true),
+          host: Some(host.clone()),
+          path: Some(path.clone()),
+          listen_port: None,
+        });
       let image = match w.image.as_deref() {
         Some(img) => Some(interpolate_template(img, lets)?),
         None => None,

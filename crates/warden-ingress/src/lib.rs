@@ -1,7 +1,5 @@
-mod http_proxy;
 mod service;
 mod state;
-mod stream;
-mod util;
 
-pub use state::{IngressOptions, IngressService};
+pub use state::IngressService;
+pub use warden_ingress_types::IngressOptions;

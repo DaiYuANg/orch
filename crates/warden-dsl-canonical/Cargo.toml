@@ -1,0 +1,16 @@
+[package]
+name = "warden-dsl-canonical"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+thiserror = "2.0.18"
+warden-dsl-ast = { path = "../warden-dsl-ast" }
+warden-dsl-binder = { path = "../warden-dsl-binder" }
+warden-dsl-hir = { path = "../warden-dsl-hir" }
+warden-dsl-ir = { path = "../warden-dsl-ir" }
+
+[dev-dependencies]
+warden-dsl-parser = { path = "../warden-dsl-parser" }

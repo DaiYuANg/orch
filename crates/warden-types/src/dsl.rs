@@ -1,3 +1,4 @@
+use crate::RouteRecord;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -18,4 +19,11 @@ pub struct DslApplyResult {
   pub pruned: Vec<String>,
   pub rolled_back: Vec<String>,
   pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DslIngressRouteRecord {
+  pub route: RouteRecord,
+  pub dns_enabled: bool,
+  pub dns_ttl: u32,
 }

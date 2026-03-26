@@ -4,8 +4,8 @@ use axum::{Json, extract::State};
 use futures_util::stream::{self, StreamExt};
 use std::collections::{HashMap, HashSet};
 use warden_dsl::{build_plan, compile_manifest, parse_manifest_source};
-use warden_types::dsl::{DslApplyRequest, DslApplyResult};
-use warden_types::{ApiEnvelope, DeployWorkloadRequest};
+use warden_types::dsl::{DslApplyRequest, DslApplyResult, DslIngressRouteRecord};
+use warden_types::{ApiEnvelope, DeployWorkloadRequest, EndpointRecord, RouteRecord};
 
 #[utoipa::path(
   post,
@@ -75,6 +75,26 @@ pub(crate) async fn apply_dsl(
     return Err(internal_error(error));
   }
 
+  let current_workloads = state.registry.list_workloads().await;
+  let current_id_by_name = current_workloads
+    .iter()
+    .map(|item| (item.name.clone(), item.id.clone()))
+    .collect::<HashMap<String, String>>();
+  let current_endpoints = state.registry.list_endpoints().await;
+  let desired_workload_ids = compiled
+    .workloads
+    .iter()
+    .filter_map(|item| current_id_by_name.get(&item.name).cloned())
+    .collect::<Vec<_>>();
+  let desired_routes =
+    build_desired_ingress_routes(&compiled, &current_id_by_name, &current_endpoints)
+      .map_err(|err| internal_error(err))?;
+  state
+    .task
+    .sync_dsl_ingress_routes(&desired_workload_ids, desired_routes)
+    .await
+    .map_err(|err| internal_error(format!("dsl apply route sync failed: {err}")))?;
+
   let mut pruned = Vec::new();
   if req.prune {
     let prune_jobs = plan
@@ -110,7 +130,7 @@ async fn deploy_batch(
   let rows = stream::iter(jobs.into_iter().map(|(name, deploy)| {
     let state = state.clone();
     async move {
-      match state.task.deploy(deploy).await {
+      match state.task.deploy_from_dsl(deploy).await {
         Ok(_) => Ok(name),
         Err(err) => Err(format!("{name}: {err}")),
       }
@@ -285,4 +305,53 @@ fn strict_warnings_error(warnings: &[String]) -> String {
       preview
     )
   }
+}
+
+fn build_desired_ingress_routes(
+  compiled: &warden_dsl::CompiledManifest,
+  workload_id_by_name: &HashMap<String, String>,
+  endpoints: &[EndpointRecord],
+) -> Result<Vec<DslIngressRouteRecord>, String> {
+  let endpoint_backend = endpoints
+    .iter()
+    .map(|item| {
+      (
+        (item.workload_id.clone(), item.endpoint_name.clone()),
+        item.address.clone(),
+      )
+    })
+    .collect::<HashMap<_, _>>();
+
+  let mut routes = Vec::new();
+  for item in &compiled.ingress_routes {
+    let workload_id = workload_id_by_name
+      .get(&item.backend_workload_name)
+      .cloned()
+      .ok_or_else(|| {
+        format!(
+          "missing deployed workload id for ingress backend {}",
+          item.backend_workload_name
+        )
+      })?;
+    let backend = endpoint_backend
+      .get(&(workload_id.clone(), item.backend_endpoint_name.clone()))
+      .cloned()
+      .unwrap_or_default();
+    routes.push(DslIngressRouteRecord {
+      route: RouteRecord {
+        id: item.id.clone(),
+        protocol: item.protocol.clone(),
+        host: item.host.clone(),
+        path_prefix: item.path_prefix.clone(),
+        listen_port: item.listen_port,
+        backend,
+        backend_workload_id: Some(workload_id),
+        backend_endpoint_name: Some(item.backend_endpoint_name.clone()),
+        enabled: true,
+      },
+      dns_enabled: item.dns_enabled,
+      dns_ttl: item.dns_ttl,
+    });
+  }
+  Ok(routes)
 }

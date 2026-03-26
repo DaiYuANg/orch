@@ -1,0 +1,11 @@
+[package]
+name = "warden-ingress-resolver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+warden-ingress-types = { path = "../warden-ingress-types" }
+warden-registry = { path = "../warden-registry" }
+warden-types = { path = "../warden-types" }

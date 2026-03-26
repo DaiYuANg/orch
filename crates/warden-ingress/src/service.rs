@@ -1,11 +1,9 @@
-use crate::http_proxy::proxy_http_handler;
 use crate::state::IngressService;
-use crate::stream::sync_stream_routes;
-use crate::util::{normalize_bind_addr, wait_for_stop};
-use axum::Router;
-use axum::routing::any;
 use tokio::net::TcpListener;
 use tracing::{error, info};
+use warden_ingress_http::build_router;
+use warden_ingress_resolver::load_snapshot;
+use warden_ingress_types::normalize_bind_addr;
 
 impl IngressService {
   pub async fn start(&self) {
@@ -14,6 +12,7 @@ impl IngressService {
         http_addr = %self.inner.listen_addr,
         "ingress startup begin"
     );
+    self.sync_routes_once().await;
     self.start_http_listener().await;
     self.start_stream_sync_loop();
     info!(
@@ -26,9 +25,8 @@ impl IngressService {
   pub async fn stop(&self) {
     info!(target: "warden::ingress", "ingress shutdown begin");
     let _ = self.inner.stop_tx.send(true);
-    self.shutdown_tcp_listeners().await;
-    self.shutdown_udp_listeners().await;
-    self.inner.http_cache.invalidate_all();
+    self.inner.stream.shutdown_tcp_listeners().await;
+    self.inner.stream.shutdown_udp_listeners().await;
     info!(target: "warden::ingress", "ingress shutdown complete");
   }
 
@@ -48,15 +46,13 @@ impl IngressService {
     };
 
     let mut stop_rx = self.inner.stop_tx.subscribe();
-    let app = Router::new()
-      .fallback(any(proxy_http_handler))
-      .with_state(self.inner.clone());
+    let app = build_router(self.inner.http.clone());
 
     tokio::spawn(async move {
-      let serve =
-        axum::serve(listener, app.into_make_service()).with_graceful_shutdown(async move {
-          wait_for_stop(&mut stop_rx).await;
-        });
+      let shutdown = async move {
+        wait_for_stop(&mut stop_rx).await;
+      };
+      let serve = axum::serve(listener, app.into_make_service()).with_graceful_shutdown(shutdown);
       if let Err(err) = serve.await {
         error!(
             target: "warden::ingress",
@@ -77,8 +73,7 @@ impl IngressService {
       loop {
         tokio::select! {
             _ = ticker.tick() => {
-                sync_stream_routes(&inner, "tcp").await;
-                sync_stream_routes(&inner, "udp").await;
+                sync_routes(&inner).await;
             }
             _ = stop_rx.changed() => {
                 if *stop_rx.borrow() {
@@ -90,17 +85,28 @@ impl IngressService {
     });
   }
 
-  async fn shutdown_tcp_listeners(&self) {
-    let mut listeners = self.inner.tcp_listeners.lock().await;
-    for (_, handle) in listeners.drain() {
-      let _ = handle.stop_tx.send(());
-    }
+  async fn sync_routes_once(&self) {
+    sync_routes(&self.inner).await;
   }
+}
 
-  async fn shutdown_udp_listeners(&self) {
-    let mut listeners = self.inner.udp_listeners.lock().await;
-    for (_, handle) in listeners.drain() {
-      let _ = handle.stop_tx.send(());
+async fn wait_for_stop(stop_rx: &mut tokio::sync::watch::Receiver<bool>) {
+  if *stop_rx.borrow() {
+    return;
+  }
+  while stop_rx.changed().await.is_ok() {
+    if *stop_rx.borrow() {
+      return;
     }
   }
+}
+
+async fn sync_routes(inner: &crate::state::IngressInner) {
+  let snapshot = load_snapshot(&inner.registry).await;
+  inner.http.replace_snapshot(snapshot.clone()).await;
+  inner.stream.sync_tcp_routes(&snapshot.tcp_routes).await;
+  inner
+    .stream
+    .sync_udp_routes(&snapshot.udp_routes, inner.options.udp_backend_timeout)
+    .await;
 }

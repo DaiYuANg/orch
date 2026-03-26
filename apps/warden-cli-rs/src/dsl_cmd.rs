@@ -17,10 +17,7 @@ pub struct DslDeleteResult {
 pub async fn run_plan(client: &WardenClient, args: &DslPlanArgs) -> anyhow::Result<ManifestPlan> {
   let compiled = load_and_compile(&args.file)?;
   if args.strict && !compiled.warnings.is_empty() {
-    return Err(anyhow::anyhow!(
-      "dsl strict mode rejected {} warnings",
-      compiled.warnings.len()
-    ));
+    return Err(anyhow::anyhow!(strict_warnings_error(&compiled.warnings)));
   }
   let existing = fetch_workloads(client).await?;
   let names = existing
@@ -55,10 +52,7 @@ pub async fn run_delete(
 ) -> anyhow::Result<DslDeleteResult> {
   let compiled = load_and_compile(&args.file)?;
   if args.strict && !compiled.warnings.is_empty() {
-    return Err(anyhow::anyhow!(
-      "dsl strict mode rejected {} warnings",
-      compiled.warnings.len()
-    ));
+    return Err(anyhow::anyhow!(strict_warnings_error(&compiled.warnings)));
   }
   let existing = fetch_workloads(client).await?;
   let managed = existing
@@ -97,6 +91,28 @@ pub fn format_plan(plan: &ManifestPlan) -> String {
 fn load_and_compile(file: &str) -> anyhow::Result<CompiledManifest> {
   let manifest = load_manifest(Path::new(file))?;
   compile_manifest(&manifest)
+}
+
+fn strict_warnings_error(warnings: &[String]) -> String {
+  let preview = warnings
+    .iter()
+    .take(3)
+    .cloned()
+    .collect::<Vec<_>>()
+    .join(" | ");
+  if warnings.len() > 3 {
+    format!(
+      "dsl strict mode rejected {} warnings: {} | ...",
+      warnings.len(),
+      preview
+    )
+  } else {
+    format!(
+      "dsl strict mode rejected {} warnings: {}",
+      warnings.len(),
+      preview
+    )
+  }
 }
 
 async fn fetch_workloads(client: &WardenClient) -> anyhow::Result<Vec<WorkloadSummary>> {

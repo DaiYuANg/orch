@@ -13,15 +13,15 @@ pub(crate) async fn decode_response<T: DeserializeOwned>(
   let status = resp.status();
   let body = resp.text().await.context("read response body")?;
 
-  if let Ok(envelope) = serde_json::from_str::<ApiEnvelope<serde_json::Value>>(&body) {
-    if !status.is_success() || envelope.code != 0 {
-      bail!(
-        "api error: status={} code={} message={}",
-        status.as_u16(),
-        envelope.code,
-        envelope.message
-      );
-    }
+  if let Ok(envelope) = serde_json::from_str::<ApiEnvelope<serde_json::Value>>(&body)
+    && (!status.is_success() || envelope.code != 0)
+  {
+    bail!(
+      "api error: status={} code={} message={}",
+      status.as_u16(),
+      envelope.code,
+      envelope.message
+    );
   }
 
   if !status.is_success() {

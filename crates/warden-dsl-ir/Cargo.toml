@@ -1,6 +1,13 @@
 [package]
-name = "warden-orcha-ir"
-version = "0.1.0"
-edition = "2024"
+name = "warden-dsl-ir"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
+warden-dsl-ast = { path = "../warden-dsl-ast" }
+warden-dsl-hir = { path = "../warden-dsl-hir" }
+
+[dev-dependencies]
+warden-dsl-parser = { path = "../warden-dsl-parser" }

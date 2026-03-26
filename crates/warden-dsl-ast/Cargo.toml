@@ -1,9 +1,10 @@
 [package]
-name = "warden-orcha-ast"
+name = "warden-dsl-ast"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
 rowan = "0.16.1"
-smol_str = "0.3.5"
+smol_str = { version = "0.3.6", features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }

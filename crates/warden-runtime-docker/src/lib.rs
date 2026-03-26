@@ -65,11 +65,9 @@ impl RuntimeProvider for DockerRuntimeProvider {
     }
 
     let exposed_key = format!("{service_port}/tcp");
-    let mut exposed_ports = HashMap::new();
-    exposed_ports.insert(exposed_key.clone(), HashMap::new());
     let mut port_bindings = HashMap::new();
     port_bindings.insert(
-      exposed_key,
+      exposed_key.clone(),
       Some(vec![PortBinding {
         host_ip: Some(String::from("0.0.0.0")),
         host_port: Some(service_port.to_string()),
@@ -82,7 +80,7 @@ impl RuntimeProvider for DockerRuntimeProvider {
         port_bindings: Some(port_bindings),
         ..Default::default()
       }),
-      exposed_ports: Some(exposed_ports),
+      exposed_ports: Some(vec![exposed_key]),
       ..Default::default()
     };
     let create_options = CreateContainerOptionsBuilder::new()

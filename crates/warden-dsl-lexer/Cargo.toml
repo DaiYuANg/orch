@@ -1,9 +1,10 @@
 [package]
-name = "warden-orcha-lexer"
+name = "warden-dsl-lexer"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
 logos = "0.16.1"
-smol_str = "0.3.5"
+smol_str = "0.3.6"
+warden-dsl-core = { path = "../warden-dsl-core" }

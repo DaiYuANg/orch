@@ -47,7 +47,7 @@ reqwest-middleware = "0.5.1"
 reqwest-retry = "0.9.1"
 url = "2"
 async-trait = "0.1"
-bollard = "0.19.4"
+bollard = "0.20.2"
 futures-util = "0.3"
 openraft = "0.9"
 validator = { version = "0.20", features = ["derive"] }
@@ -55,7 +55,7 @@ moka = { version = "0.12", features = ["sync"] }
 duct = "1.1.1"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }
 utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
-sysinfo = "0.38.3"
+sysinfo = "0.38.4"
 containerd-client = "0.8.0"
-fluxdi = "1.2.1"
-fluxdi-macros = "1.2.1"
+fluxdi = "1.2.2"
+fluxdi-macros = "1.2.2"

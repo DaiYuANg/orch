@@ -1,6 +1,9 @@
-use anyhow::{Context, anyhow, bail};
+use anyhow::bail;
+#[cfg(windows)]
+use anyhow::{Context, anyhow};
 use serde::de::DeserializeOwned;
 use std::time::Duration;
+#[cfg(windows)]
 use warden_types::ApiEnvelope;
 
 #[cfg(windows)]
@@ -62,6 +65,7 @@ pub(crate) async fn request_via_npipe<T: DeserializeOwned>(
   decode_http_response_bytes(&response)
 }
 
+#[cfg(windows)]
 fn non_empty(v: &str) -> Option<&str> {
   let t = v.trim();
   if t.is_empty() { None } else { Some(t) }

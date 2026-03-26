@@ -15,6 +15,7 @@ pub struct CompiledManifest {
 pub struct CompiledWorkload {
   pub name: String,
   pub request: DeployWorkloadRequest,
+  pub depends_on: Vec<String>,
   pub warnings: Vec<String>,
 }
 
@@ -40,7 +41,7 @@ pub fn compile_manifest(manifest: &ApplicationManifest) -> anyhow::Result<Compil
     namespace,
     prefix,
     workloads,
-    warnings,
+    warnings: sorted_unique(warnings),
   })
 }
 
@@ -100,6 +101,11 @@ fn compile_workload(
     process_env: process.map(|v| v.env.clone()).unwrap_or_default(),
     process_cwd: process.and_then(|v| non_empty(v.cwd.as_deref())),
   };
+  let depends_on = workload
+    .depends_on
+    .iter()
+    .map(|dep| format!("{namespace}.{application}.{}", dep.trim()))
+    .collect::<Vec<_>>();
 
   let mut warnings = Vec::new();
   if matches!(
@@ -129,10 +135,22 @@ fn compile_workload(
       name
     ));
   }
-
+  if workload.replicas.is_some() {
+    warnings.push(format!(
+      "workload {} sets replicas, but current deploy api does not expose replica count",
+      name
+    ));
+  }
   CompiledWorkload {
     name,
     request,
-    warnings,
+    depends_on,
+    warnings: sorted_unique(warnings),
   }
+}
+
+fn sorted_unique(mut items: Vec<String>) -> Vec<String> {
+  items.sort();
+  items.dedup();
+  items
 }

@@ -101,7 +101,7 @@ impl WardenClient {
         #[cfg(unix)]
         {
           let raw = reqwest::Client::builder()
-            .unix_socket(socket)
+            .unix_socket(socket.clone())
             .timeout(self.timeout)
             .build()
             .context("build unix socket client")?;

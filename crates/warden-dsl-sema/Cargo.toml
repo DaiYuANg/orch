@@ -1,12 +1,11 @@
 [package]
-name = "warden-orcha-sema"
+name = "warden-dsl-sema"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
 petgraph = "0.8.3"
-indexmap = "2.13.0"
-rustc-hash = "2.1.1"
 thiserror = "2.0.18"
-ariadne = "0.6.0"
+warden-dsl-ast = { path = "../warden-dsl-ast" }
+warden-dsl-hir = { path = "../warden-dsl-hir" }

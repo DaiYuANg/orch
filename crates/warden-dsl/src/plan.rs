@@ -49,6 +49,12 @@ pub fn build_plan(compiled: &CompiledManifest, existing_names: &[String]) -> Man
     create,
     keep,
     delete_candidates,
-    warnings: compiled.warnings.clone(),
+    warnings: sorted_unique(compiled.warnings.clone()),
   }
+}
+
+fn sorted_unique(mut items: Vec<String>) -> Vec<String> {
+  items.sort();
+  items.dedup();
+  items
 }

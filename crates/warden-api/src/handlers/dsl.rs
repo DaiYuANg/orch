@@ -2,8 +2,8 @@ use crate::error::{bad_request, internal_error};
 use crate::{ApiResult, ApiState};
 use axum::{Json, extract::State};
 use futures_util::stream::{self, StreamExt};
-use std::collections::HashMap;
-use warden_dsl::{build_plan, compile_manifest, parse_manifest_yaml};
+use std::collections::{HashMap, HashSet};
+use warden_dsl::{build_plan, compile_manifest, parse_manifest_source};
 use warden_types::dsl::{DslApplyRequest, DslApplyResult};
 use warden_types::{ApiEnvelope, DeployWorkloadRequest};
 
@@ -18,13 +18,10 @@ pub(crate) async fn apply_dsl(
   Json(req): Json<DslApplyRequest>,
 ) -> ApiResult<DslApplyResult> {
   let manifest =
-    parse_manifest_yaml(&req.manifest_yaml).map_err(|err| bad_request(err.to_string()))?;
+    parse_manifest_source(&req.manifest_yaml).map_err(|err| bad_request(err.to_string()))?;
   let compiled = compile_manifest(&manifest).map_err(|err| bad_request(err.to_string()))?;
   if req.strict && !compiled.warnings.is_empty() {
-    return Err(bad_request(format!(
-      "dsl strict mode rejected {} warnings",
-      compiled.warnings.len()
-    )));
+    return Err(bad_request(strict_warnings_error(&compiled.warnings)));
   }
 
   let existing = state.registry.list_workloads().await;
@@ -34,10 +31,7 @@ pub(crate) async fn apply_dsl(
     .collect::<Vec<_>>();
   let plan = build_plan(&compiled, &names);
   if req.strict && !plan.warnings.is_empty() {
-    return Err(bad_request(format!(
-      "dsl strict mode rejected {} warnings",
-      plan.warnings.len()
-    )));
+    return Err(bad_request(strict_warnings_error(&plan.warnings)));
   }
 
   let request_map = compiled
@@ -45,23 +39,25 @@ pub(crate) async fn apply_dsl(
     .iter()
     .map(|item| (item.name.clone(), item.request.clone()))
     .collect::<HashMap<String, DeployWorkloadRequest>>();
+  let dependency_map = compiled
+    .workloads
+    .iter()
+    .map(|item| (item.name.clone(), item.depends_on.clone()))
+    .collect::<HashMap<String, Vec<String>>>();
   let id_by_name = existing
     .iter()
     .map(|item| (item.name.clone(), item.id.clone()))
     .collect::<HashMap<String, String>>();
   let concurrency = req.concurrency.max(1).min(32);
 
-  let create_jobs = plan
-    .create
-    .iter()
-    .filter_map(|name| {
-      request_map
-        .get(name)
-        .cloned()
-        .map(|deploy| (name.clone(), deploy))
-    })
-    .collect::<Vec<_>>();
-  let (created, create_errors) = deploy_batch(state.clone(), create_jobs, concurrency).await;
+  let (created, create_errors) = deploy_batch_by_dependencies(
+    state.clone(),
+    &plan.create,
+    &request_map,
+    &dependency_map,
+    concurrency,
+  )
+  .await;
   if !create_errors.is_empty() {
     let rollback_map = state
       .registry
@@ -126,6 +122,81 @@ async fn deploy_batch(
   partition_batch(rows)
 }
 
+async fn deploy_batch_by_dependencies(
+  state: ApiState,
+  create_names: &[String],
+  request_map: &HashMap<String, DeployWorkloadRequest>,
+  dependency_map: &HashMap<String, Vec<String>>,
+  concurrency: usize,
+) -> (Vec<String>, Vec<String>) {
+  let mut pending = create_names.iter().cloned().collect::<HashSet<_>>();
+  let mut created = Vec::new();
+
+  while !pending.is_empty() {
+    let mut ready = pending
+      .iter()
+      .filter(|name| {
+        dependency_map
+          .get(*name)
+          .map(|deps| deps.iter().all(|dep| !pending.contains(dep)))
+          .unwrap_or(true)
+      })
+      .cloned()
+      .collect::<Vec<_>>();
+    ready.sort();
+
+    if ready.is_empty() {
+      let mut unresolved = pending.into_iter().collect::<Vec<_>>();
+      unresolved.sort();
+      return (
+        sorted_unique(created),
+        vec![format!(
+          "dependency cycle or unresolved dependency among: {}",
+          unresolved.join(",")
+        )],
+      );
+    }
+
+    let mut missing = ready
+      .iter()
+      .filter(|name| !request_map.contains_key(*name))
+      .cloned()
+      .collect::<Vec<_>>();
+    if !missing.is_empty() {
+      missing.sort();
+      missing.dedup();
+      return (
+        sorted_unique(created),
+        vec![format!(
+          "missing deploy request for workload(s): {}",
+          missing.join(",")
+        )],
+      );
+    }
+
+    let jobs = ready
+      .iter()
+      .filter_map(|name| {
+        request_map
+          .get(name)
+          .cloned()
+          .map(|deploy| (name.clone(), deploy))
+      })
+      .collect::<Vec<_>>();
+
+    let (ok, err) = deploy_batch(state.clone(), jobs, concurrency).await;
+    created.extend(ok);
+    if !err.is_empty() {
+      return (sorted_unique(created), sorted_unique(err));
+    }
+    for name in ready {
+      pending.remove(&name);
+    }
+  }
+
+  (sorted_unique(created), Vec::new())
+}
+
 async fn rollback_batch(
   state: ApiState,
   created: Vec<String>,
@@ -186,4 +257,32 @@ fn partition_batch(rows: Vec<Result<String, String>>) -> (Vec<String>, Vec<Strin
   ok.sort();
   err.sort();
   (ok, err)
+}
+
+fn sorted_unique(mut items: Vec<String>) -> Vec<String> {
+  items.sort();
+  items.dedup();
+  items
+}
+
+fn strict_warnings_error(warnings: &[String]) -> String {
+  let preview = warnings
+    .iter()
+    .take(3)
+    .cloned()
+    .collect::<Vec<_>>()
+    .join(" | ");
+  if warnings.len() > 3 {
+    format!(
+      "dsl strict mode rejected {} warnings: {} | ...",
+      warnings.len(),
+      preview
+    )
+  } else {
+    format!(
+      "dsl strict mode rejected {} warnings: {}",
+      warnings.len(),
+      preview
+    )
+  }
 }

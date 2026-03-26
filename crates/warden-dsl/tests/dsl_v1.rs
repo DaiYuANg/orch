@@ -125,3 +125,114 @@ spec:
   );
   assert_eq!(req.process_env.get("A").map(String::as_str), Some("B"));
 }
+
+#[test]
+fn validation_rejects_invalid_namespace() {
+  let bad: warden_dsl::ApplicationManifest = serde_yaml::from_str(
+    r#"
+apiVersion: warden.io/v1alpha1
+kind: Application
+metadata:
+  name: demo
+  namespace: "bad space"
+spec:
+  workloads:
+    - name: web
+"#,
+  )
+  .expect("decode manifest");
+  let err = bad.validate().expect_err("should fail");
+  assert!(err.to_string().contains("metadata.namespace"));
+}
+
+#[test]
+fn validation_rejects_zero_ports() {
+  let bad: warden_dsl::ApplicationManifest = serde_yaml::from_str(
+    r#"
+apiVersion: warden.io/v1alpha1
+kind: Application
+metadata:
+  name: demo
+spec:
+  workloads:
+    - name: web
+      service:
+        port: 0
+"#,
+  )
+  .expect("decode manifest");
+  let err = bad.validate().expect_err("should fail");
+  assert!(err.to_string().contains("service.port"));
+}
+
+#[test]
+fn compile_keeps_runtime_symbol_and_sorts_warnings() {
+  let manifest: warden_dsl::ApplicationManifest = serde_yaml::from_str(
+    r#"
+apiVersion: warden.io/v1alpha1
+kind: Application
+metadata:
+  name: demo
+spec:
+  workloads:
+    - name: web
+      runtime: docker
+      dns:
+        enabled: false
+        ttl: 30
+      ingress:
+        enabled: false
+      scheduling:
+        stateful: true
+"#,
+  )
+  .expect("decode manifest");
+
+  let compiled = compile_manifest(&manifest).expect("compile manifest");
+  assert_eq!(compiled.workloads[0].request.runtime, "docker");
+  assert_eq!(compiled.warnings.len(), 4);
+  assert!(compiled.warnings[0] <= compiled.warnings[1]);
+  assert!(compiled.warnings[1] <= compiled.warnings[2]);
+  assert!(compiled.warnings[2] <= compiled.warnings[3]);
+}
+
+#[test]
+fn validation_rejects_non_symbol_runtime_value() {
+  let bad: warden_dsl::ApplicationManifest = serde_yaml::from_str(
+    r#"
+apiVersion: warden.io/v1alpha1
+kind: Application
+metadata:
+  name: demo
+spec:
+  workloads:
+    - name: web
+      runtime: DOCKER
+"#,
+  )
+  .expect("decode manifest");
+
+  let err = bad.validate().expect_err("should fail");
+  assert!(err.to_string().contains("unsupported runtime"));
+}
+
+#[test]
+fn validation_rejects_unknown_dependency() {
+  let bad: warden_dsl::ApplicationManifest = serde_yaml::from_str(
+    r#"
+apiVersion: warden.io/v1alpha1
+kind: Application
+metadata:
+  name: demo
+spec:
+  workloads:
+    - name: web
+      runtime: docker
+      dependsOn: [db]
+"#,
+  )
+  .expect("decode manifest");
+
+  let err = bad.validate().expect_err("should fail");
+  assert!(err.to_string().contains("depends on unknown workload"));
+}

@@ -18,7 +18,7 @@ fn rejects_zero_timeout_values() {
     }"#,
   );
 
-  let result = load(&[path.clone()]);
+  let result = load(std::slice::from_ref(&path));
   assert!(result.is_err());
   assert!(
     result
@@ -41,7 +41,7 @@ fn rejects_redb_without_store_path() {
     }"#,
   );
 
-  let result = load(&[path.clone()]);
+  let result = load(std::slice::from_ref(&path));
   assert!(result.is_err());
   assert!(
     result
@@ -64,7 +64,7 @@ fn allows_memory_store_without_path() -> anyhow::Result<()> {
     }"#,
   );
 
-  let result = load(&[path.clone()]);
+  let result = load(std::slice::from_ref(&path));
   let _ = fs::remove_file(path);
   result.map(|_| ())
 }

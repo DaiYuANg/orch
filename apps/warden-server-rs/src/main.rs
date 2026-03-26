@@ -1,11 +1,12 @@
 mod cli;
 
+use crate::cli::Args;
 use clap::Parser;
+use fluxdi::Application;
 use std::sync::Arc;
 use std::time::Duration;
-use fluxdi::Application;
 use tracing::info;
-use warden_api::{ApiState, router, APIModule};
+use warden_api::{APIModule, ApiState, router};
 use warden_config::{load, parse_conf_args};
 use warden_dns::{DnsOptions, DnsService};
 use warden_ingress::{IngressOptions, IngressService};
@@ -18,7 +19,6 @@ use warden_runtime_firecracker::FirecrackerRuntimeProvider;
 use warden_runtime_process::ProcessRuntimeProvider;
 use warden_store::new_store;
 use warden_task::TaskService;
-use crate::cli::Args;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

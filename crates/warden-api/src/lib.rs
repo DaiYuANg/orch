@@ -60,6 +60,5 @@ pub fn openapi_json() -> utoipa::openapi::OpenApi {
 pub struct APIModule;
 
 impl Module for APIModule {
-  fn providers(&self, _injector: &Injector) {
-  }
+  fn providers(&self, _injector: &Injector) {}
 }

@@ -1,5 +1,5 @@
 [package]
-name = "warden-orcha-planner"
+name = "warden-dsl-planner"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -8,3 +8,13 @@ license.workspace = true
 petgraph = "0.8.3"
 serde = "1.0.228"
 thiserror = "2.0.18"
+anyhow = "1.0.102"
+clap = { version = "4.5.60", features = ["derive"] }
+serde_json = "1.0.145"
+warden-dsl-parser = { path = "../warden-dsl-parser" }
+warden-dsl-hir = { path = "../warden-dsl-hir" }
+warden-dsl-ir = { path = "../warden-dsl-ir" }
+warden-dsl-sema = { path = "../warden-dsl-sema" }
+warden-dsl-core = { path = "../warden-dsl-core" }
+warden-dsl-ast = { path = "../warden-dsl-ast" }
+ariadne = "0.6.0"

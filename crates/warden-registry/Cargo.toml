@@ -1,9 +1,0 @@
-[package]
-name = "warden-registry"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-
-[dependencies]
-warden-store = { path = "../warden-store" }
-warden-types = { path = "../warden-types" }

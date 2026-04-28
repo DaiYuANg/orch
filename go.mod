@@ -18,7 +18,7 @@ require (
 	github.com/arcgolabs/collectionx/set v0.2.0
 	github.com/arcgolabs/configx v0.3.0
 	github.com/arcgolabs/dix v0.6.0
-	github.com/arcgolabs/dnsx/dnsserver v0.0.0-20260424133130-d97fd7154630
+	github.com/arcgolabs/dnsx/dnsserver v0.1.0
 	github.com/arcgolabs/httpx v0.1.1
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.1
 	github.com/arcgolabs/logx v0.1.0
@@ -28,7 +28,7 @@ require (
 	github.com/arcgolabs/storx/codec v0.1.0
 	github.com/arcgolabs/storx/keycodec v0.1.0
 	github.com/caddyserver/caddy/v2 v2.11.2
-	github.com/compose-spec/compose-go/v2 v2.9.0
+	github.com/compose-spec/compose-go/v2 v2.10.2
 	github.com/containerd/containerd v1.7.31
 	github.com/containerd/errdefs v1.0.0
 	github.com/danielgtaylor/huma/v2 v2.37.3
@@ -79,7 +79,7 @@ require (
 	github.com/arcgolabs/collectionx/interval v0.2.0 // indirect
 	github.com/arcgolabs/collectionx/prefix v0.2.0 // indirect
 	github.com/arcgolabs/collectionx/tree v0.2.0 // indirect
-	github.com/arcgolabs/dnsx/dnsclient v0.0.0-20260424133130-d97fd7154630 // indirect
+	github.com/arcgolabs/dnsx/dnsclient v0.1.0 // indirect
 	github.com/arcgolabs/httpx/adapter/echo v0.1.1 // indirect
 	github.com/arcgolabs/httpx/adapter/gin v0.1.1 // indirect
 	github.com/arcgolabs/httpx/adapter/std v0.1.1 // indirect
@@ -183,7 +183,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
-	github.com/mattn/go-shellwords v1.0.12 // indirect
+	github.com/mattn/go-shellwords v1.0.13 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mholt/acmez/v3 v3.1.6 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -284,13 +284,14 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
-	go.step.sm/crypto v0.77.7 // indirect
+	go.step.sm/crypto v0.77.9 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260423152011-b9e53593a607 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect

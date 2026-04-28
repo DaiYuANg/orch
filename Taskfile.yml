@@ -1,0 +1,39 @@
+version: "3"
+
+tasks:
+  tidy:
+    desc: "Go: tidy modules"
+    cmds:
+      - go mod tidy
+
+  test:
+    desc: "Go: run tests"
+    cmds:
+      - go test ./...
+
+  fmt:
+    desc: "Go: format (gofmt)"
+    cmds:
+      - gofmt -w .
+
+  run-cli:
+    desc: "Run orch CLI (Go)"
+    cmds:
+      - go run ./cmd/orch-cli {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
+  run-server:
+    desc: "Run orch server (Go)"
+    cmds:
+      - go run ./cmd/orch-server {{.SERVER_ARGS}}
+    vars:
+      SERVER_ARGS: '{{default "" .SERVER_ARGS}}'
+
+  dsl-parse:
+    desc: "Parse deploy YAML into canonical model"
+    requires:
+      vars: [FILE]
+    cmds:
+      - go run ./cmd/orch-cli dsl parse --file {{.FILE}} {{if .JSON}}--json{{end}}
+

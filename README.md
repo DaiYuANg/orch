@@ -1,50 +1,60 @@
-# Warden
+# orch
 
-Warden is a lightweight runtime and control layer for long-lived services (database, message queue, object storage, and other always-on workloads) outside traditional container orchestration systems.
+orch is a lightweight runtime and control layer for long-lived services (database, message queue, object storage, and other always-on workloads) outside traditional container orchestration systems.
 
 ## Status
 
-Warden is now Rust-first and focuses on:
+orch is being built in Go and focuses on:
 
 - Multi-runtime workload execution (`docker`, `containerd`, `firecracker`)
 - Built-in ingress and DNS record lifecycle
 - Raft-aware scheduling (deploy/migrate/failover/rebalance)
 - Declarative Workload DSL direction with compatibility inputs and `plan/render/apply/delete`
 
+Current core stack:
+
+- DI: `github.com/arcgolabs/dix`
+- Logging: `github.com/arcgolabs/logx`
+- HTTP server/API: `github.com/arcgolabs/httpx` (`fiber` adapter)
+- Ingress: embedded `github.com/caddyserver/caddy/v2`
+- CLI: `github.com/spf13/cobra`
+- Consensus path: `github.com/hashicorp/raft`
+
+## Project Structure
+
+```text
+cmd/
+  orch-cli/              # cobra entrypoint
+  orch-server/           # process entrypoint + graceful shutdown
+internal/
+  config/                # env-based config
+  logging/               # logx factory
+  security/auth/         # authx guard module
+  httpserver/            # httpx bootstrap (adapter/fiber + openapi)
+  api/                   # typed route registration
+  deploy/v1alpha1/       # canonical deploy YAML model
+  runtime/
+    docker/              # docker provider (v1)
+    containerd/          # containerd provider (v1)
+  services/
+    registry/            # workload registry
+    task/                # deploy orchestration service
+  raftsvc/               # hashicorp/raft service boundary
+  store/memory/          # memory store placeholder
+```
+
 ## Quick Start
 
-### Run server
+### Parse a deploy YAML file
 
 ```bash
-cargo run -p warden-server -- --conf examples/local-raft/node1.yaml
+go run ./cmd/orch-cli dsl parse --file path/to/app.yaml --json
 ```
 
-### Query workloads
+### Run server (skeleton)
 
 ```bash
-cargo run -p warden-cli -- --api http://127.0.0.1:7443 workloads
-```
-
-### Read task logs
-
-```bash
-cargo run -p warden-cli -- --api auto task logs <workload-id> --tail 200
-```
-
-### Use Current DSL Flow
-
-The repository currently has two DSL-related paths:
-
-- The older transitional manifest-oriented `dsl plan/apply/delete` flow
-- The newer canonical compiler pipeline inspectable through `dsl planner`
-
-The current implemented canonical subset, supported syntax, and current limits
-are tracked in `docs/src/dsl.md`.
-
-```bash
-cargo run -p warden-cli -- --api http://127.0.0.1:7443 dsl plan --file examples/dsl-v1-demo.yaml --json
-cargo run -p warden-cli -- --api http://127.0.0.1:7443 dsl apply --file examples/dsl-v1-demo.yaml --prune --concurrency 8
-cargo run -p warden-cli -- dsl planner --file path/to/app.wd
+go run ./cmd/orch-server
 ```
 
 ## Documentation (mdBook)
@@ -57,22 +67,26 @@ mdbook serve docs
 
 See:
 
-- [Introduction](docs/src/introduction.md)
-- [Project Status](docs/src/project-status.md)
-- [Quick Start](docs/src/quick-start.md)
-- [Workload DSL v1 (EN)](docs/src/dsl.md)
-- [Workload DSL v1（中文）](docs/src/dsl.zh.md)
-- [Ingress Design v1 (EN)](docs/src/ingress.md)
-- [Ingress 设计 v1（中文）](docs/src/ingress.zh.md)
-- [Local Raft Cluster](docs/src/local-raft.md)
+- [Introduction](docs/introduction.md)
+- [Project Status](docs/project-status.md)
+- [Quick Start](docs/quick-start.md)
+- [Workload DSL v1 (EN)](docs/dsl.md)
+- [Workload DSL v1（中文）](docs/dsl.zh.md)
+- [Ingress Design v1 (EN)](docs/ingress.md)
+- [Ingress 设计 v1（中文）](docs/ingress.zh.md)
+- [Local Raft Cluster](docs/local-raft.md)
 
 ## Development
 
 ```bash
-cargo fmt --all
-cargo check --workspace
-cargo test --workspace
+go mod tidy
+go test ./...
 ```
+
+## Ingress Configuration
+
+- `WARDEN_INGRESS_ENABLED` (default: `true`)
+- Default listeners: `:80` and `:443`. Set `WARDEN_INGRESS_ADDR` to use a single port instead (for example `:8088` on machines where binding low ports requires elevated privileges).
 
 ## License
 

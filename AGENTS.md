@@ -13,7 +13,7 @@ where to implement changes, and project conventions.
 - Manage stateful, long-lived workloads with low operational overhead.
 - Support multiple runtimes/executors (`docker`, `containerd`, `firecracker`, future `systemd/windows-service`).
 - Provide service discovery (DNS), ingress, health, API, and cluster scheduling controls.
-- Keep architecture modular and evolvable via Rust workspace crates.
+- Keep architecture modular and evolvable via Go packages.
 
 Non-goals for now:
 
@@ -24,44 +24,26 @@ Non-goals for now:
 
 ## Tech baseline (current)
 
-- Language: Rust (workspace, edition 2024).
-- API: `axum` + `utoipa` + Swagger UI.
-- Config: `figment` (defaults + config files + env overrides).
-- Storage: `redb` backend through `warden-store` abstraction.
-- Runtime adapters: `warden-runtime-*` crates.
-- Raft: `openraft` integration path.
+- Language: Go (1.22+).
+- CLI: `cobra`.
+- Deploy file: YAML (canonical model in `internal/deploy/v1alpha1`).
+- Raft: `github.com/hashicorp/raft` integration path.
 - Tooling:
-  - `just` for daily developer commands.
-  - `cargo xtask` for complex orchestration (cluster/e2e/package).
+  - `task` (go-task) for daily developer commands.
   - `mdBook` for docs (`docs/`).
 
 ---
 
 ## Repo layout (high-level)
 
-- `apps/`
-  - `apps/warden-server/`: server binary entrypoint.
-  - `apps/warden-cli/`: user CLI entrypoint.
-- `crates/`
-  - `warden-api`: HTTP routing, handlers, OpenAPI registration.
-  - `warden-client`: CLI/API client transport (`auto`, `unix://`, `npipe://`, `http(s)://`).
-  - `warden-config`: config structs + loader + validation.
-  - `warden-http`: listener runtime (TCP + UDS on unix + named pipe proxy on windows).
-  - `warden-runtime`: runtime abstraction and provider registry.
-  - `warden-runtime-docker`: Docker runtime provider.
-  - `warden-runtime-containerd`: containerd runtime provider.
-  - `warden-runtime-firecracker`: Firecracker runtime provider.
-  - `warden-task`: deploy/stop/migrate/failover/rebalance scheduling logic.
-  - `warden-dns`: DNS record service.
-  - `warden-ingress`: ingress routing/proxy service.
-  - `warden-registry`: registry service over store.
-  - `warden-raft`: raft service abstraction (`openraft`-backed path).
-  - `warden-store`: persistent state abstraction/backend.
-  - `warden-types`: shared API/domain types.
-  - `warden-dsl`: DSL parse/plan/apply support.
-  - `warden-logger`: tracing/log bootstrap.
-- `xtask/`: `cargo xtask` command implementations.
-- `examples/`: local configs and DSL examples.
+- `cmd/`
+ - `cmd/orch-server/`: server binary entrypoint.
+ - `cmd/orch-cli/`: CLI entrypoint.
+- `internal/`
+ - `internal/deploy/v1alpha1`: canonical deploy YAML model (v0.1).
+ - `internal/runtime/*`: runtime abstraction and providers (docker/containerd first).
+ - `internal/api/*`: HTTP API layer (planned).
+- `docs/`: mdBook sources (`docs/book.toml`, `docs/src/*`).
 - `docs/`: mdBook sources (`docs/book.toml`, `docs/src/*`).
 
 Note: Frontend dashboard source has been removed from this repository and is maintained externally.
@@ -70,10 +52,10 @@ Note: Frontend dashboard source has been removed from this repository and is mai
 
 ## Boot path (important)
 
-`warden-server` startup flow in `apps/warden-server/src/main.rs`:
+`orch-server` startup flow in Go (planned):
 
 1. Parse `--conf` arguments.
-2. Load validated config via `warden-config`.
+2. Load validated config.
 3. Initialize logger.
 4. Build store and seed demo baseline data.
 5. Create registry, DNS, ingress, runtime engine, raft service, task service.
@@ -87,63 +69,38 @@ When adding a new subsystem, wire it explicitly in this composition root.
 
 ## Build, run, test
 
-Primary workflow uses `just`:
+Primary workflow uses `task` (go-task):
 
-- `just check` -> `cargo check --workspace`
-- `just fmt` / `just fmt-check`
-- `just lint` -> `cargo clippy --workspace --all-targets -- -D warnings`
-- `just test` -> `cargo test --workspace`
-- `just run --conf examples/local-raft/node1.yaml`
-
-Direct cargo equivalents are acceptable:
-
-- `cargo check --workspace`
-- `cargo fmt --all`
-- `cargo clippy --workspace --all-targets -- -D warnings`
-- `cargo test --workspace`
-
-Complex workflows use `cargo xtask`:
-
-- `cargo xtask cluster run --nodes 3 --start-port 7443`
-- `cargo xtask cluster status`
-- `cargo xtask cluster stop`
-- `cargo xtask e2e ...`
-- `cargo xtask package`
+- `task tidy` -> `go mod tidy`
+- `task test` -> `go test ./...`
+- `task run-cli -- <args>` / `task run-server -- <args>`
 
 Docs:
 
-- `just docs-build` or `mdbook build docs`
-- `just docs-serve` or `mdbook serve docs`
+- `mdbook build docs`
+- `mdbook serve docs`
 
 ---
 
 ## Local development quick start
 
-Single node:
+CLI (parse deploy YAML):
 
 ```bash
-cargo run -p warden-server -- --conf examples/local-raft/node1.yaml
+go run ./cmd/orch-cli dsl parse --file path/to/app.yaml --json
 ```
 
-CLI query:
+Server (skeleton):
 
 ```bash
-cargo run -p warden-cli -- --api auto workloads
+go run ./cmd/orch-server
 ```
-
-Local multi-node simulation:
-
-```bash
-cargo xtask cluster run --nodes 4 --start-port 7443
-```
-
-Use `examples/local-raft/node*.yaml` for explicit per-node config.
 
 ---
 
 ## Config conventions
 
-Source of truth: `crates/warden-config/src/lib.rs`.
+Source of truth (Go rewrite): `internal/deploy/v1alpha1` + future `internal/config`.
 
 - Keep config changes additive.
 - Provide sensible defaults in `impl Default for Config`.
@@ -174,8 +131,8 @@ When adding config:
 CLI/server transport:
 
 - Prefer platform-local endpoints first via `--api auto`:
-  - unix: `unix://...` then `http://127.0.0.1:7443`
-  - windows: `npipe://...` then `http://127.0.0.1:7443`
+  - unix: `unix://...` then `http://127.0.0.1:17443`
+  - windows: `npipe://...` then `http://127.0.0.1:17443`
 - Explicit endpoint forms supported: `auto`, `unix://`, `npipe://`, `http://`, `https://`.
 
 ---
@@ -199,16 +156,16 @@ When adding a runtime driver:
 
 ## CLI conventions
 
-- CLI is a composition layer in `apps/warden-cli`.
-- Command definitions live in `cli_args.rs`.
-- DSL-specific command logic lives in `dsl_cmd.rs`.
+- CLI is a composition layer in `cmd/orch-cli`.
+- Command definitions use `cobra`.
+- Subcommands follow Cobra template layout in `cmd/orch-cli/cmd`.
 - Keep output stable JSON for automation-friendly usage.
 
 When adding a new command:
 
-1. Add clap args/subcommand definitions.
-2. Add client call path in `main.rs` (or extracted command module).
-3. Reuse `warden-client`; do not duplicate transport logic.
+1. Add cobra args/subcommand definitions.
+2. Add command handler wiring in `cmd/orch-cli/cmd`.
+3. Reuse shared packages; do not duplicate transport logic.
 4. Add/update docs examples.
 
 ---
@@ -216,16 +173,15 @@ When adding a new command:
 ## Coding standards
 
 - No hidden global mutable state.
-- Return contextual errors with `anyhow::Context`.
-- Use structured logs (`tracing`) with clear targets and fields.
+- Return contextual errors with wrapping (`fmt.Errorf("...: %w", err)`).
+- Use structured logs with clear fields (logger TBD).
 - Prefer small modules and explicit boundaries.
 - Keep hot-path code simple; avoid unnecessary allocations/abstractions.
 
-No Go-era conventions apply anymore:
+Go conventions:
 
-- Do not introduce new Go code.
-- Do not add `fx` module wiring patterns.
-- Do not reintroduce Taskfile as primary workflow.
+- Keep packages cohesive; avoid cyclic deps.
+- Keep `cmd/*` as composition roots; put logic in `internal/*`.
 
 ---
 
@@ -242,10 +198,8 @@ Commit messages: Conventional Commits (`feat:`, `fix:`, `refactor:`, `perf:`, `t
 
 Before finishing changes:
 
-- `cargo fmt --all`
-- `cargo check --workspace`
-- `cargo test --workspace`
-- `cargo clippy --workspace --all-targets -- -D warnings` (or explain why not)
+- `gofmt -w .`
+- `go test ./...`
 - Update docs/README/ROADMAP when behavior changes.
 
 ---

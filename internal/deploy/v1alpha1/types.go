@@ -7,49 +7,49 @@ import (
 	"github.com/arcgolabs/collectionx/set"
 	"gopkg.in/yaml.v3"
 
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // App is the YAML-friendly canonical deploy model for the first Go rewrite
 // iteration. It intentionally mirrors the canonical model described in
 // docs/src/dsl.md and docs/src/dsl.zh.md.
 type App struct {
-	APIVersion string   `yaml:"apiVersion,omitempty" json:"apiVersion,omitempty"`
-	Kind       string   `yaml:"kind,omitempty" json:"kind,omitempty"`
-	Metadata   Metadata `yaml:"metadata" json:"metadata"`
+	APIVersion string   `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+	Kind       string   `json:"kind,omitempty"       yaml:"kind,omitempty"`
+	Metadata   Metadata `json:"metadata"             yaml:"metadata"`
 
-	Workloads []Workload `yaml:"workloads,omitempty" json:"workloads,omitempty"`
-	Configs   []Config   `yaml:"configs,omitempty" json:"configs,omitempty"`
-	Secrets   []Secret   `yaml:"secrets,omitempty" json:"secrets,omitempty"`
-	Volumes   []Volume   `yaml:"volumes,omitempty" json:"volumes,omitempty"`
-	Ingresses []Ingress  `yaml:"ingresses,omitempty" json:"ingresses,omitempty"`
+	Workloads []Workload `json:"workloads,omitempty" yaml:"workloads,omitempty"`
+	Configs   []Config   `json:"configs,omitempty"   yaml:"configs,omitempty"`
+	Secrets   []Secret   `json:"secrets,omitempty"   yaml:"secrets,omitempty"`
+	Volumes   []Volume   `json:"volumes,omitempty"   yaml:"volumes,omitempty"`
+	Ingresses []Ingress  `json:"ingresses,omitempty" yaml:"ingresses,omitempty"`
 }
 
 type Metadata struct {
-	Name        string            `yaml:"name" json:"name"`
-	Namespace   string            `yaml:"namespace,omitempty" json:"namespace,omitempty"`
-	Labels      map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Annotations map[string]string `yaml:"annotations,omitempty" json:"annotations,omitempty"`
+	Name        string            `json:"name"                  yaml:"name"`
+	Namespace   string            `json:"namespace,omitempty"   yaml:"namespace,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"      yaml:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
 }
 
 type Workload struct {
-	Name string       `yaml:"name" json:"name"`
-	Kind WorkloadKind `yaml:"kind" json:"kind"` // service|worker|job|cron|stateful
-	Run  RunSpec      `yaml:"run" json:"run"`   // image/command/args/env/cwd/runtimeOptions
+	Name string       `json:"name" yaml:"name"`
+	Kind WorkloadKind `json:"kind" yaml:"kind"` // service|worker|job|cron|stateful
+	Run  RunSpec      `json:"run"  yaml:"run"`  // image/command/args/env/cwd/runtimeOptions
 	// Runtime selects the backend adapter. This stays separate from Run.RuntimeOptions
 	// because the canonical intent model needs a stable first-class field.
-	Runtime RuntimeKind `yaml:"runtime" json:"runtime"` // docker|containerd|firecracker|process
+	Runtime RuntimeKind `json:"runtime" yaml:"runtime"` // docker|containerd|firecracker|process
 
-	Replicas  int           `yaml:"replicas,omitempty" json:"replicas,omitempty"`
-	DependsOn []WorkloadRef `yaml:"dependsOn,omitempty" json:"dependsOn,omitempty"`
+	Replicas  int           `json:"replicas,omitempty"  yaml:"replicas,omitempty"`
+	DependsOn []WorkloadRef `json:"dependsOn,omitempty" yaml:"dependsOn,omitempty"`
 
-	Endpoints []Endpoint `yaml:"endpoints,omitempty" json:"endpoints,omitempty"`
-	Mounts    []Mount    `yaml:"mounts,omitempty" json:"mounts,omitempty"`
-	Resources *Resources `yaml:"resources,omitempty" json:"resources,omitempty"`
-	Health    *Health    `yaml:"health,omitempty" json:"health,omitempty"`
+	Endpoints []Endpoint `json:"endpoints,omitempty" yaml:"endpoints,omitempty"`
+	Mounts    []Mount    `json:"mounts,omitempty"    yaml:"mounts,omitempty"`
+	Resources *Resources `json:"resources,omitempty" yaml:"resources,omitempty"`
+	Health    *Health    `json:"health,omitempty"    yaml:"health,omitempty"`
 
-	Scheduling *Scheduling `yaml:"scheduling,omitempty" json:"scheduling,omitempty"`
-	Rollout    *Rollout    `yaml:"rollout,omitempty" json:"rollout,omitempty"`
+	Scheduling *Scheduling `json:"scheduling,omitempty" yaml:"scheduling,omitempty"`
+	Rollout    *Rollout    `json:"rollout,omitempty"    yaml:"rollout,omitempty"`
 }
 
 type WorkloadKind string
@@ -72,41 +72,41 @@ const (
 )
 
 type RunSpec struct {
-	Image   string     `yaml:"image" json:"image"`
-	Command []string   `yaml:"command,omitempty" json:"command,omitempty"`
-	Args    []string   `yaml:"args,omitempty" json:"args,omitempty"`
-	Env     []EnvVar   `yaml:"env,omitempty" json:"env,omitempty"`
-	Cwd     string     `yaml:"cwd,omitempty" json:"cwd,omitempty"`
-	Options RunOptions `yaml:"runtimeOptions,omitempty" json:"runtimeOptions,omitempty"`
+	Image   string     `json:"image"                    yaml:"image"`
+	Command []string   `json:"command,omitempty"        yaml:"command,omitempty"`
+	Args    []string   `json:"args,omitempty"           yaml:"args,omitempty"`
+	Env     []EnvVar   `json:"env,omitempty"            yaml:"env,omitempty"`
+	Cwd     string     `json:"cwd,omitempty"            yaml:"cwd,omitempty"`
+	Options RunOptions `json:"runtimeOptions,omitempty" yaml:"runtimeOptions,omitempty"`
 }
 
 type EnvVar struct {
-	Name  string `yaml:"name" json:"name"`
-	Value string `yaml:"value" json:"value"`
+	Name  string `json:"name"  yaml:"name"`
+	Value string `json:"value" yaml:"value"`
 }
 
 // RunOptions captures backend-specific knobs. Only docker/containerd are in-scope
 // for the first Go version; other fields can be added later.
 type RunOptions struct {
-	Docker     *DockerOptions     `yaml:"docker,omitempty" json:"docker,omitempty"`
-	Containerd *ContainerdOptions `yaml:"containerd,omitempty" json:"containerd,omitempty"`
+	Docker     *DockerOptions     `json:"docker,omitempty"     yaml:"docker,omitempty"`
+	Containerd *ContainerdOptions `json:"containerd,omitempty" yaml:"containerd,omitempty"`
 }
 
 type DockerOptions struct {
-	NetworkMode string            `yaml:"networkMode,omitempty" json:"networkMode,omitempty"`
-	Privileged  bool              `yaml:"privileged,omitempty" json:"privileged,omitempty"`
-	Labels      map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	NetworkMode string            `json:"networkMode,omitempty" yaml:"networkMode,omitempty"`
+	Privileged  bool              `json:"privileged,omitempty"  yaml:"privileged,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"      yaml:"labels,omitempty"`
 }
 
 type ContainerdOptions struct {
-	Namespace string `yaml:"namespace,omitempty" json:"namespace,omitempty"`
+	Namespace string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
 	// Snapshotter or runtime handler can be added later when we wire containerd.
 }
 
 type Endpoint struct {
-	Name     string        `yaml:"name" json:"name"`
-	Port     int           `yaml:"port" json:"port"`
-	Protocol EndpointProto `yaml:"protocol" json:"protocol"` // tcp|udp|http
+	Name     string        `json:"name"     yaml:"name"`
+	Port     int           `json:"port"     yaml:"port"`
+	Protocol EndpointProto `json:"protocol" yaml:"protocol"` // tcp|udp|http
 }
 
 type EndpointProto string
@@ -118,70 +118,70 @@ const (
 )
 
 type Mount struct {
-	Volume   VolumeRef `yaml:"volume" json:"volume"`
-	Target   string    `yaml:"target" json:"target"`
-	ReadOnly bool      `yaml:"readOnly,omitempty" json:"readOnly,omitempty"`
+	Volume   VolumeRef `json:"volume"             yaml:"volume"`
+	Target   string    `json:"target"             yaml:"target"`
+	ReadOnly bool      `json:"readOnly,omitempty" yaml:"readOnly,omitempty"`
 }
 
 type Resources struct {
-	CPUMillis   int64 `yaml:"cpuMillis,omitempty" json:"cpuMillis,omitempty"`
-	MemoryBytes int64 `yaml:"memoryBytes,omitempty" json:"memoryBytes,omitempty"`
+	CPUMillis   int64 `json:"cpuMillis,omitempty"   yaml:"cpuMillis,omitempty"`
+	MemoryBytes int64 `json:"memoryBytes,omitempty" yaml:"memoryBytes,omitempty"`
 }
 
 type Health struct {
-	Readiness *Probe `yaml:"readiness,omitempty" json:"readiness,omitempty"`
-	Liveness  *Probe `yaml:"liveness,omitempty" json:"liveness,omitempty"`
-	Startup   *Probe `yaml:"startup,omitempty" json:"startup,omitempty"`
+	Readiness *Probe `json:"readiness,omitempty" yaml:"readiness,omitempty"`
+	Liveness  *Probe `json:"liveness,omitempty"  yaml:"liveness,omitempty"`
+	Startup   *Probe `json:"startup,omitempty"   yaml:"startup,omitempty"`
 }
 
 type Probe struct {
-	HTTP *HTTPProbe `yaml:"http,omitempty" json:"http,omitempty"`
+	HTTP *HTTPProbe `json:"http,omitempty" yaml:"http,omitempty"`
 	// Future: tcp, exec
 }
 
 type HTTPProbe struct {
-	Path     string      `yaml:"path" json:"path"`
-	Endpoint EndpointRef `yaml:"endpoint" json:"endpoint"`
+	Path     string      `json:"path"     yaml:"path"`
+	Endpoint EndpointRef `json:"endpoint" yaml:"endpoint"`
 }
 
 type Scheduling struct {
-	Stateful       bool     `yaml:"stateful,omitempty" json:"stateful,omitempty"`
-	AllowLeader    bool     `yaml:"allowLeader,omitempty" json:"allowLeader,omitempty"`
-	PreferredNodes []string `yaml:"preferredNodes,omitempty" json:"preferredNodes,omitempty"`
+	Stateful       bool     `json:"stateful,omitempty"       yaml:"stateful,omitempty"`
+	AllowLeader    bool     `json:"allowLeader,omitempty"    yaml:"allowLeader,omitempty"`
+	PreferredNodes []string `json:"preferredNodes,omitempty" yaml:"preferredNodes,omitempty"`
 }
 
 type Rollout struct {
-	Strategy       string `yaml:"strategy,omitempty" json:"strategy,omitempty"`
-	MaxUnavailable int    `yaml:"maxUnavailable,omitempty" json:"maxUnavailable,omitempty"`
-	MaxSurge       int    `yaml:"maxSurge,omitempty" json:"maxSurge,omitempty"`
+	Strategy       string `json:"strategy,omitempty"       yaml:"strategy,omitempty"`
+	MaxUnavailable int    `json:"maxUnavailable,omitempty" yaml:"maxUnavailable,omitempty"`
+	MaxSurge       int    `json:"maxSurge,omitempty"       yaml:"maxSurge,omitempty"`
 }
 
 type Config struct {
-	Name string            `yaml:"name" json:"name"`
-	Data map[string]string `yaml:"data,omitempty" json:"data,omitempty"`
+	Name string            `json:"name"           yaml:"name"`
+	Data map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
 }
 
 type Secret struct {
-	Name string            `yaml:"name" json:"name"`
-	Data map[string]string `yaml:"data,omitempty" json:"data,omitempty"`
+	Name string            `json:"name"           yaml:"name"`
+	Data map[string]string `json:"data,omitempty" yaml:"data,omitempty"`
 }
 
 type Volume struct {
-	Name       string `yaml:"name" json:"name"`
-	Persistent bool   `yaml:"persistent,omitempty" json:"persistent,omitempty"`
+	Name       string `json:"name"                 yaml:"name"`
+	Persistent bool   `json:"persistent,omitempty" yaml:"persistent,omitempty"`
 	// SizeBytes is optional; keep numeric for canonical normalization.
-	SizeBytes int64 `yaml:"sizeBytes,omitempty" json:"sizeBytes,omitempty"`
+	SizeBytes int64 `json:"sizeBytes,omitempty" yaml:"sizeBytes,omitempty"`
 }
 
 type Ingress struct {
-	Name   string         `yaml:"name" json:"name"`
-	Host   string         `yaml:"host,omitempty" json:"host,omitempty"`
-	Routes []IngressRoute `yaml:"routes,omitempty" json:"routes,omitempty"`
+	Name   string         `json:"name"             yaml:"name"`
+	Host   string         `json:"host,omitempty"   yaml:"host,omitempty"`
+	Routes []IngressRoute `json:"routes,omitempty" yaml:"routes,omitempty"`
 }
 
 type IngressRoute struct {
-	Path    string      `yaml:"path" json:"path"`
-	Backend EndpointRef `yaml:"backend" json:"backend"`
+	Path    string      `json:"path"    yaml:"path"`
+	Backend EndpointRef `json:"backend" yaml:"backend"`
 }
 
 // ---- Typed references (YAML-friendly) ----
@@ -189,7 +189,7 @@ type IngressRoute struct {
 // WorkloadRef refers to a workload by name. YAML form:
 // - "redis" (string)  OR  { name: "redis" }
 type WorkloadRef struct {
-	Name string `yaml:"name" json:"name"`
+	Name string `json:"name" yaml:"name"`
 }
 
 func (r *WorkloadRef) UnmarshalYAML(value *yaml.Node) error {
@@ -213,7 +213,7 @@ func (r *WorkloadRef) UnmarshalYAML(value *yaml.Node) error {
 // VolumeRef refers to a volume by name. YAML form:
 // - "redisData"  OR  { name: "redisData" }
 type VolumeRef struct {
-	Name string `yaml:"name" json:"name"`
+	Name string `json:"name" yaml:"name"`
 }
 
 func (r *VolumeRef) UnmarshalYAML(value *yaml.Node) error {
@@ -237,8 +237,8 @@ func (r *VolumeRef) UnmarshalYAML(value *yaml.Node) error {
 // EndpointRef refers to a workload endpoint. YAML form:
 // - "gateway:http" OR { workload: "gateway", endpoint: "http" }
 type EndpointRef struct {
-	Workload string `yaml:"workload" json:"workload"`
-	Endpoint string `yaml:"endpoint" json:"endpoint"`
+	Workload string `json:"workload" yaml:"workload"`
+	Endpoint string `json:"endpoint" yaml:"endpoint"`
 }
 
 func (r *EndpointRef) UnmarshalYAML(value *yaml.Node) error {

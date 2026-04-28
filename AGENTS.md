@@ -41,6 +41,8 @@ Non-goals for now:
 - `cmd/`
  - `cmd/orch-server/`: server binary entrypoint.
  - `cmd/orch-cli/`: CLI entrypoint (`cmd/orch-cli/cmd` — cobra commands; `cmd/orch-cli/cliapp` — orch-cli-only dix composition, not domain libraries).
+- `pkg/`
+ - `pkg/oopsx`: stable helper API ([samber/oops](https://github.com/samber/oops) wrappers); safe for external modules to import.
 - `internal/`
  - `internal/deploy/v1alpha1`: canonical deploy YAML model (v0.1).
  - `internal/runtime/*`: runtime abstraction and providers (docker/containerd first).

@@ -5,7 +5,7 @@ import (
 
 	hraft "github.com/hashicorp/raft"
 
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // SchedulerLeadership backs gocron's Elector (WithDistributedElector).

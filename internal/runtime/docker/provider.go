@@ -15,7 +15,7 @@ import (
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 

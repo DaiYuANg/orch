@@ -12,7 +12,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/api"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // DefaultBaseURL returns ORCH_SERVER if set, else local dev default matching orch-server HTTP.Addr (:17443).

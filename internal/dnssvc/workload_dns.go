@@ -9,7 +9,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 func dnsZoneName(cfg config.DNSConfig) string {

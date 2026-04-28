@@ -8,7 +8,7 @@ import (
 	"github.com/arcgolabs/storx/keycodec"
 	hraft "github.com/hashicorp/raft"
 
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // storxBadgerLogStore implements hraft.LogStore using storx badgerx with JSON codecs.

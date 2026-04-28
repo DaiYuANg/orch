@@ -19,18 +19,18 @@ type badgerAdapter struct {
 	lg *slog.Logger
 }
 
-func (b badgerAdapter) Errorf(format string, args ...interface{}) {
+func (b badgerAdapter) Errorf(format string, args ...any) {
 	b.lg.Error(fmt.Sprintf(format, args...))
 }
 
-func (b badgerAdapter) Warningf(format string, args ...interface{}) {
+func (b badgerAdapter) Warningf(format string, args ...any) {
 	b.lg.Warn(fmt.Sprintf(format, args...))
 }
 
-func (b badgerAdapter) Infof(format string, args ...interface{}) {
+func (b badgerAdapter) Infof(format string, args ...any) {
 	b.lg.Info(fmt.Sprintf(format, args...))
 }
 
-func (b badgerAdapter) Debugf(format string, args ...interface{}) {
+func (b badgerAdapter) Debugf(format string, args ...any) {
 	b.lg.Debug(fmt.Sprintf(format, args...))
 }

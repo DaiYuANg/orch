@@ -16,7 +16,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/logging"
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // Service owns hashicorp raft backed by storx (Badger logs + bbolt stable metadata).

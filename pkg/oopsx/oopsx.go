@@ -3,6 +3,8 @@
 //
 // Note: github.com/hashicorp/raft StableStore compares err.Error() == "not found" for empty keys;
 // keep plain errors.New("not found") there — do not route those through oops.
+//
+// This package lives under pkg/ so other modules may depend on it without importing internal/.
 package oopsx
 
 import "github.com/samber/oops"

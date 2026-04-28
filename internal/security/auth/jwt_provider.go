@@ -7,7 +7,7 @@ import (
 	authjwt "github.com/arcgolabs/authx/jwt"
 
 	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // NewJWTAuthenticationProvider builds the JWT authentication provider used by authx when Auth.Enabled is true.

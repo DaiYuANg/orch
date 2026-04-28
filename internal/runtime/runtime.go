@@ -7,7 +7,7 @@ import (
 	"github.com/arcgolabs/collectionx/mapping"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 type Provider interface {

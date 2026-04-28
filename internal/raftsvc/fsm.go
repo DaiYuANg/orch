@@ -19,7 +19,7 @@ type fsmSnapshotState struct {
 	AppliedCommands uint64 `json:"appliedCommands"`
 }
 
-func (f *schedulingFSM) Apply(l *hraft.Log) interface{} {
+func (f *schedulingFSM) Apply(l *hraft.Log) any {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.state.AppliedCommands++

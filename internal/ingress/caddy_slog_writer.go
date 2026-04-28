@@ -12,7 +12,7 @@ import (
 
 	"github.com/caddyserver/caddy/v2"
 
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 func init() {

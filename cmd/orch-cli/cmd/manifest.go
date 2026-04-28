@@ -11,7 +11,7 @@ import (
 
 	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/oopsx"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 func newValidateCmd() *cobra.Command {

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/dix"
-	"github.com/arcgolabs/logx"
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/internal/api"
@@ -94,33 +93,7 @@ func (srv *serverRunner) run(cmd *cobra.Command, _ []string) error {
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()
 	if err := rt.Stop(shutdownCtx); err != nil {
-		reportShutdownError(err)
+		rt.Logger().Warn("graceful stop error", "error", err)
 	}
 	return nil
-}
-
-func loadConfigOrDefault() config.Config {
-	cfg, err := config.Load()
-	if err != nil {
-		return config.Default()
-	}
-	return cfg
-}
-
-func reportExitError(err error) {
-	lg, lerr := logging.New(loadConfigOrDefault().Log)
-	if lerr != nil {
-		return
-	}
-	defer func() { _ = logx.Close(lg) }()
-	lg.Error("start application failed", "error", err)
-}
-
-func reportShutdownError(err error) {
-	lg, lerr := logging.New(loadConfigOrDefault().Log)
-	if lerr != nil {
-		return
-	}
-	defer func() { _ = logx.Close(lg) }()
-	lg.Warn("graceful stop error", "error", err)
 }

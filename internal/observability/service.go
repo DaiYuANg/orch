@@ -16,12 +16,14 @@ type Service struct {
 	reg     *prom.Registry // set when Prometheus enabled; shared with Fiber prometheus middleware
 }
 
-func New(cfg config.Config) *Service {
+func New(cfg config.Config, reg *prom.Registry) *Service {
 	if !cfg.Observability.PrometheusEnabled {
 		return &Service{backend: obs.Nop()}
 	}
+	if reg == nil {
+		return &Service{backend: obs.Nop()}
+	}
 
-	reg := prom.NewRegistry()
 	p := obsprom.New(
 		obsprom.WithNamespace("orch"),
 		obsprom.WithRegisterer(reg),

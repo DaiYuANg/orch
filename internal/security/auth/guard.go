@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/arcgolabs/authx"
@@ -13,35 +12,14 @@ import (
 	"github.com/daiyuang/orch/internal/config"
 )
 
-func NewGuard(cfg config.Config, logger *slog.Logger) (*authhttp.Guard, error) {
+// NewGuard wraps the HTTP guard around an authx Engine when Auth.Enabled is true.
+// When auth is disabled it returns nil, nil.
+func NewGuard(cfg config.Config, engine *authx.Engine) (*authhttp.Guard, error) {
 	if !cfg.Auth.Enabled {
 		return nil, nil
 	}
-	if strings.TrimSpace(cfg.Auth.JWTSecret) == "" {
-		return nil, fmt.Errorf("auth enabled but ORCH auth JWT secret is empty (set ORCH_AUTH__JWT_SECRET or equivalent)")
-	}
-
-	engine := authx.NewEngine(
-		authx.WithLogger(logger),
-		authx.WithAuthorizer(authx.AuthorizerFunc(func(_ context.Context, input authx.AuthorizationModel) (authx.Decision, error) {
-			if input.Principal == nil {
-				return authx.Decision{
-					Allowed: false,
-					Reason:  "anonymous is not allowed",
-				}, nil
-			}
-			return authx.Decision{
-				Allowed: true,
-				Reason:  "authenticated",
-			}, nil
-		})),
-	)
-
-	provider := authjwt.NewAuthenticationProvider(
-		authjwt.WithHMACSecret([]byte(cfg.Auth.JWTSecret), "HS256"),
-	)
-	if err := authx.RegisterProvider(engine, provider); err != nil {
-		return nil, err
+	if engine == nil {
+		return nil, fmt.Errorf("auth: guard requires non-nil engine when auth is enabled")
 	}
 
 	guard := authhttp.NewGuard(
@@ -68,4 +46,3 @@ func NewGuard(cfg config.Config, logger *slog.Logger) (*authhttp.Guard, error) {
 	)
 	return guard, nil
 }
-

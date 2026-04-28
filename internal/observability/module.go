@@ -6,7 +6,8 @@ func Module() dix.Module {
 	return dix.NewModule(
 		"observability",
 		dix.Providers(
-			dix.Provider1(New),
+			dix.Provider1(NewPrometheusRegistry),
+			dix.Provider2(New),
 		),
 	)
 }

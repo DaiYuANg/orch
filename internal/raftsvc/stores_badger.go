@@ -2,12 +2,13 @@ package raftsvc
 
 import (
 	"context"
-	"errors"
 
 	"github.com/arcgolabs/storx/badgerx"
 	"github.com/arcgolabs/storx/codec"
 	"github.com/arcgolabs/storx/keycodec"
 	hraft "github.com/hashicorp/raft"
+
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 // storxBadgerLogStore implements hraft.LogStore using storx badgerx with JSON codecs.
@@ -59,7 +60,7 @@ func (s *storxBadgerLogStore) GetLog(index uint64, log *hraft.Log) error {
 
 func (s *storxBadgerLogStore) StoreLog(log *hraft.Log) error {
 	if log == nil {
-		return errors.New("nil log")
+		return oopsx.B("raft").New("nil log")
 	}
 	return s.ns.Set(bg(), log.Index, *log)
 }
@@ -67,7 +68,7 @@ func (s *storxBadgerLogStore) StoreLog(log *hraft.Log) error {
 func (s *storxBadgerLogStore) StoreLogs(logs []*hraft.Log) error {
 	for _, lg := range logs {
 		if lg == nil {
-			return errors.New("nil log entry")
+			return oopsx.B("raft").New("nil log entry")
 		}
 		if err := s.ns.Set(bg(), lg.Index, *lg); err != nil {
 			return err

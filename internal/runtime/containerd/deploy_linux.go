@@ -4,7 +4,6 @@ package containerd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/oopsx"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
@@ -39,18 +39,18 @@ func ipv4FromPID(pid int) (string, error) {
 
 	orig, err := netns.Get()
 	if err != nil {
-		return "", fmt.Errorf("netns current: %w", err)
+		return "", oopsx.B("runtime", "containerd").Wrapf(err, "netns current")
 	}
 	defer orig.Close()
 
 	target, err := netns.GetFromPath(fmt.Sprintf("/proc/%d/ns/net", pid))
 	if err != nil {
-		return "", fmt.Errorf("open container netns (pid=%d): %w", pid, err)
+		return "", oopsx.B("runtime", "containerd").Wrapf(err, "open container netns (pid=%d)", pid)
 	}
 	defer target.Close()
 
 	if err := netns.Set(target); err != nil {
-		return "", fmt.Errorf("netns set container: %w", err)
+		return "", oopsx.B("runtime", "containerd").Wrapf(err, "netns set container")
 	}
 	defer func() { _ = netns.Set(orig) }()
 
@@ -74,7 +74,7 @@ func ipv4FromPID(pid int) (string, error) {
 			return ipnet.IP.String(), nil
 		}
 	}
-	return "", fmt.Errorf("no usable ipv4 in container network namespace")
+	return "", oopsx.B("runtime", "containerd").Errorf("no usable ipv4 in container network namespace")
 }
 
 func waitIPv4(pid int, attempts int, delay time.Duration) (string, error) {
@@ -88,7 +88,7 @@ func waitIPv4(pid int, attempts int, delay time.Duration) (string, error) {
 		time.Sleep(delay)
 	}
 	if lastErr == nil {
-		lastErr = errors.New("timeout waiting for container ipv4")
+		lastErr = oopsx.B("runtime", "containerd").New("timeout waiting for container ipv4")
 	}
 	return "", lastErr
 }
@@ -97,7 +97,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	sock := containerdSocket()
 	client, err := containerd.New(sock)
 	if err != nil {
-		return fmt.Errorf("containerd connect %s: %w", sock, err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd connect %s", sock)
 	}
 	defer client.Close()
 
@@ -105,21 +105,21 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 
 	ref := workloadmeta.NormalizeImageRef(w.Run.Image)
 	if ref == "" {
-		return fmt.Errorf("containerd: workload %q: run.image is required", w.Name)
+		return oopsx.B("runtime", "containerd").Errorf("workload %q: run.image is required", w.Name)
 	}
 
 	img, err := client.Pull(ctx, ref, containerd.WithPullUnpack())
 	if err != nil {
-		return fmt.Errorf("containerd pull %q: %w", ref, err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd pull %q", ref)
 	}
 
 	cid := workloadmeta.OrchContainerName(meta, w.Name)
 	snapKey := cid + "-snap"
 
 	if _, err := client.LoadContainer(ctx, cid); err == nil {
-		return fmt.Errorf("containerd: container %q already exists", cid)
+		return oopsx.B("runtime", "containerd").Errorf("container %q already exists", cid)
 	} else if err != nil && !errdefs.IsNotFound(err) {
-		return fmt.Errorf("containerd load container: %w", err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd load container")
 	}
 
 	ctr, err := client.NewContainer(ctx, cid,
@@ -128,26 +128,26 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		containerd.WithNewSpec(oci.WithImageConfig(img)),
 	)
 	if err != nil {
-		return fmt.Errorf("containerd create %q: %w", cid, err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd create %q", cid)
 	}
 
 	task, err := ctr.NewTask(ctx, cio.NullIO)
 	if err != nil {
 		_ = ctr.Delete(ctx, containerd.WithSnapshotCleanup)
-		return fmt.Errorf("containerd task %q: %w", cid, err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd task %q", cid)
 	}
 
 	if err := task.Start(ctx); err != nil {
 		_, _ = task.Delete(ctx, containerd.WithProcessKill)
 		_ = ctr.Delete(ctx, containerd.WithSnapshotCleanup)
-		return fmt.Errorf("containerd start %q: %w", cid, err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd start %q", cid)
 	}
 
 	pid := task.PID()
 	if pid <= 0 {
 		_, _ = task.Delete(ctx, containerd.WithProcessKill)
 		_ = ctr.Delete(ctx, containerd.WithSnapshotCleanup)
-		return fmt.Errorf("containerd: invalid task pid for %q", cid)
+		return oopsx.B("runtime", "containerd").Errorf("invalid task pid for %q", cid)
 	}
 
 	ip, err := waitIPv4(pid, 40, 50*time.Millisecond)
@@ -155,7 +155,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		_ = task.Kill(ctx, syscall.SIGKILL, containerd.WithKillAll)
 		_, _ = task.Delete(ctx, containerd.WithProcessKill)
 		_ = ctr.Delete(ctx, containerd.WithSnapshotCleanup)
-		return fmt.Errorf("containerd: resolve ip for %q: %w", cid, err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "resolve ip for %q", cid)
 	}
 
 	if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, ip); err != nil {
@@ -173,7 +173,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	sock := containerdSocket()
 	client, err := containerd.New(sock)
 	if err != nil {
-		return fmt.Errorf("containerd connect %s: %w", sock, err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd connect %s", sock)
 	}
 	defer client.Close()
 
@@ -183,7 +183,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 
 	cs, err := client.Containers(ctx)
 	if err != nil {
-		return fmt.Errorf("containerd list: %w", err)
+		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd list")
 	}
 
 	for _, c := range cs {
@@ -204,7 +204,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 			_, _ = task.Delete(ctx, containerd.WithProcessKill)
 		}
 		if err := c.Delete(ctx, containerd.WithSnapshotCleanup); err != nil {
-			return fmt.Errorf("containerd delete container: %w", err)
+			return oopsx.B("runtime", "containerd").Wrapf(err, "containerd delete container")
 		}
 		if err := p.dns.RemoveWorkloadA(ctx, meta.Namespace, workloadName); err != nil {
 			return err

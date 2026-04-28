@@ -71,10 +71,12 @@ func (s *Service) Start(_ context.Context) error {
 		Admin: &caddy.AdminConfig{
 			Disabled: true,
 		},
-		// Align with orch slog/logx (stdout). Caddy defaults to stderr, so logs were easy to miss.
-		Logging: caddyStdoutLogging(),
+		Logging: caddyOrchSlogLogging(),
 		AppsRaw: httpApps.All(),
 	}
+	setCaddySlogBridge(s.logger.With(slog.String("component", "ingress"), slog.String("engine", "caddy")))
+	defer clearCaddySlogBridge()
+
 	if err := caddy.Run(cfg); err != nil {
 		return err
 	}
@@ -83,16 +85,22 @@ func (s *Service) Start(_ context.Context) error {
 	return nil
 }
 
-// caddyStdoutLogging wires Caddy's default zap logger to stdout like logx-backed slog.
-func caddyStdoutLogging() *caddy.Logging {
+// caddyBaseOrchLog is shared by the default log and the stdlib "sink" so zap + log.Printf both hit the same orch slog bridge.
+func caddyBaseOrchLog() caddy.BaseLog {
+	return caddy.BaseLog{
+		WriterRaw:  json.RawMessage(`{"output":"orch_slog"}`),
+		EncoderRaw: json.RawMessage(`{"format":"json"}`),
+		Level:      "INFO",
+	}
+}
+
+// caddyOrchSlogLogging sends Caddy/zap (including RedirectStdLog) through the orch slog bridge.
+func caddyOrchSlogLogging() *caddy.Logging {
+	bl := caddyBaseOrchLog()
 	logs := mapping.NewMap[string, *caddy.CustomLog]()
-	logs.Set(caddy.DefaultLoggerName, &caddy.CustomLog{
-		BaseLog: caddy.BaseLog{
-			WriterRaw: json.RawMessage(`{"output":"stdout"}`),
-			Level:     "INFO",
-		},
-	})
+	logs.Set(caddy.DefaultLoggerName, &caddy.CustomLog{BaseLog: bl})
 	return &caddy.Logging{
+		Sink: &caddy.SinkLog{BaseLog: bl},
 		Logs: logs.All(),
 	}
 }

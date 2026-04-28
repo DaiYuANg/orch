@@ -28,7 +28,114 @@ func FixLoopbackHost(addr string) string {
 	return net.JoinHostPort(host, port)
 }
 
-// LogReachableEndpoints writes one structured log line with URLs operators typically open from localhost.
+// LogHTTPServerReachablePaths logs HTTP API and metrics URLs after the control-plane listener is up.
+func LogHTTPServerReachablePaths(logger *slog.Logger, cfg Config) {
+	if logger == nil {
+		return
+	}
+	httpAddr := FixLoopbackHost(cfg.HTTP.Addr)
+	if httpAddr == "" {
+		logger.Warn("http reachable paths skipped", "reason", "http.addr_empty")
+		return
+	}
+	apiBase := "http://" + httpAddr
+	// OpenAPI doc paths must stay in sync with internal/httpserver (OpenAPIJSONPath, OpenAPIDocsPath).
+	attrs := list.NewList[any]()
+	attrs.Add(
+		slog.String("control_api", apiBase+"/api"),
+		slog.String("health", apiBase+"/api/health"),
+		slog.String("openapi_json", apiBase+"/openapi.json"),
+		slog.String("swagger_ui", apiBase+"/swagger-ui"),
+	)
+
+	if cfg.Observability.Prometheus.Enabled {
+		path := strings.TrimSpace(cfg.Observability.Prometheus.Path)
+		if path == "" {
+			path = "/metrics"
+		}
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		attrs.Add(slog.String("metrics", apiBase+path))
+	}
+
+	logArgs := append([]any{slog.String("component", "httpserver")}, attrs.Values()...)
+	logger.Info("lifecycle reachable paths", logArgs...)
+}
+
+// LogIngressReachablePaths logs ingress URLs after embedded Caddy has started.
+func LogIngressReachablePaths(logger *slog.Logger, cfg Config) {
+	if logger == nil || !cfg.Ingress.Enabled {
+		return
+	}
+
+	addrs := cfg.Ingress.ListenAddrs()
+	urls := list.NewListWithCapacity[string](len(addrs))
+	for _, a := range addrs {
+		d := FixLoopbackHost(a)
+		if d == "" {
+			continue
+		}
+		_, port, err := net.SplitHostPort(d)
+		if err != nil {
+			urls.Add("http://" + d + "/")
+			continue
+		}
+		scheme := "http"
+		if port == "443" {
+			scheme = "https"
+		}
+		urls.Add(scheme + "://" + d + "/")
+	}
+	if urls.Len() == 0 {
+		return
+	}
+	logger.Info("lifecycle reachable paths", "component", "ingress", "urls", urls.Values())
+}
+
+// LogDNSReachablePaths logs where the DNS server listens after it has started.
+func LogDNSReachablePaths(logger *slog.Logger, cfg Config) {
+	if logger == nil || !cfg.DNS.Enabled {
+		return
+	}
+	listen := strings.TrimSpace(cfg.DNS.Listen)
+	if listen == "" {
+		return
+	}
+	logger.Info("lifecycle reachable paths", "component", "dns", "listen", listen, "zone", dnsZoneFromConfig(cfg.DNS))
+}
+
+func dnsZoneFromConfig(d DNSConfig) string {
+	z := strings.TrimSpace(d.Zone)
+	if z == "" {
+		return "orch.local"
+	}
+	return z
+}
+
+// LogRaftReachablePaths logs Raft transport bind after the node has started.
+func LogRaftReachablePaths(logger *slog.Logger, cfg Config) {
+	if logger == nil || !cfg.Raft.Enabled {
+		return
+	}
+	bind := strings.TrimSpace(cfg.Raft.Bind)
+	if bind == "" {
+		return
+	}
+	logger.Info("lifecycle reachable paths", "component", "raft", "transport_bind", bind)
+}
+
+// LogSchedulerReachableContext logs scheduler cadence when enabled (no external URL).
+func LogSchedulerReachableContext(logger *slog.Logger, cfg Config) {
+	if logger == nil || !cfg.Scheduler.Enabled {
+		return
+	}
+	logger.Info("lifecycle reachable paths", "component", "scheduler",
+		"heartbeat_interval", cfg.Scheduler.HeartbeatInterval,
+		"note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used")
+}
+
+// LogReachableEndpoints writes one structured log line with all URLs (optional summary after startup).
 func LogReachableEndpoints(logger *slog.Logger, cfg Config) {
 	if logger == nil {
 		return
@@ -40,7 +147,7 @@ func LogReachableEndpoints(logger *slog.Logger, cfg Config) {
 		return
 	}
 	apiBase := "http://" + httpAddr
-
+	// OpenAPI doc paths must stay in sync with internal/httpserver (OpenAPIJSONPath, OpenAPIDocsPath).
 	attrs := list.NewList[any]()
 	attrs.Add(
 		slog.String("control_api", apiBase+"/api"),
@@ -49,8 +156,8 @@ func LogReachableEndpoints(logger *slog.Logger, cfg Config) {
 		slog.String("swagger_ui", apiBase+"/swagger-ui"),
 	)
 
-	if cfg.Observability.PrometheusEnabled {
-		path := strings.TrimSpace(cfg.Observability.PrometheusPath)
+	if cfg.Observability.Prometheus.Enabled {
+		path := strings.TrimSpace(cfg.Observability.Prometheus.Path)
 		if path == "" {
 			path = "/metrics"
 		}
@@ -86,11 +193,19 @@ func LogReachableEndpoints(logger *slog.Logger, cfg Config) {
 
 	if cfg.DNS.Enabled && strings.TrimSpace(cfg.DNS.Listen) != "" {
 		attrs.Add(slog.String("dns_listen", cfg.DNS.Listen))
+		attrs.Add(slog.String("dns_zone", dnsZoneFromConfig(cfg.DNS)))
 	}
 
 	if cfg.Raft.Enabled && strings.TrimSpace(cfg.Raft.Bind) != "" {
 		attrs.Add(slog.String("raft_transport", cfg.Raft.Bind))
 	}
 
-	logger.Info("reachable endpoints", attrs.Values()...)
+	if cfg.Scheduler.Enabled {
+		attrs.Add(
+			slog.String("scheduler_heartbeat_interval", cfg.Scheduler.HeartbeatInterval),
+			slog.String("scheduler_note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used"),
+		)
+	}
+
+	logger.Info("lifecycle reachability summary", attrs.Values()...)
 }

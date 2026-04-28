@@ -2,12 +2,12 @@ package config
 
 import "github.com/arcgolabs/dix"
 
-func Module() dix.Module {
+// Static provides a pre-loaded [Config] (e.g. after Cobra + [LoadFromCobra]).
+func Static(cfg Config) dix.Module {
 	return dix.NewModule(
 		"config",
 		dix.Providers(
-			dix.ProviderErr0(Load),
+			dix.Provider0(func() Config { return cfg }),
 		),
 	)
 }
-

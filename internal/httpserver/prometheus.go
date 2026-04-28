@@ -20,7 +20,7 @@ func attachFiberPrometheus(app *fiber.App, cfg config.Config, obs *observability
 		return
 	}
 
-	path := strings.TrimSpace(cfg.Observability.PrometheusPath)
+	path := strings.TrimSpace(cfg.Observability.Prometheus.Path)
 	if path == "" {
 		path = "/metrics"
 	}

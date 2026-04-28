@@ -34,6 +34,13 @@ func (s *Server) Runtime() httpx.ServerRuntime {
 
 func (s *Server) Start(ctx context.Context) error {
 	s.logger.Info("http server starting", "addr", s.addr)
+	if host := config.FixLoopbackHost(s.addr); host != "" {
+		base := "http://" + host
+		s.logger.Info("http openapi docs",
+			"openapi_spec", base+OpenAPIJSONPath,
+			"swagger_ui", base+OpenAPIDocsPath,
+		)
+	}
 	go func() {
 		if err := s.runtime.ListenAndServeContext(ctx, s.addr); err != nil {
 			s.logger.Error("http server stopped with error", "error", err)

@@ -8,6 +8,8 @@ import (
 	"github.com/arcgolabs/storx/codec"
 	"github.com/arcgolabs/storx/keycodec"
 	hraft "github.com/hashicorp/raft"
+
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 // storxBoltStableStore implements hraft.StableStore using storx bboltx with raw bytes values.
@@ -26,6 +28,7 @@ func newStorxBoltStableStore(db *bboltx.DB) *storxBoltStableStore {
 	return &storxBoltStableStore{bkt: bkt}
 }
 
+// notFound must keep message exactly "not found": hashicorp/raft StableStore helpers compare err.Error().
 func notFound() error {
 	return errors.New("not found")
 }
@@ -57,7 +60,7 @@ func (s *storxBoltStableStore) GetUint64(key []byte) (uint64, error) {
 		return 0, err
 	}
 	if len(b) != 8 {
-		return 0, errors.New("invalid uint64 value")
+		return 0, oopsx.B("raft").New("invalid uint64 value")
 	}
 	return binary.BigEndian.Uint64(b), nil
 }

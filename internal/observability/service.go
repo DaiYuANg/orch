@@ -17,7 +17,7 @@ type Service struct {
 }
 
 func New(cfg config.Config, reg *prom.Registry) *Service {
-	if !cfg.Observability.PrometheusEnabled {
+	if !cfg.Observability.Prometheus.Enabled {
 		return &Service{backend: obs.Nop()}
 	}
 	if reg == nil {

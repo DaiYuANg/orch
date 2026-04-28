@@ -4,15 +4,15 @@ package containerd
 
 import (
 	"context"
-	"fmt"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 func (p *Provider) Deploy(_ context.Context, _ deployv1.Metadata, _ deployv1.Workload) error {
-	return fmt.Errorf("containerd runtime is only supported on linux")
+	return oopsx.B("runtime", "containerd").Errorf("containerd runtime is only supported on linux")
 }
 
 func (p *Provider) Stop(_ context.Context, _ deployv1.Metadata, _ string) error {
-	return fmt.Errorf("containerd runtime is only supported on linux")
+	return oopsx.B("runtime", "containerd").Errorf("containerd runtime is only supported on linux")
 }

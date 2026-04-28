@@ -1,0 +1,41 @@
+package config
+
+import (
+	"github.com/spf13/pflag"
+)
+
+// BindOrchFlags registers CLI flags mapped by configx ([orchFlagToPath]) to dotted koanf paths.
+func BindOrchFlags(fs *pflag.FlagSet, def Config) {
+	fs.String("app-name", def.App.Name, "config path app.name")
+	fs.String("env", def.Env, "config path env")
+	fs.String("log-level", def.Log.Level, "config path log.level")
+	fs.String("http-addr", def.HTTP.Addr, "config path http.addr")
+
+	fs.Bool("observability-prometheus-enabled", def.Observability.Prometheus.Enabled, "config path observability.prometheus.enabled")
+	fs.String("observability-prometheus-path", def.Observability.Prometheus.Path, "config path observability.prometheus.path")
+
+	fs.Bool("ingress-enabled", def.Ingress.Enabled, "config path ingress.enabled")
+	fs.String("ingress-addr", def.Ingress.Addr, "config path ingress.addr")
+	fs.StringSlice("ingress-listen", def.Ingress.Listen, "config path ingress.listen")
+
+	fs.Bool("dns-enabled", def.DNS.Enabled, "config path dns.enabled")
+	fs.String("dns-listen", def.DNS.Listen, "config path dns.listen")
+	fs.String("dns-data-path", def.DNS.Data.Path, "config path dns.data.path")
+	fs.String("dns-zone", def.DNS.Zone, "config path dns.zone")
+
+	fs.Bool("scheduler-enabled", def.Scheduler.Enabled, "config path scheduler.enabled")
+	fs.String("scheduler-heartbeat-interval", def.Scheduler.HeartbeatInterval, "config path scheduler.heartbeat_interval")
+	fs.Bool("scheduler-raft-leader-only", def.Scheduler.RaftLeaderOnly, "config path scheduler.raft_leader_only")
+	fs.Uint("scheduler-max-concurrent-jobs", def.Scheduler.MaxConcurrentJobs, "config path scheduler.max_concurrent_jobs")
+	fs.String("scheduler-concurrent-jobs-mode", def.Scheduler.ConcurrentJobsMode, "config path scheduler.concurrent_jobs_mode")
+
+	fs.Bool("auth-enabled", def.Auth.Enabled, "config path auth.enabled")
+	fs.String("auth-jwt-secret", def.Auth.JWT.Secret, "config path auth.jwt.secret")
+
+	fs.Bool("raft-enabled", def.Raft.Enabled, "config path raft.enabled")
+	fs.String("raft-node-id", def.Raft.Node.ID, "config path raft.node.id")
+	fs.String("raft-bind", def.Raft.Bind, "config path raft.bind")
+	fs.String("raft-badger-dir", def.Raft.Badger.Dir, "config path raft.badger.dir")
+	fs.String("raft-bolt-path", def.Raft.Bolt.Path, "config path raft.bolt.path")
+	fs.String("raft-snapshot-dir", def.Raft.Snapshot.Dir, "config path raft.snapshot.dir")
+}

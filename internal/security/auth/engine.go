@@ -2,12 +2,12 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/arcgolabs/authx"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 // NewEngine builds the authx engine and registers the JWT authentication provider when Auth.Enabled is true.
@@ -17,7 +17,7 @@ func NewEngine(cfg config.Config, logger *slog.Logger, jwt authx.AuthenticationP
 		return nil, nil
 	}
 	if jwt == nil {
-		return nil, fmt.Errorf("auth: JWT authentication provider is required when auth is enabled")
+		return nil, oopsx.B("auth").Errorf("JWT authentication provider is required when auth is enabled")
 	}
 
 	engine := authx.NewEngine(

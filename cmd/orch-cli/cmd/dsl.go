@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 func newDSLCmd() *cobra.Command {
@@ -29,7 +30,7 @@ func newDSLParseCmd() *cobra.Command {
 		Short: "Parse an orch deploy YAML into canonical model",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if file == "" {
-				return fmt.Errorf("--file is required")
+				return oopsx.B("cli").Errorf("--file is required")
 			}
 
 			app, err := deployv1.LoadAppFile(file)
@@ -63,4 +64,3 @@ func newDSLParseCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output parsed model as JSON")
 	return cmd
 }
-

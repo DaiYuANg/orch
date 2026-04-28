@@ -2,11 +2,11 @@ package task
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/metrics"
+	"github.com/daiyuang/orch/internal/oopsx"
 	"github.com/daiyuang/orch/internal/runtime"
 	"github.com/daiyuang/orch/internal/services/registry"
 )
@@ -37,7 +37,7 @@ func (s *Service) DeployApp(ctx context.Context, app *deployv1.App) error {
 		if err := s.runtime.Deploy(ctx, app.Metadata, w); err != nil {
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
-			return fmt.Errorf("deploy workload %s: %w", w.Name, err)
+			return oopsx.B("task").Wrapf(err, "deploy workload %s", w.Name)
 		}
 		s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "success")
 		s.registry.Upsert(registry.WorkloadRecord{

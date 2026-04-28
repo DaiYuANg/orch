@@ -2,9 +2,10 @@ package raftsvc
 
 import (
 	"context"
-	"fmt"
 
 	hraft "github.com/hashicorp/raft"
+
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 // SchedulerLeadership backs gocron's Elector (WithDistributedElector).
@@ -18,10 +19,10 @@ func (s *Service) SchedulerLeadership(ctx context.Context) error {
 		return nil
 	}
 	if s.r == nil {
-		return fmt.Errorf("orch raft: not ready")
+		return oopsx.B("raft").Errorf("orch raft: not ready")
 	}
 	if s.r.State() != hraft.Leader {
-		return fmt.Errorf("orch raft: not leader")
+		return oopsx.B("raft").Errorf("orch raft: not leader")
 	}
 	return nil
 }

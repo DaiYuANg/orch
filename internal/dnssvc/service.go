@@ -40,11 +40,11 @@ func (s *Service) Start(ctx context.Context) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.cfg.DataPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.cfg.Data.Path), 0o755); err != nil {
 		return err
 	}
 
-	store, err := dnsserver.OpenBboltStore(s.cfg.DataPath, s.logger)
+	store, err := dnsserver.OpenBboltStore(s.cfg.Data.Path, s.logger)
 	if err != nil {
 		return err
 	}

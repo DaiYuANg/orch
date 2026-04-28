@@ -2,7 +2,6 @@ package raftsvc
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/logging"
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 // Service owns hashicorp raft backed by storx (Badger logs + bbolt stable metadata).
@@ -56,28 +56,28 @@ func (s *Service) Start(_ context.Context) error {
 	}
 
 	raftDirs := list.NewList(
-		s.cfg.Raft.BadgerDir,
-		filepath.Dir(s.cfg.Raft.BoltPath),
-		s.cfg.Raft.SnapshotDir,
+		s.cfg.Raft.Badger.Dir,
+		filepath.Dir(s.cfg.Raft.Bolt.Path),
+		s.cfg.Raft.Snapshot.Dir,
 	)
 	for _, dir := range raftDirs.Values() {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("raft mkdir %q: %w", dir, err)
+			return oopsx.B("raft").Wrapf(err, "raft mkdir %q", dir)
 		}
 	}
 
-	opts := badger.DefaultOptions(s.cfg.Raft.BadgerDir)
+	opts := badger.DefaultOptions(s.cfg.Raft.Badger.Dir)
 	opts.Logger = logging.Badger(s.logger.With(slog.String("engine", "badger"), slog.String("use", "raft-log")))
 
 	bgx, err := badgerx.Open(opts, badgerx.WithDBLogger(s.logger))
 	if err != nil {
-		return fmt.Errorf("open raft badger (storx): %w", err)
+		return oopsx.B("raft").Wrapf(err, "open raft badger (storx)")
 	}
 
-	bbolt, err := bboltx.Open(s.cfg.Raft.BoltPath, 0o600, nil, bboltx.WithDBLogger(s.logger))
+	bbolt, err := bboltx.Open(s.cfg.Raft.Bolt.Path, 0o600, nil, bboltx.WithDBLogger(s.logger))
 	if err != nil {
 		_ = bgx.Close()
-		return fmt.Errorf("open raft bolt (storx): %w", err)
+		return oopsx.B("raft").Wrapf(err, "open raft bolt (storx)")
 	}
 
 	logStore := newStorxBadgerLogStore(bgx)
@@ -85,24 +85,24 @@ func (s *Service) Start(_ context.Context) error {
 
 	raftHC := logging.HCLogger(s.logger, "raft")
 
-	snapStore, err := hraft.NewFileSnapshotStoreWithLogger(s.cfg.Raft.SnapshotDir, 3, raftHC)
+	snapStore, err := hraft.NewFileSnapshotStoreWithLogger(s.cfg.Raft.Snapshot.Dir, 3, raftHC)
 	if err != nil {
 		_ = bbolt.Close()
 		_ = bgx.Close()
-		return fmt.Errorf("open raft snapshots: %w", err)
+		return oopsx.B("raft").Wrapf(err, "open raft snapshots")
 	}
 
 	localAddr, transport := hraft.NewInmemTransport("")
 
 	hrCfg := hraft.DefaultConfig()
-	hrCfg.LocalID = hraft.ServerID(s.cfg.Raft.NodeID)
+	hrCfg.LocalID = hraft.ServerID(s.cfg.Raft.Node.ID)
 	hrCfg.Logger = raftHC
 
 	hasState, err := hraft.HasExistingState(logStore, stable, snapStore)
 	if err != nil {
 		_ = bbolt.Close()
 		_ = bgx.Close()
-		return fmt.Errorf("raft HasExistingState: %w", err)
+		return oopsx.B("raft").Wrapf(err, "raft HasExistingState")
 	}
 
 	if !hasState {
@@ -117,7 +117,7 @@ func (s *Service) Start(_ context.Context) error {
 		if err := hraft.BootstrapCluster(hrCfg, logStore, stable, snapStore, transport, configuration); err != nil {
 			_ = bbolt.Close()
 			_ = bgx.Close()
-			return fmt.Errorf("raft BootstrapCluster: %w", err)
+			return oopsx.B("raft").Wrapf(err, "raft BootstrapCluster")
 		}
 	}
 
@@ -125,7 +125,7 @@ func (s *Service) Start(_ context.Context) error {
 	if err != nil {
 		_ = bbolt.Close()
 		_ = bgx.Close()
-		return fmt.Errorf("raft.NewRaft: %w", err)
+		return oopsx.B("raft").Wrapf(err, "raft.NewRaft")
 	}
 
 	s.badgerDB = bgx
@@ -138,9 +138,9 @@ func (s *Service) Start(_ context.Context) error {
 
 	s.logger.Info("raft started",
 		"node_id", hrCfg.LocalID,
-		"badger_dir", s.cfg.Raft.BadgerDir,
-		"bolt_path", s.cfg.Raft.BoltPath,
-		"snapshot_dir", s.cfg.Raft.SnapshotDir,
+		"badger_dir", s.cfg.Raft.Badger.Dir,
+		"bolt_path", s.cfg.Raft.Bolt.Path,
+		"snapshot_dir", s.cfg.Raft.Snapshot.Dir,
 	)
 	return nil
 }

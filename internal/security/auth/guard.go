@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/arcgolabs/authx"
@@ -10,6 +9,7 @@ import (
 	authjwt "github.com/arcgolabs/authx/jwt"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 // NewGuard wraps the HTTP guard around an authx Engine when Auth.Enabled is true.
@@ -19,7 +19,7 @@ func NewGuard(cfg config.Config, engine *authx.Engine) (*authhttp.Guard, error) 
 		return nil, nil
 	}
 	if engine == nil {
-		return nil, fmt.Errorf("auth: guard requires non-nil engine when auth is enabled")
+		return nil, oopsx.B("auth").Errorf("guard requires non-nil engine when auth is enabled")
 	}
 
 	guard := authhttp.NewGuard(
@@ -27,11 +27,11 @@ func NewGuard(cfg config.Config, engine *authx.Engine) (*authhttp.Guard, error) 
 		authhttp.WithCredentialResolverFunc(func(_ context.Context, req authhttp.RequestInfo) (any, error) {
 			raw := strings.TrimSpace(req.Header("Authorization"))
 			if raw == "" {
-				return nil, fmt.Errorf("authorization header is missing")
+				return nil, oopsx.B("auth").Errorf("authorization header is missing")
 			}
 			const prefix = "Bearer "
 			if !strings.HasPrefix(raw, prefix) {
-				return nil, fmt.Errorf("authorization must use bearer token")
+				return nil, oopsx.B("auth").Errorf("authorization must use bearer token")
 			}
 			token := strings.TrimSpace(strings.TrimPrefix(raw, prefix))
 			return authjwt.NewTokenCredential(token), nil

@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -16,6 +15,7 @@ import (
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
+	"github.com/daiyuang/orch/internal/oopsx"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
@@ -50,18 +50,18 @@ func primaryIPv4(ns *types.NetworkSettings) string {
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("docker: client: %w", err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker client")
 	}
 	defer cli.Close()
 
 	ref := workloadmeta.NormalizeImageRef(w.Run.Image)
 	if ref == "" {
-		return fmt.Errorf("docker: workload %q: run.image is required", w.Name)
+		return oopsx.B("runtime", "docker").Errorf("docker: workload %q: run.image is required", w.Name)
 	}
 
 	pull, err := cli.ImagePull(ctx, ref, image.PullOptions{})
 	if err != nil {
-		return fmt.Errorf("docker: pull %q: %w", ref, err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker pull %q", ref)
 	}
 	_, _ = io.Copy(io.Discard, pull)
 	_ = pull.Close()
@@ -83,25 +83,25 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	createResp, err := cli.ContainerCreate(ctx, cfg, hostCfg, nil, nil, name)
 	if err != nil {
 		if errdefs.IsConflict(err) {
-			return fmt.Errorf("docker: container %q already exists", name)
+			return oopsx.B("runtime", "docker").Errorf("docker: container %q already exists", name)
 		}
-		return fmt.Errorf("docker: create %q: %w", name, err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker create %q", name)
 	}
 
 	if err := cli.ContainerStart(ctx, createResp.ID, container.StartOptions{}); err != nil {
 		_ = cli.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{Force: true})
-		return fmt.Errorf("docker: start %q: %w", createResp.ID, err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker start %q", createResp.ID)
 	}
 
 	inspect, err := cli.ContainerInspect(ctx, createResp.ID)
 	if err != nil {
 		_ = cli.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{Force: true})
-		return fmt.Errorf("docker: inspect after start: %w", err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker inspect after start")
 	}
 	ip := primaryIPv4(inspect.NetworkSettings)
 	if ip == "" {
 		_ = cli.ContainerRemove(ctx, createResp.ID, container.RemoveOptions{Force: true})
-		return fmt.Errorf("docker: no ipv4 address for container %s (ensure default bridge / or set networkMode)", name)
+		return oopsx.B("runtime", "docker").Errorf("docker: no ipv4 address for container %s (ensure default bridge / or set networkMode)", name)
 	}
 
 	if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, ip); err != nil {
@@ -116,7 +116,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadName string) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("docker: client: %w", err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker client")
 	}
 	defer cli.Close()
 
@@ -127,7 +127,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	)
 	list, err := cli.ContainerList(ctx, container.ListOptions{All: true, Filters: fl})
 	if err != nil {
-		return fmt.Errorf("docker: list containers: %w", err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker list containers")
 	}
 	if len(list) == 0 {
 		_ = p.dns.RemoveWorkloadA(ctx, meta.Namespace, workloadName)
@@ -136,7 +136,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	}
 	id := list[0].ID
 	if err := cli.ContainerRemove(ctx, id, container.RemoveOptions{Force: true}); err != nil {
-		return fmt.Errorf("docker: remove container: %w", err)
+		return oopsx.B("runtime", "docker").Wrapf(err, "docker remove container")
 	}
 	if err := p.dns.RemoveWorkloadA(ctx, meta.Namespace, workloadName); err != nil {
 		return err

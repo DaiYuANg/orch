@@ -1,10 +1,10 @@
 package v1alpha1
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/daiyuang/orch/internal/oopsx"
 	"gopkg.in/yaml.v3"
 )
 
@@ -13,17 +13,17 @@ import (
 //
 // Minimal example:
 //
-//   apiVersion: warden.arcgolabs.io/v1alpha1
-//   kind: App
-//   metadata:
-//     name: mall
-//     namespace: default
-//   workloads:
-//   - name: redis
-//     kind: stateful
-//     runtime: containerd
-//     run:
-//       image: redis:7
+//	apiVersion: warden.arcgolabs.io/v1alpha1
+//	kind: App
+//	metadata:
+//	  name: mall
+//	  namespace: default
+//	workloads:
+//	- name: redis
+//	  kind: stateful
+//	  runtime: containerd
+//	  run:
+//	    image: redis:7
 func LoadAppFile(path string) (*App, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -32,7 +32,7 @@ func LoadAppFile(path string) (*App, error) {
 
 	var app App
 	if err := yaml.Unmarshal(b, &app); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", filepath.Base(path), err)
+		return nil, oopsx.B("deploy").Wrapf(err, "parse %s", filepath.Base(path))
 	}
 
 	// Fill in friendly defaults (keep schema additive).
@@ -44,4 +44,3 @@ func LoadAppFile(path string) (*App, error) {
 	}
 	return &app, nil
 }
-

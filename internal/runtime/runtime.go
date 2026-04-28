@@ -2,12 +2,12 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/arcgolabs/collectionx/mapping"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 type Provider interface {
@@ -35,7 +35,7 @@ func NewManager(logger *slog.Logger, providers ...Provider) *Manager {
 func (m *Manager) Deploy(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload) error {
 	p, ok := m.providers.Get(workload.Runtime)
 	if !ok {
-		return fmt.Errorf("runtime provider not registered: %s", workload.Runtime)
+		return oopsx.B("runtime").Errorf("runtime provider not registered: %s", workload.Runtime)
 	}
 	m.logger.Info("deploy workload", "workload", workload.Name, "runtime", workload.Runtime)
 	return p.Deploy(ctx, meta, workload)
@@ -44,7 +44,7 @@ func (m *Manager) Deploy(ctx context.Context, meta deployv1.Metadata, workload d
 func (m *Manager) Stop(ctx context.Context, runtime deployv1.RuntimeKind, meta deployv1.Metadata, workloadName string) error {
 	p, ok := m.providers.Get(runtime)
 	if !ok {
-		return fmt.Errorf("runtime provider not registered: %s", runtime)
+		return oopsx.B("runtime").Errorf("runtime provider not registered: %s", runtime)
 	}
 	m.logger.Info("stop workload", "workload", workloadName, "runtime", runtime)
 	return p.Stop(ctx, meta, workloadName)

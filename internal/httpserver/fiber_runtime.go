@@ -10,6 +10,7 @@ import (
 	adapterfiber "github.com/arcgolabs/httpx/adapter/fiber"
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/daiyuang/orch/internal/buildmeta"
 	"github.com/daiyuang/orch/internal/config"
 )
 
@@ -18,10 +19,10 @@ func newFiberAppAndRuntime(cfg config.Config, logger *slog.Logger, guard *authht
 	fiberApp := fiber.New()
 	fiberAdapter := adapterfiber.New(fiberApp, adapter.HumaOptions{
 		Title:       "orch API",
-		Version:     "v0.1.0",
+		Version:     buildmeta.Version(),
 		Description: "Orch control plane API",
-		DocsPath:    "/swagger-ui",
-		OpenAPIPath: "/openapi.json",
+		DocsPath:    OpenAPIDocsPath,
+		OpenAPIPath: OpenAPIJSONPath,
 	})
 	if guard != nil {
 		fiberApp.Use("/api/v1/deploy", authfiber.Require(guard))

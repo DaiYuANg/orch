@@ -9,6 +9,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 func dnsZoneName(cfg config.DNSConfig) string {
@@ -47,7 +48,7 @@ func (s *Service) UpsertWorkloadA(ctx context.Context, namespace, workloadName, 
 		return nil
 	}
 	if strings.TrimSpace(ipv4) == "" {
-		return fmt.Errorf("dns: workload %q: empty ipv4", workloadName)
+		return oopsx.B("dns").Errorf("workload %q: empty ipv4", workloadName)
 	}
 
 	zone := dnsZoneName(s.cfg)
@@ -60,13 +61,13 @@ func (s *Service) UpsertWorkloadA(ctx context.Context, namespace, workloadName, 
 	}
 	norm, err := dnsserver.NormalizeRecord(rec)
 	if err != nil {
-		return fmt.Errorf("dns workload record: %w", err)
+		return oopsx.B("dns").Wrapf(err, "dns workload record")
 	}
 
 	key := workloadRecordKey(namespace, workloadName)
 	prev, hadPrev := s.workloadRecords.Get(key)
 	if err := s.store.SaveRecord(ctx, norm); err != nil {
-		return fmt.Errorf("dns save workload record: %w", err)
+		return oopsx.B("dns").Wrapf(err, "save workload record")
 	}
 	if hadPrev && prev.Key() != norm.Key() {
 		_ = s.store.DeleteRecord(ctx, prev)
@@ -87,7 +88,7 @@ func (s *Service) RemoveWorkloadA(ctx context.Context, namespace, workloadName s
 		return nil
 	}
 	if err := s.store.DeleteRecord(ctx, prev); err != nil {
-		return fmt.Errorf("dns delete workload record: %w", err)
+		return oopsx.B("dns").Wrapf(err, "delete workload record")
 	}
 	s.workloadRecords.Delete(key)
 	s.logger.Debug("dns workload deregistered", "workload", workloadName, "namespace", namespace)

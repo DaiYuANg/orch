@@ -8,41 +8,42 @@ import (
 )
 
 type Config struct {
-	App           AppConfig
-	Env           string
-	Log           LogConfig
-	HTTP          HTTPConfig
-	Observability ObservabilityConfig
-	Ingress       IngressConfig
-	DNS           DNSConfig
-	Scheduler     SchedulerConfig
-	Auth          AuthConfig
-	Raft          RaftConfig
+	App           AppConfig           `json:"app"`
+	Env           string              `json:"env"`
+	Log           LogConfig           `json:"log"`
+	HTTP          HTTPConfig          `json:"http"`
+	Observability ObservabilityConfig `json:"observability"`
+	Ingress       IngressConfig       `json:"ingress"`
+	DNS           DNSConfig           `json:"dns"`
+	Scheduler     SchedulerConfig     `json:"scheduler"`
+	Auth          AuthConfig          `json:"auth"`
+	Raft          RaftConfig          `json:"raft"`
 }
 
 type AppConfig struct {
-	Name string
+	Name string `json:"name"`
 }
 
 type LogConfig struct {
-	Level string
+	Level string `json:"level"`
 }
 
 type HTTPConfig struct {
-	Addr string
+	Addr string `json:"addr"`
 }
 
+// ObservabilityConfig matches koanf paths like observability.prometheus.enabled (env ORCH_OBSERVABILITY_PROMETHEUS_ENABLED).
 type ObservabilityConfig struct {
-	PrometheusEnabled bool
-	PrometheusPath    string
+	Prometheus struct {
+		Enabled bool   `json:"enabled"`
+		Path    string `json:"path"`
+	} `json:"prometheus"`
 }
 
 type IngressConfig struct {
-	Enabled bool
-	// Addr is a single listener address (e.g. ":8088"). Ignored when Listen is non-empty.
-	Addr string `yaml:"addr,omitempty"`
-	// Listen binds embedded Caddy (HTTP app servers). Defaults to ":80" and ":443" when Addr and Listen are empty.
-	Listen []string `yaml:"listen,omitempty"`
+	Enabled bool     `json:"enabled"`
+	Addr    string   `json:"addr,omitempty"`
+	Listen  []string `json:"listen,omitempty"`
 }
 
 // ListenAddrs returns ingress bind addresses: explicit Listen, else single Addr, else defaults ":80" and ":443".
@@ -56,51 +57,89 @@ func (c IngressConfig) ListenAddrs() []string {
 	return list.NewList(":80", ":443").Values()
 }
 
+// DNSConfig matches koanf paths like dns.data.path (env ORCH_DNS_DATA_PATH → dns.data.path).
 type DNSConfig struct {
-	Enabled  bool
-	Listen   string
-	DataPath string
-	// Zone is the authoritative DNS zone for orch service names (e.g. orch.local).
-	Zone string `yaml:"zone,omitempty"`
+	Enabled bool   `json:"enabled"`
+	Listen  string `json:"listen"`
+	Data    struct {
+		Path string `json:"path"`
+	} `json:"data"`
+	Zone string `json:"zone,omitempty"`
 }
 
 type SchedulerConfig struct {
-	Enabled           bool
-	HeartbeatInterval string
-	// RaftLeaderOnly wires gocron WithDistributedElector to Raft leadership:
-	// only the Raft leader runs scheduled jobs when Raft is enabled.
-	RaftLeaderOnly bool `yaml:"raftLeaderOnly,omitempty"`
-	// MaxConcurrentJobs caps simultaneous jobs across the whole scheduler (gocron WithLimitConcurrentJobs).
-	// 0 means unlimited.
-	MaxConcurrentJobs uint `yaml:"maxConcurrentJobs,omitempty"`
-	// ConcurrentJobsMode is reschedule or wait — maps to gocron LimitMode when MaxConcurrentJobs > 0.
-	ConcurrentJobsMode string `yaml:"concurrentJobsMode,omitempty"`
+	Enabled            bool   `json:"enabled,omitempty"`
+	HeartbeatInterval  string `json:"heartbeat_interval,omitempty"`
+	RaftLeaderOnly     bool   `json:"raft_leader_only,omitempty"`
+	MaxConcurrentJobs  uint   `json:"max_concurrent_jobs,omitempty"`
+	ConcurrentJobsMode string `json:"concurrent_jobs_mode,omitempty"`
 }
 
+// AuthConfig matches paths auth.enabled and auth.jwt.secret.
 type AuthConfig struct {
-	Enabled   bool
-	JWTSecret string
+	Enabled bool `json:"enabled"`
+	JWT     struct {
+		Secret string `json:"secret"`
+	} `json:"jwt"`
 }
 
+// RaftConfig matches raft.node.id, raft.badger.dir, raft.bolt.path, raft.snapshot.dir, etc.
 type RaftConfig struct {
-	Enabled     bool
-	NodeID      string
-	Bind        string
-	BadgerDir   string
-	BoltPath    string
-	SnapshotDir string
+	Enabled bool `json:"enabled"`
+	Node    struct {
+		ID string `json:"id"`
+	} `json:"node"`
+	Bind   string `json:"bind"`
+	Badger struct {
+		Dir string `json:"dir"`
+	} `json:"badger"`
+	Bolt struct {
+		Path string `json:"path"`
+	} `json:"bolt"`
+	Snapshot struct {
+		Dir string `json:"dir"`
+	} `json:"snapshot"`
 }
 
-func Load() (Config, error) {
-	return configx.LoadTErr[Config](
+// Load merges defaults, dotenv, optional files, env (ORCH_), then CLI flags when passed via [LoadFromCobra].
+func Load(opts ...configx.Option) (Config, error) {
+	base := []configx.Option{
 		configx.WithTypedDefaults(Default()),
 		configx.WithEnvPrefix("ORCH"),
-		configx.WithPriority(configx.SourceEnv),
+		configx.WithPriority(
+			configx.SourceDotenv,
+			configx.SourceFile,
+			configx.SourceEnv,
+			configx.SourceArgs,
+		),
 		configx.WithValidateLevel(configx.ValidateLevelNone),
-	)
+	}
+	return configx.LoadTErr[Config](append(base, opts...)...)
 }
 
 func Default() Config {
+	var dns DNSConfig
+	dns.Enabled = true
+	dns.Listen = "127.0.0.1:15353"
+	dns.Data.Path = "./data/dnsx.db"
+	dns.Zone = "orch.local"
+
+	var obs ObservabilityConfig
+	obs.Prometheus.Enabled = true
+	obs.Prometheus.Path = "/metrics"
+
+	var auth AuthConfig
+	auth.Enabled = false
+	auth.JWT.Secret = "dev-secret-change-me"
+
+	var raft RaftConfig
+	raft.Enabled = true
+	raft.Node.ID = "node-1"
+	raft.Bind = "127.0.0.1:7444"
+	raft.Badger.Dir = "./data/raft-sched"
+	raft.Bolt.Path = "./data/raft-meta.db"
+	raft.Snapshot.Dir = "./data/raft-snapshots"
+
 	return Config{
 		App: AppConfig{
 			Name: "orch",
@@ -112,20 +151,12 @@ func Default() Config {
 		HTTP: HTTPConfig{
 			Addr: ":17443",
 		},
-		Observability: ObservabilityConfig{
-			PrometheusEnabled: true,
-			PrometheusPath:    "/metrics",
-		},
+		Observability: obs,
 		Ingress: IngressConfig{
 			Enabled: true,
 			Listen:  list.NewList(":80", ":443").Values(),
 		},
-		DNS: DNSConfig{
-			Enabled:  true,
-			Listen:   "127.0.0.1:15353",
-			DataPath: "./data/dnsx.db",
-			Zone:     "orch.local",
-		},
+		DNS: dns,
 		Scheduler: SchedulerConfig{
 			Enabled:            true,
 			HeartbeatInterval:  "2m",
@@ -133,17 +164,7 @@ func Default() Config {
 			MaxConcurrentJobs:  0,
 			ConcurrentJobsMode: "reschedule",
 		},
-		Auth: AuthConfig{
-			Enabled:   false,
-			JWTSecret: "dev-secret-change-me",
-		},
-		Raft: RaftConfig{
-			Enabled:     true,
-			NodeID:      "node-1",
-			Bind:        "127.0.0.1:7444",
-			BadgerDir:   "./data/raft-sched",
-			BoltPath:    "./data/raft-meta.db",
-			SnapshotDir: "./data/raft-snapshots",
-		},
+		Auth: auth,
+		Raft: raft,
 	}
 }

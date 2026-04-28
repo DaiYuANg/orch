@@ -1,12 +1,13 @@
 package v1alpha1
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/set"
 	"gopkg.in/yaml.v3"
+
+	"github.com/daiyuang/orch/internal/oopsx"
 )
 
 // App is the YAML-friendly canonical deploy model for the first Go rewrite
@@ -205,7 +206,7 @@ func (r *WorkloadRef) UnmarshalYAML(value *yaml.Node) error {
 		*r = WorkloadRef(a)
 		return nil
 	default:
-		return fmt.Errorf("invalid workload ref")
+		return oopsx.B("deploy").Errorf("invalid workload ref")
 	}
 }
 
@@ -229,7 +230,7 @@ func (r *VolumeRef) UnmarshalYAML(value *yaml.Node) error {
 		*r = VolumeRef(a)
 		return nil
 	default:
-		return fmt.Errorf("invalid volume ref")
+		return oopsx.B("deploy").Errorf("invalid volume ref")
 	}
 }
 
@@ -249,7 +250,7 @@ func (r *EndpointRef) UnmarshalYAML(value *yaml.Node) error {
 		}
 		parts := strings.SplitN(s, ":", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid endpoint ref %q (expected workload:endpoint)", s)
+			return oopsx.B("deploy").Errorf("invalid endpoint ref %q (expected workload:endpoint)", s)
 		}
 		r.Workload = strings.TrimSpace(parts[0])
 		r.Endpoint = strings.TrimSpace(parts[1])
@@ -263,7 +264,7 @@ func (r *EndpointRef) UnmarshalYAML(value *yaml.Node) error {
 		*r = EndpointRef(a)
 		return nil
 	default:
-		return fmt.Errorf("invalid endpoint ref")
+		return oopsx.B("deploy").Errorf("invalid endpoint ref")
 	}
 }
 
@@ -273,20 +274,20 @@ var (
 
 func (a *App) Validate() error {
 	if strings.TrimSpace(a.Metadata.Name) == "" {
-		return fmt.Errorf("metadata.name is required")
+		return oopsx.B("deploy").Errorf("metadata.name is required")
 	}
 	if !nameRe.MatchString(a.Metadata.Name) {
-		return fmt.Errorf("metadata.name is invalid: %q", a.Metadata.Name)
+		return oopsx.B("deploy").Errorf("metadata.name is invalid: %q", a.Metadata.Name)
 	}
 	if a.Metadata.Namespace != "" && !nameRe.MatchString(a.Metadata.Namespace) {
-		return fmt.Errorf("metadata.namespace is invalid: %q", a.Metadata.Namespace)
+		return oopsx.B("deploy").Errorf("metadata.namespace is invalid: %q", a.Metadata.Namespace)
 	}
 
 	seenWorkloads := set.NewSet[string]()
 	for i := range a.Workloads {
 		w := &a.Workloads[i]
 		if err := w.validate(seenWorkloads); err != nil {
-			return fmt.Errorf("workloads[%d]: %w", i, err)
+			return oopsx.B("deploy").Wrapf(err, "workloads[%d]", i)
 		}
 	}
 
@@ -295,17 +296,17 @@ func (a *App) Validate() error {
 		w := &a.Workloads[i]
 		for j := range w.DependsOn {
 			if !seenWorkloads.Contains(w.DependsOn[j].Name) {
-				return fmt.Errorf("workloads[%d].dependsOn[%d]: unknown workload %q", i, j, w.DependsOn[j].Name)
+				return oopsx.B("deploy").Errorf("workloads[%d].dependsOn[%d]: unknown workload %q", i, j, w.DependsOn[j].Name)
 			}
 		}
 		for j := range w.Mounts {
 			if strings.TrimSpace(w.Mounts[j].Volume.Name) == "" {
-				return fmt.Errorf("workloads[%d].mounts[%d].volume: name is required", i, j)
+				return oopsx.B("deploy").Errorf("workloads[%d].mounts[%d].volume: name is required", i, j)
 			}
 		}
 		for j := range w.Endpoints {
 			if err := w.Endpoints[j].validate(); err != nil {
-				return fmt.Errorf("workloads[%d].endpoints[%d]: %w", i, j, err)
+				return oopsx.B("deploy").Wrapf(err, "workloads[%d].endpoints[%d]", i, j)
 			}
 		}
 	}
@@ -313,18 +314,18 @@ func (a *App) Validate() error {
 	for i := range a.Ingresses {
 		ing := &a.Ingresses[i]
 		if strings.TrimSpace(ing.Name) == "" {
-			return fmt.Errorf("ingresses[%d].name is required", i)
+			return oopsx.B("deploy").Errorf("ingresses[%d].name is required", i)
 		}
 		for j := range ing.Routes {
 			r := &ing.Routes[j]
 			if strings.TrimSpace(r.Path) == "" {
-				return fmt.Errorf("ingresses[%d].routes[%d].path is required", i, j)
+				return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].path is required", i, j)
 			}
 			if strings.TrimSpace(r.Backend.Workload) == "" || strings.TrimSpace(r.Backend.Endpoint) == "" {
-				return fmt.Errorf("ingresses[%d].routes[%d].backend must specify workload + endpoint", i, j)
+				return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend must specify workload + endpoint", i, j)
 			}
 			if !seenWorkloads.Contains(r.Backend.Workload) {
-				return fmt.Errorf("ingresses[%d].routes[%d].backend: unknown workload %q", i, j, r.Backend.Workload)
+				return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend: unknown workload %q", i, j, r.Backend.Workload)
 			}
 		}
 	}
@@ -334,49 +335,49 @@ func (a *App) Validate() error {
 
 func (w *Workload) validate(seen *set.Set[string]) error {
 	if strings.TrimSpace(w.Name) == "" {
-		return fmt.Errorf("name is required")
+		return oopsx.B("deploy").Errorf("name is required")
 	}
 	if !nameRe.MatchString(w.Name) {
-		return fmt.Errorf("name is invalid: %q", w.Name)
+		return oopsx.B("deploy").Errorf("name is invalid: %q", w.Name)
 	}
 	if seen.Contains(w.Name) {
-		return fmt.Errorf("duplicate workload name %q", w.Name)
+		return oopsx.B("deploy").Errorf("duplicate workload name %q", w.Name)
 	}
 	seen.Add(w.Name)
 
 	switch w.Kind {
 	case WorkloadKindService, WorkloadKindWorker, WorkloadKindJob, WorkloadKindCron, WorkloadKindStateful:
 	default:
-		return fmt.Errorf("invalid kind %q", w.Kind)
+		return oopsx.B("deploy").Errorf("invalid kind %q", w.Kind)
 	}
 	switch w.Runtime {
 	case RuntimeDocker, RuntimeContainerd, RuntimeFirecracker, RuntimeProcess:
 	default:
-		return fmt.Errorf("invalid runtime %q", w.Runtime)
+		return oopsx.B("deploy").Errorf("invalid runtime %q", w.Runtime)
 	}
 	if strings.TrimSpace(w.Run.Image) == "" {
-		return fmt.Errorf("run.image is required")
+		return oopsx.B("deploy").Errorf("run.image is required")
 	}
 	if w.Replicas < 0 {
-		return fmt.Errorf("replicas must be >= 0")
+		return oopsx.B("deploy").Errorf("replicas must be >= 0")
 	}
 	return nil
 }
 
 func (e *Endpoint) validate() error {
 	if strings.TrimSpace(e.Name) == "" {
-		return fmt.Errorf("name is required")
+		return oopsx.B("deploy").Errorf("name is required")
 	}
 	if !nameRe.MatchString(e.Name) {
-		return fmt.Errorf("name is invalid: %q", e.Name)
+		return oopsx.B("deploy").Errorf("name is invalid: %q", e.Name)
 	}
 	if e.Port <= 0 || e.Port > 65535 {
-		return fmt.Errorf("port must be 1..65535 (got %d)", e.Port)
+		return oopsx.B("deploy").Errorf("port must be 1..65535 (got %d)", e.Port)
 	}
 	switch e.Protocol {
 	case ProtoTCP, ProtoUDP, ProtoHTTP:
 	default:
-		return fmt.Errorf("invalid protocol %q", e.Protocol)
+		return oopsx.B("deploy").Errorf("invalid protocol %q", e.Protocol)
 	}
 	return nil
 }

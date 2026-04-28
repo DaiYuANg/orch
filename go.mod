@@ -7,6 +7,7 @@ module github.com/daiyuang/orch
 go 1.26.2
 
 require (
+	github.com/adrg/xdg v0.5.3
 	github.com/ansrivas/fiberprometheus/v2 v2.17.0
 	github.com/arcgolabs/authx v0.1.0
 	github.com/arcgolabs/authx/http/fiber v0.1.0
@@ -27,7 +28,9 @@ require (
 	github.com/arcgolabs/storx/codec v0.1.0
 	github.com/arcgolabs/storx/keycodec v0.1.0
 	github.com/caddyserver/caddy/v2 v2.11.2
+	github.com/compose-spec/compose-go/v2 v2.9.0
 	github.com/containerd/containerd v1.7.31
+	github.com/containerd/errdefs v1.0.0
 	github.com/danielgtaylor/huma/v2 v2.37.3
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/docker/docker v28.5.2+incompatible
@@ -37,6 +40,7 @@ require (
 	github.com/hashicorp/raft v1.7.3
 	github.com/miekg/dns v1.1.72
 	github.com/prometheus/client_golang v1.23.2
+	github.com/samber/lo v1.53.0
 	github.com/samber/oops v1.21.0
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/spf13/cobra v1.10.2
@@ -96,7 +100,6 @@ require (
 	github.com/containerd/cgroups/v3 v3.1.3 // indirect
 	github.com/containerd/containerd/api v1.10.0 // indirect
 	github.com/containerd/continuity v0.4.5 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -179,6 +182,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
+	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mholt/acmez/v3 v3.1.6 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -219,11 +223,11 @@ require (
 	github.com/samber/go-singleflightx v0.3.2 // indirect
 	github.com/samber/go-type-to-string v1.8.0 // indirect
 	github.com/samber/hot v0.13.0 // indirect
-	github.com/samber/lo v1.53.0 // indirect
 	github.com/samber/mo v1.16.0 // indirect
 	github.com/samber/oops/loggers/zerolog v0.0.0-20260412154111-1460827f264f // indirect
 	github.com/samber/slog-common v0.22.0 // indirect
 	github.com/samber/slog-zerolog/v2 v2.9.2 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
@@ -245,6 +249,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.70.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
+	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/yuin/goldmark v1.8.2 // indirect
 	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect

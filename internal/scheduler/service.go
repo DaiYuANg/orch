@@ -13,10 +13,10 @@ import (
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
-// Service wraps a gocron scheduler for periodic tasks.
+// Service wraps a gocron scheduler engine; register jobs separately before Start.
 type Service struct {
 	logger *slog.Logger
-	cfg    config.SchedulerConfig
+	cfg    config.Config
 	sched  gocron.Scheduler
 }
 
@@ -26,16 +26,17 @@ func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service) (*Servic
 		gocron.WithLocation(time.Local),
 	}
 
-	if cfg.Raft.Enabled && cfg.Scheduler.RaftLeaderOnly {
+	sc := cfg.Scheduler
+	if cfg.Raft.Enabled && sc.RaftLeaderOnly {
 		opts = append(opts, gocron.WithDistributedElector(newRaftElector(raft)))
 	}
 
-	if cfg.Scheduler.MaxConcurrentJobs > 0 {
+	if sc.MaxConcurrentJobs > 0 {
 		var mode gocron.LimitMode = gocron.LimitModeReschedule
-		if strings.EqualFold(strings.TrimSpace(cfg.Scheduler.ConcurrentJobsMode), "wait") {
+		if strings.EqualFold(strings.TrimSpace(sc.ConcurrentJobsMode), "wait") {
 			mode = gocron.LimitModeWait
 		}
-		opts = append(opts, gocron.WithLimitConcurrentJobs(cfg.Scheduler.MaxConcurrentJobs, mode))
+		opts = append(opts, gocron.WithLimitConcurrentJobs(sc.MaxConcurrentJobs, mode))
 	}
 
 	s, err := gocron.NewScheduler(opts...)
@@ -44,45 +45,25 @@ func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service) (*Servic
 	}
 	return &Service{
 		logger: logger,
-		cfg:    cfg.Scheduler,
+		cfg:    cfg,
 		sched:  s,
 	}, nil
 }
 
-// Start registers jobs and runs the scheduler (non-blocking).
+// Jobs exposes the underlying gocron scheduler for registering tasks before Start.
+func (s *Service) Jobs() gocron.Scheduler {
+	return s.sched
+}
+
+// Start runs the scheduler (non-blocking). Register jobs before calling Start.
 func (s *Service) Start(_ context.Context) error {
-	if !s.cfg.Enabled {
-		s.logger.Info("scheduler disabled by config")
-		return nil
-	}
-
-	interval := 2 * time.Minute
-	if d, err := time.ParseDuration(s.cfg.HeartbeatInterval); err == nil && d > 0 {
-		interval = d
-	}
-
-	if _, err := s.sched.NewJob(
-		gocron.DurationJob(interval),
-		gocron.NewTask(func() {
-			s.logger.Debug("scheduler heartbeat")
-		}),
-		gocron.WithName("orch-heartbeat"),
-		gocron.WithTags("orch", "heartbeat"),
-		gocron.WithSingletonMode(gocron.LimitModeReschedule),
-	); err != nil {
-		return oopsx.B("scheduler").Wrapf(err, "register heartbeat job")
-	}
-
 	s.sched.Start()
-	s.logger.Info("scheduler started", "heartbeat_interval", interval.String())
+	s.logger.Info("scheduler started")
 	return nil
 }
 
 // Stop shuts down the scheduler; it cannot be restarted afterward.
 func (s *Service) Stop(ctx context.Context) error {
-	if !s.cfg.Enabled {
-		return nil
-	}
 	if err := s.sched.ShutdownWithContext(ctx); err != nil {
 		return oopsx.B("scheduler").Wrapf(err, "shutdown scheduler")
 	}

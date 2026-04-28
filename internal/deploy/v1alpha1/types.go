@@ -1,3 +1,6 @@
+// Package v1alpha1 defines the canonical orch deploy document for YAML/JSON.
+// Fields use plain slices and maps for standard encoding; code that constructs or analyzes
+// apps may use github.com/arcgolabs/collectionx/list or collectionx/set internally.
 package v1alpha1
 
 // App is the YAML-friendly canonical deploy model for the first Go rewrite

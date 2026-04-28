@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
@@ -68,11 +69,11 @@ type DNSConfig struct {
 }
 
 type SchedulerConfig struct {
-	Enabled            bool   `json:"enabled,omitempty"`
-	HeartbeatInterval  string `json:"heartbeat_interval,omitempty"`
-	RaftLeaderOnly     bool   `json:"raft_leader_only,omitempty"`
-	MaxConcurrentJobs  uint   `json:"max_concurrent_jobs,omitempty"`
-	ConcurrentJobsMode string `json:"concurrent_jobs_mode,omitempty"`
+	HeartbeatInterval       string `json:"heartbeat_interval,omitempty"`
+	ResourceRefreshInterval string `json:"resource_refresh_interval,omitempty"` // cadence for leader to apply local host metrics into Raft
+	RaftLeaderOnly          bool   `json:"raft_leader_only,omitempty"`
+	MaxConcurrentJobs       uint   `json:"max_concurrent_jobs,omitempty"`
+	ConcurrentJobsMode      string `json:"concurrent_jobs_mode,omitempty"`
 }
 
 // AuthConfig matches paths auth.enabled and auth.jwt.secret.
@@ -118,10 +119,12 @@ func Load(opts ...configx.Option) (Config, error) {
 }
 
 func Default() Config {
+	root := DefaultDataRoot()
+
 	var dns DNSConfig
 	dns.Enabled = true
 	dns.Listen = "127.0.0.1:15353"
-	dns.Data.Path = "./data/dnsx.db"
+	dns.Data.Path = filepath.Join(root, "dnsx.db")
 	dns.Zone = "orch.local"
 
 	var obs ObservabilityConfig
@@ -136,9 +139,9 @@ func Default() Config {
 	raft.Enabled = true
 	raft.Node.ID = "node-1"
 	raft.Bind = "127.0.0.1:7444"
-	raft.Badger.Dir = "./data/raft-sched"
-	raft.Bolt.Path = "./data/raft-meta.db"
-	raft.Snapshot.Dir = "./data/raft-snapshots"
+	raft.Badger.Dir = filepath.Join(root, "raft-sched")
+	raft.Bolt.Path = filepath.Join(root, "raft-meta.db")
+	raft.Snapshot.Dir = filepath.Join(root, "raft-snapshots")
 
 	return Config{
 		App: AppConfig{
@@ -158,11 +161,11 @@ func Default() Config {
 		},
 		DNS: dns,
 		Scheduler: SchedulerConfig{
-			Enabled:            true,
-			HeartbeatInterval:  "2m",
-			RaftLeaderOnly:     false,
-			MaxConcurrentJobs:  0,
-			ConcurrentJobsMode: "reschedule",
+			HeartbeatInterval:       "2m",
+			ResourceRefreshInterval: "30s",
+			RaftLeaderOnly:          false,
+			MaxConcurrentJobs:       0,
+			ConcurrentJobsMode:      "reschedule",
 		},
 		Auth: auth,
 		Raft: raft,

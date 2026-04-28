@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/samber/lo"
 )
 
 // FixLoopbackHost turns bind addresses like ":17443" or "0.0.0.0:80" into a loopback host:port for URLs in logs.
@@ -49,14 +50,7 @@ func LogHTTPServerReachablePaths(logger *slog.Logger, cfg Config) {
 	)
 
 	if cfg.Observability.Prometheus.Enabled {
-		path := strings.TrimSpace(cfg.Observability.Prometheus.Path)
-		if path == "" {
-			path = "/metrics"
-		}
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-		attrs.Add(slog.String("metrics", apiBase+path))
+		attrs.Add(slog.String("metrics", apiBase+NormalizePrometheusPath(cfg.Observability.Prometheus.Path)))
 	}
 
 	logArgs := append([]any{slog.String("component", "httpserver")}, attrs.Values()...)
@@ -69,28 +63,11 @@ func LogIngressReachablePaths(logger *slog.Logger, cfg Config) {
 		return
 	}
 
-	addrs := cfg.Ingress.ListenAddrs()
-	urls := list.NewListWithCapacity[string](len(addrs))
-	for _, a := range addrs {
-		d := FixLoopbackHost(a)
-		if d == "" {
-			continue
-		}
-		_, port, err := net.SplitHostPort(d)
-		if err != nil {
-			urls.Add("http://" + d + "/")
-			continue
-		}
-		scheme := "http"
-		if port == "443" {
-			scheme = "https"
-		}
-		urls.Add(scheme + "://" + d + "/")
-	}
-	if urls.Len() == 0 {
+	urls := IngressURLsFromAddrs(cfg.Ingress.ListenAddrs())
+	if len(urls) == 0 {
 		return
 	}
-	logger.Info("lifecycle reachable paths", "component", "ingress", "urls", urls.Values())
+	logger.Info("lifecycle reachable paths", "component", "ingress", "urls", urls)
 }
 
 // LogDNSReachablePaths logs where the DNS server listens after it has started.
@@ -106,11 +83,7 @@ func LogDNSReachablePaths(logger *slog.Logger, cfg Config) {
 }
 
 func dnsZoneFromConfig(d DNSConfig) string {
-	z := strings.TrimSpace(d.Zone)
-	if z == "" {
-		return "orch.local"
-	}
-	return z
+	return lo.CoalesceOrEmpty(strings.TrimSpace(d.Zone), "orch.local")
 }
 
 // LogRaftReachablePaths logs Raft transport bind after the node has started.
@@ -125,9 +98,9 @@ func LogRaftReachablePaths(logger *slog.Logger, cfg Config) {
 	logger.Info("lifecycle reachable paths", "component", "raft", "transport_bind", bind)
 }
 
-// LogSchedulerReachableContext logs scheduler cadence when enabled (no external URL).
+// LogSchedulerReachableContext logs scheduler cadence (no external URL).
 func LogSchedulerReachableContext(logger *slog.Logger, cfg Config) {
-	if logger == nil || !cfg.Scheduler.Enabled {
+	if logger == nil {
 		return
 	}
 	logger.Info("lifecycle reachable paths", "component", "scheduler",
@@ -139,42 +112,18 @@ func ingressReachabilityURLs(cfg Config) []string {
 	if !cfg.Ingress.Enabled {
 		return nil
 	}
-	addrs := cfg.Ingress.ListenAddrs()
-	urls := list.NewListWithCapacity[string](len(addrs))
-	for _, a := range addrs {
-		d := FixLoopbackHost(a)
-		if d == "" {
-			continue
-		}
-		_, port, err := net.SplitHostPort(d)
-		if err != nil {
-			urls.Add("http://" + d + "/")
-			continue
-		}
-		scheme := "http"
-		if port == "443" {
-			scheme = "https"
-		}
-		urls.Add(scheme + "://" + d + "/")
-	}
-	if urls.Len() == 0 {
+	urls := IngressURLsFromAddrs(cfg.Ingress.ListenAddrs())
+	if len(urls) == 0 {
 		return nil
 	}
-	return urls.Values()
+	return urls
 }
 
 func prometheusMetricsAttr(apiBase string, cfg Config) (slog.Attr, bool) {
 	if !cfg.Observability.Prometheus.Enabled {
 		return slog.Attr{}, false
 	}
-	path := strings.TrimSpace(cfg.Observability.Prometheus.Path)
-	if path == "" {
-		path = "/metrics"
-	}
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	return slog.String("metrics", apiBase+path), true
+	return slog.String("metrics", apiBase+NormalizePrometheusPath(cfg.Observability.Prometheus.Path)), true
 }
 
 func appendReachabilityDNS(attrs *list.List[any], cfg Config) {
@@ -191,9 +140,6 @@ func appendReachabilityRaft(attrs *list.List[any], cfg Config) {
 }
 
 func appendReachabilityScheduler(attrs *list.List[any], cfg Config) {
-	if !cfg.Scheduler.Enabled {
-		return
-	}
 	attrs.Add(
 		slog.String("scheduler_heartbeat_interval", cfg.Scheduler.HeartbeatInterval),
 		slog.String("scheduler_note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used"),

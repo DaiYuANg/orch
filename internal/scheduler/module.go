@@ -5,22 +5,44 @@ import (
 	"log/slog"
 
 	"github.com/arcgolabs/dix"
+
+	"github.com/daiyuang/orch/internal/nodecapacity"
 )
+
+// startDeps bundles scheduler startup dependencies for a single OnStart hook.
+type startDeps struct {
+	Logger  *slog.Logger
+	Service *Service
+	Catalog *nodecapacity.Catalog
+}
+
+func newStartDeps(logger *slog.Logger, s *Service, cat *nodecapacity.Catalog) startDeps {
+	return startDeps{Logger: logger, Service: s, Catalog: cat}
+}
 
 func Module() dix.Module {
 	return dix.NewModule(
 		"scheduler",
 		dix.Providers(
 			dix.ProviderErr3(New),
+			dix.Provider3(newStartDeps),
 		),
 		dix.Hooks(
-			dix.OnStart2(func(ctx context.Context, logger *slog.Logger, s *Service) error {
-				logger.Info("lifecycle", "phase", "starting", "component", "scheduler")
-				if err := s.Start(ctx); err != nil {
-					logger.Error("lifecycle", "phase", "start_failed", "component", "scheduler", "error", err)
+			dix.OnStart(func(ctx context.Context, d startDeps) error {
+				d.Logger.Info("lifecycle", "phase", "starting", "component", "scheduler")
+				if err := RegisterHeartbeatJob(d.Service); err != nil {
+					d.Logger.Error("lifecycle", "phase", "start_failed", "component", "scheduler", "error", err)
 					return err
 				}
-				logger.Info("lifecycle", "phase", "started", "component", "scheduler")
+				if err := RegisterResourceSnapshotJob(ctx, d.Service, d.Catalog); err != nil {
+					d.Logger.Error("lifecycle", "phase", "start_failed", "component", "scheduler", "error", err)
+					return err
+				}
+				if err := d.Service.Start(ctx); err != nil {
+					d.Logger.Error("lifecycle", "phase", "start_failed", "component", "scheduler", "error", err)
+					return err
+				}
+				d.Logger.Info("lifecycle", "phase", "started", "component", "scheduler")
 				return nil
 			}),
 			dix.OnStop2(func(ctx context.Context, logger *slog.Logger, s *Service) error {

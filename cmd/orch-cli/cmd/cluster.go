@@ -159,11 +159,15 @@ func writeHostinfoHuman(out *api.HostinfoOutput) error {
 }
 
 func writeWorkloadsHuman(items []registry.WorkloadRecord) error {
-	if err := fprintfStdout("NAME\tRUNTIME\tSTATUS\tIMAGE\n"); err != nil {
+	if err := fprintfStdout("NAME\tNODE\tRUNTIME\tSTATUS\tIMAGE\n"); err != nil {
 		return err
 	}
 	for _, w := range items {
-		if err := fprintfStdout("%s\t%s\t%s\t%s\n", w.Name, w.Runtime, w.Status, w.Image); err != nil {
+		node := w.Node
+		if node == "" {
+			node = "-"
+		}
+		if err := fprintfStdout("%s\t%s\t%s\t%s\t%s\n", w.Name, node, w.Runtime, w.Status, w.Image); err != nil {
 			return err
 		}
 	}

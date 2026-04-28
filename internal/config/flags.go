@@ -23,8 +23,8 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.String("dns-data-path", def.DNS.Data.Path, "config path dns.data.path")
 	fs.String("dns-zone", def.DNS.Zone, "config path dns.zone")
 
-	fs.Bool("scheduler-enabled", def.Scheduler.Enabled, "config path scheduler.enabled")
 	fs.String("scheduler-heartbeat-interval", def.Scheduler.HeartbeatInterval, "config path scheduler.heartbeat_interval")
+	fs.String("scheduler-resource-refresh-interval", def.Scheduler.ResourceRefreshInterval, "config path scheduler.resource_refresh_interval")
 	fs.Bool("scheduler-raft-leader-only", def.Scheduler.RaftLeaderOnly, "config path scheduler.raft_leader_only")
 	fs.Uint("scheduler-max-concurrent-jobs", def.Scheduler.MaxConcurrentJobs, "config path scheduler.max_concurrent_jobs")
 	fs.String("scheduler-concurrent-jobs-mode", def.Scheduler.ConcurrentJobsMode, "config path scheduler.concurrent_jobs_mode")

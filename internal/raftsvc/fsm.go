@@ -3,28 +3,53 @@ package raftsvc
 import (
 	"encoding/json"
 	"io"
+	"strings"
 	"sync"
 
 	hraft "github.com/hashicorp/raft"
 
+	"github.com/daiyuang/orch/internal/nodecapacity"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
-// schedulingFSM is a minimal replicated state machine placeholder; scheduling
-// payloads can later decode Log.Data here.
+const cmdUpsertNodeCapacity = "upsert_node_capacity"
+
+// schedulingFSM holds replicated control-plane state (node capacity snapshots, etc.).
 type schedulingFSM struct {
 	mu    sync.Mutex
 	state fsmSnapshotState
 }
 
 type fsmSnapshotState struct {
-	AppliedCommands uint64 `json:"appliedCommands"`
+	AppliedCommands uint64                           `json:"appliedCommands"`
+	NodeCapacity    map[string]nodecapacity.Snapshot `json:"nodeCapacity,omitempty"`
 }
 
 func (f *schedulingFSM) Apply(l *hraft.Log) any {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.state.AppliedCommands++
+	if len(l.Data) == 0 {
+		return f.state.AppliedCommands
+	}
+	var env struct {
+		Type string                `json:"type"`
+		Node nodecapacity.Snapshot `json:"node"`
+	}
+	if err := json.Unmarshal(l.Data, &env); err != nil {
+		return f.state.AppliedCommands
+	}
+	if env.Type != cmdUpsertNodeCapacity {
+		return f.state.AppliedCommands
+	}
+	id := strings.TrimSpace(env.Node.NodeID)
+	if id == "" {
+		return f.state.AppliedCommands
+	}
+	if f.state.NodeCapacity == nil {
+		f.state.NodeCapacity = make(map[string]nodecapacity.Snapshot)
+	}
+	f.state.NodeCapacity[id] = env.Node
 	return f.state.AppliedCommands
 }
 
@@ -54,6 +79,38 @@ func (f *schedulingFSM) Restore(rc io.ReadCloser) error {
 	defer f.mu.Unlock()
 	f.state = st
 	return nil
+}
+
+func (f *schedulingFSM) getNodeCapacity(nodeID string) (nodecapacity.Snapshot, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.state.NodeCapacity == nil {
+		return nodecapacity.Snapshot{}, false
+	}
+	s, ok := f.state.NodeCapacity[nodeID]
+	return s, ok
+}
+
+func (f *schedulingFSM) lenNodeCapacity() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.state.NodeCapacity == nil {
+		return 0
+	}
+	return len(f.state.NodeCapacity)
+}
+
+func (f *schedulingFSM) nodeCapacityIDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.state.NodeCapacity == nil {
+		return nil
+	}
+	out := make([]string, 0, len(f.state.NodeCapacity))
+	for id := range f.state.NodeCapacity {
+		out = append(out, id)
+	}
+	return out
 }
 
 type schedulingSnapshot struct {

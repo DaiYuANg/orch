@@ -9,6 +9,7 @@ import (
 
 type WorkloadRecord struct {
 	Name      string    `json:"name"`
+	Node      string    `json:"node,omitempty"`
 	Runtime   string    `json:"runtime"`
 	Image     string    `json:"image"`
 	Status    string    `json:"status"`

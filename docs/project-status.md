@@ -11,14 +11,13 @@ Implemented:
 - Raft-aware write-path coordination baseline.
 - Transitional DSL flow with `plan/render/apply/delete`, with the canonical
   Workload DSL v1 direction documented separately.
-- Canonical DSL compiler pipeline crates for `parser -> HIR -> binder -> IR ->
-  canonical -> planner`.
+- DSL/compiler pipeline direction (`parser -> HIR -> binder -> IR -> canonical ->
+  planner`) tracked in design docs (`docs/dsl*.md`).
 - Canonical DSL subset support for `workload`, `volume`, `config`, `secret`,
   `ingress`, `import`, typed refs, `env`, `resources`, and basic HTTP health
   probes.
-- Ingress package split into `warden-ingress-*` workspace crates, with runtime
-  route snapshot compilation separating ingress runtime consumption from raw
-  registry route records.
+- Ingress served by embedded Caddy (`internal/ingress`); longer-term snapshot /
+  reconciliation designs are described in `docs/ingress*.md`.
 - Ingress runtime snapshots now carry explicit backend binding identity
   (`workload_id` / `endpoint_name`) in addition to concrete backend addresses.
 - The transitional `/dsl/apply` flow now compiles explicit ingress route specs

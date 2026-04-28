@@ -24,3 +24,12 @@ go run ./cmd/orch-cli dsl parse --file path/to/app.yaml --json
 ```bash
 go run ./cmd/orch-server
 ```
+
+## Configuration
+
+Environment variables use the **`ORCH`** prefix (via configx). Nested keys use double underscores, for example:
+
+- `ORCH_HTTP__ADDR` — HTTP API bind address (default `:17443`)
+- `ORCH_INGRESS_ENABLED`, `ORCH_INGRESS_ADDR`, `ORCH_INGRESS_LISTEN`
+
+See `internal/config` and `AGENTS.md` for conventions.

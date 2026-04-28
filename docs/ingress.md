@@ -1,4 +1,6 @@
-# Warden Ingress Design v1
+# orch Ingress Design v1
+
+> This repository is **orch**. Older prose may say “Warden” for the same control-plane lineage; configuration uses the **`ORCH`** environment prefix.
 
 Status: Server-side design specification for the built-in ingress system.
 

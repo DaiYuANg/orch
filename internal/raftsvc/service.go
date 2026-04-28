@@ -13,6 +13,8 @@ import (
 	badger "github.com/dgraph-io/badger/v4"
 	hraft "github.com/hashicorp/raft"
 
+	"github.com/arcgolabs/collectionx/list"
+
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/logging"
 )
@@ -53,11 +55,12 @@ func (s *Service) Start(_ context.Context) error {
 		return nil
 	}
 
-	for _, dir := range []string{
+	raftDirs := list.NewList(
 		s.cfg.Raft.BadgerDir,
 		filepath.Dir(s.cfg.Raft.BoltPath),
 		s.cfg.Raft.SnapshotDir,
-	} {
+	)
+	for _, dir := range raftDirs.Values() {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("raft mkdir %q: %w", dir, err)
 		}
@@ -103,14 +106,13 @@ func (s *Service) Start(_ context.Context) error {
 	}
 
 	if !hasState {
+		bootstrapServers := list.NewList(hraft.Server{
+			Suffrage: hraft.Voter,
+			ID:       hrCfg.LocalID,
+			Address:  localAddr,
+		})
 		configuration := hraft.Configuration{
-			Servers: []hraft.Server{
-				{
-					Suffrage: hraft.Voter,
-					ID:       hrCfg.LocalID,
-					Address:  localAddr,
-				},
-			},
+			Servers: bootstrapServers.Values(),
 		}
 		if err := hraft.BootstrapCluster(hrCfg, logStore, stable, snapStore, transport, configuration); err != nil {
 			_ = bbolt.Close()

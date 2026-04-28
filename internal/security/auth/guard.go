@@ -18,7 +18,7 @@ func NewGuard(cfg config.Config, logger *slog.Logger) (*authhttp.Guard, error) {
 		return nil, nil
 	}
 	if strings.TrimSpace(cfg.Auth.JWTSecret) == "" {
-		return nil, fmt.Errorf("auth enabled but WARDEN_AUTH_JWT_SECRET is empty")
+		return nil, fmt.Errorf("auth enabled but ORCH auth JWT secret is empty (set ORCH_AUTH__JWT_SECRET or equivalent)")
 	}
 
 	engine := authx.NewEngine(

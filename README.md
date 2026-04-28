@@ -40,7 +40,6 @@ internal/
     registry/            # workload registry
     task/                # deploy orchestration service
   raftsvc/               # hashicorp/raft service boundary
-  store/memory/          # memory store placeholder
 ```
 
 ## Quick Start
@@ -85,8 +84,10 @@ go test ./...
 
 ## Ingress Configuration
 
-- `WARDEN_INGRESS_ENABLED` (default: `true`)
-- Default listeners: `:80` and `:443`. Set `WARDEN_INGRESS_ADDR` to use a single port instead (for example `:8088` on machines where binding low ports requires elevated privileges).
+Environment variables use the **`ORCH`** prefix (see `internal/config`, loaded via configx).
+
+- `ORCH_INGRESS_ENABLED` (default: `true`)
+- Default listeners: `:80` and `:443`. Set `ORCH_INGRESS_ADDR` to use a single port instead (for example `:8088` on machines where binding low ports requires elevated privileges).
 
 ## License
 

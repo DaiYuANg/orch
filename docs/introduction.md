@@ -1,6 +1,6 @@
 # Introduction
 
-Warden is a runtime and control layer for long-lived services running outside traditional container orchestration.
+orch is a runtime and control layer for long-lived services running outside traditional container orchestration.
 
 Core directions:
 

@@ -32,16 +32,22 @@ func bg() context.Context {
 
 func (s *storxBadgerLogStore) FirstIndex() (uint64, error) {
 	e, ok, err := s.ns.First(bg())
-	if err != nil || !ok {
-		return 0, err
+	if err != nil {
+		return 0, oopsx.B("raft").Wrapf(err, "badger log first index")
+	}
+	if !ok {
+		return 0, nil
 	}
 	return e.Key, nil
 }
 
 func (s *storxBadgerLogStore) LastIndex() (uint64, error) {
 	e, ok, err := s.ns.Last(bg())
-	if err != nil || !ok {
-		return 0, err
+	if err != nil {
+		return 0, oopsx.B("raft").Wrapf(err, "badger log last index")
+	}
+	if !ok {
+		return 0, nil
 	}
 	return e.Key, nil
 }
@@ -49,7 +55,7 @@ func (s *storxBadgerLogStore) LastIndex() (uint64, error) {
 func (s *storxBadgerLogStore) GetLog(index uint64, log *hraft.Log) error {
 	v, ok, err := s.ns.Get(bg(), index)
 	if err != nil {
-		return err
+		return oopsx.B("raft").Wrapf(err, "badger get log %d", index)
 	}
 	if !ok {
 		return hraft.ErrLogNotFound
@@ -60,38 +66,41 @@ func (s *storxBadgerLogStore) GetLog(index uint64, log *hraft.Log) error {
 
 func (s *storxBadgerLogStore) StoreLog(log *hraft.Log) error {
 	if log == nil {
-		return oopsx.B("raft").New("nil log")
+		return oopsx.B("raft").Errorf("nil log")
 	}
-	return s.ns.Set(bg(), log.Index, *log)
+	if err := s.ns.Set(bg(), log.Index, *log); err != nil {
+		return oopsx.B("raft").Wrapf(err, "badger store log %d", log.Index)
+	}
+	return nil
 }
 
 func (s *storxBadgerLogStore) StoreLogs(logs []*hraft.Log) error {
 	for _, lg := range logs {
 		if lg == nil {
-			return oopsx.B("raft").New("nil log entry")
+			return oopsx.B("raft").Errorf("nil log entry")
 		}
 		if err := s.ns.Set(bg(), lg.Index, *lg); err != nil {
-			return err
+			return oopsx.B("raft").Wrapf(err, "badger store logs at %d", lg.Index)
 		}
 	}
 	return nil
 }
 
-func (s *storxBadgerLogStore) DeleteRange(min, max uint64) error {
-	if max < min {
+func (s *storxBadgerLogStore) DeleteRange(lo, hi uint64) error {
+	if hi < lo {
 		return nil
 	}
 	keys, err := s.ns.Keys(bg(),
-		badgerx.WithStart(min),
-		badgerx.WithEnd(max),
+		badgerx.WithStart(lo),
+		badgerx.WithEnd(hi),
 		badgerx.WithLimit[uint64](0),
 	)
 	if err != nil {
-		return err
+		return oopsx.B("raft").Wrapf(err, "badger delete range keys")
 	}
 	for _, k := range keys {
 		if err := s.ns.Delete(bg(), k); err != nil {
-			return err
+			return oopsx.B("raft").Wrapf(err, "badger delete log key %d", k)
 		}
 	}
 	return nil

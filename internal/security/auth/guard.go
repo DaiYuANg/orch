@@ -13,10 +13,11 @@ import (
 )
 
 // NewGuard wraps the HTTP guard around an authx Engine when Auth.Enabled is true.
-// When auth is disabled it returns nil, nil.
+// When auth is disabled it returns a guard wired to the engine without resolver options;
+// HTTPServer only attaches Require middleware when Auth.Enabled is true.
 func NewGuard(cfg config.Config, engine *authx.Engine) (*authhttp.Guard, error) {
 	if !cfg.Auth.Enabled {
-		return nil, nil
+		return authhttp.NewGuard(engine), nil
 	}
 	if engine == nil {
 		return nil, oopsx.B("auth").Errorf("guard requires non-nil engine when auth is enabled")

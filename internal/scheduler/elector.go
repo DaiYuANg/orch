@@ -6,6 +6,7 @@ import (
 	gocron "github.com/go-co-op/gocron/v2"
 
 	"github.com/daiyuang/orch/internal/raftsvc"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 var _ gocron.Elector = (*raftElector)(nil)
@@ -19,5 +20,8 @@ func newRaftElector(r *raftsvc.Service) *raftElector {
 }
 
 func (e *raftElector) IsLeader(ctx context.Context) error {
-	return e.raft.SchedulerLeadership(ctx)
+	if err := e.raft.SchedulerLeadership(ctx); err != nil {
+		return oopsx.B("scheduler").Wrapf(err, "raft leadership")
+	}
+	return nil
 }

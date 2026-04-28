@@ -66,10 +66,7 @@ type DiskEntry struct {
 const cpuSampleWait = 200 * time.Millisecond
 const maxDiskPartitions = 24
 
-// Collect gathers host statistics. CPU usage uses a short blocking sample (~cpuSampleWait).
-func Collect(ctx context.Context) (*Report, error) {
-	out := &Report{}
-
+func collectHostSection(ctx context.Context, out *Report) {
 	if hi, err := host.InfoWithContext(ctx); err == nil && hi != nil {
 		out.Host = HostSection{
 			Hostname:       hi.Hostname,
@@ -83,15 +80,21 @@ func Collect(ctx context.Context) (*Report, error) {
 			Virtualization: hi.VirtualizationSystem,
 		}
 	}
+}
 
+func collectCPUSection(ctx context.Context, out *Report) {
 	if infos, err := cpu.InfoWithContext(ctx); err == nil && len(infos) > 0 {
-		out.CPU.LogicalCores, _ = cpu.CountsWithContext(ctx, true)
 		out.CPU.ModelName = infos[0].ModelName
+	}
+	if n, err := cpu.CountsWithContext(ctx, true); err == nil {
+		out.CPU.LogicalCores = n
 	}
 	if pct, err := cpu.PercentWithContext(ctx, cpuSampleWait, false); err == nil && len(pct) > 0 {
 		out.CPU.UsagePercent = pct[0]
 	}
+}
 
+func collectMemorySection(ctx context.Context, out *Report) {
 	if vm, err := mem.VirtualMemoryWithContext(ctx); err == nil && vm != nil {
 		out.Memory = MemorySection{
 			TotalBytes:     vm.Total,
@@ -100,7 +103,9 @@ func Collect(ctx context.Context) (*Report, error) {
 			UsedPercent:    vm.UsedPercent,
 		}
 	}
+}
 
+func collectLoadSection(ctx context.Context, out *Report) {
 	if avg, err := load.AvgWithContext(ctx); err == nil && avg != nil {
 		out.Load = &LoadSection{
 			Load1:  avg.Load1,
@@ -108,40 +113,52 @@ func Collect(ctx context.Context) (*Report, error) {
 			Load15: avg.Load15,
 		}
 	}
+}
 
+func collectDiskSection(ctx context.Context, out *Report) {
 	parts, err := disk.PartitionsWithContext(ctx, false)
-	if err == nil {
-		seen := set.NewSet[string]()
-		disks := list.NewListWithCapacity[DiskEntry](maxDiskPartitions)
-		for _, p := range parts {
-			if disks.Len() >= maxDiskPartitions {
-				break
-			}
-			mp := p.Mountpoint
-			if mp == "" {
-				continue
-			}
-			if seen.Contains(mp) {
-				continue
-			}
-			seen.Add(mp)
-
-			usage, err := disk.UsageWithContext(ctx, mp)
-			if err != nil || usage == nil {
-				continue
-			}
-			disks.Add(DiskEntry{
-				Device:      p.Device,
-				Mountpoint:  mp,
-				Fstype:      p.Fstype,
-				TotalBytes:  usage.Total,
-				FreeBytes:   usage.Free,
-				UsedBytes:   usage.Used,
-				UsedPercent: usage.UsedPercent,
-			})
-		}
-		out.Disks = disks.Values()
+	if err != nil {
+		return
 	}
+	out.Disks = buildDiskEntries(ctx, parts)
+}
 
+func buildDiskEntries(ctx context.Context, parts []disk.PartitionStat) []DiskEntry {
+	seen := set.NewSet[string]()
+	disks := list.NewListWithCapacity[DiskEntry](maxDiskPartitions)
+	for _, p := range parts {
+		if disks.Len() >= maxDiskPartitions {
+			break
+		}
+		mp := p.Mountpoint
+		if mp == "" || seen.Contains(mp) {
+			continue
+		}
+		seen.Add(mp)
+		usage, err := disk.UsageWithContext(ctx, mp)
+		if err != nil || usage == nil {
+			continue
+		}
+		disks.Add(DiskEntry{
+			Device:      p.Device,
+			Mountpoint:  mp,
+			Fstype:      p.Fstype,
+			TotalBytes:  usage.Total,
+			FreeBytes:   usage.Free,
+			UsedBytes:   usage.Used,
+			UsedPercent: usage.UsedPercent,
+		})
+	}
+	return disks.Values()
+}
+
+// Collect gathers host statistics. CPU usage uses a short blocking sample (~cpuSampleWait).
+func Collect(ctx context.Context) (*Report, error) {
+	out := &Report{}
+	collectHostSection(ctx, out)
+	collectCPUSection(ctx, out)
+	collectMemorySection(ctx, out)
+	collectLoadSection(ctx, out)
+	collectDiskSection(ctx, out)
 	return out, nil
 }

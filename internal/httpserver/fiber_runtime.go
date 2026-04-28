@@ -24,7 +24,7 @@ func newFiberAppAndRuntime(cfg config.Config, logger *slog.Logger, guard *authht
 		DocsPath:    OpenAPIDocsPath,
 		OpenAPIPath: OpenAPIJSONPath,
 	})
-	if guard != nil {
+	if cfg.Auth.Enabled && guard != nil {
 		fiberApp.Use("/api/v1/deploy", authfiber.Require(guard))
 	}
 

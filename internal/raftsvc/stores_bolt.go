@@ -33,14 +33,17 @@ func notFound() error {
 	return errors.New("not found")
 }
 
-func (s *storxBoltStableStore) Set(key []byte, val []byte) error {
-	return s.bkt.Put(bg(), cloneBytes(key), cloneBytes(val))
+func (s *storxBoltStableStore) Set(key, val []byte) error {
+	if err := s.bkt.Put(bg(), cloneBytes(key), cloneBytes(val)); err != nil {
+		return oopsx.B("raft").Wrapf(err, "bolt stable put")
+	}
+	return nil
 }
 
 func (s *storxBoltStableStore) Get(key []byte) ([]byte, error) {
 	v, ok, err := s.bkt.Get(bg(), cloneBytes(key))
 	if err != nil {
-		return nil, err
+		return nil, oopsx.B("raft").Wrapf(err, "bolt stable get")
 	}
 	if !ok {
 		return nil, notFound()
@@ -60,7 +63,7 @@ func (s *storxBoltStableStore) GetUint64(key []byte) (uint64, error) {
 		return 0, err
 	}
 	if len(b) != 8 {
-		return 0, oopsx.B("raft").New("invalid uint64 value")
+		return 0, oopsx.B("raft").Errorf("invalid uint64 value")
 	}
 	return binary.BigEndian.Uint64(b), nil
 }

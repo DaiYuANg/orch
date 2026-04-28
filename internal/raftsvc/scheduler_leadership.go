@@ -12,8 +12,8 @@ import (
 // When Raft is disabled, every instance may run scheduled jobs (single-process / non-HA deployments).
 // When Raft is enabled, only the cluster leader runs jobs unless scheduler config disables leader-only mode.
 func (s *Service) SchedulerLeadership(ctx context.Context) error {
-	if ctx.Err() != nil {
-		return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return oopsx.B("raft").Wrapf(err, "scheduler leadership context")
 	}
 	if !s.cfg.Raft.Enabled {
 		return nil

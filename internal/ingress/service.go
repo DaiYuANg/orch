@@ -14,6 +14,7 @@ import (
 	"github.com/arcgolabs/collectionx/mapping"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 type Service struct {
@@ -78,7 +79,7 @@ func (s *Service) Start(_ context.Context) error {
 	defer clearCaddySlogBridge()
 
 	if err := caddy.Run(cfg); err != nil {
-		return err
+		return oopsx.B("ingress").Wrapf(err, "caddy run")
 	}
 	s.started.Store(true)
 	s.logger.Info("ingress started with embedded caddy", "listen", listen)
@@ -110,7 +111,7 @@ func (s *Service) Stop(_ context.Context) error {
 		return nil
 	}
 	if err := caddy.Stop(); err != nil {
-		return err
+		return oopsx.B("ingress").Wrapf(err, "caddy stop")
 	}
 	s.started.Store(false)
 	s.logger.Info("ingress stopped")

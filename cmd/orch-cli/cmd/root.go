@@ -29,7 +29,9 @@ Use a single base URL per process; in clusters you can point at a load balancer 
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		if _, werr := fmt.Fprintf(os.Stderr, "%v\n", err); werr != nil {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }

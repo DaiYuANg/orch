@@ -70,7 +70,9 @@ func (s *Service) UpsertWorkloadA(ctx context.Context, namespace, workloadName, 
 		return oopsx.B("dns").Wrapf(err, "save workload record")
 	}
 	if hadPrev && prev.Key() != norm.Key() {
-		_ = s.store.DeleteRecord(ctx, prev)
+		if delErr := s.store.DeleteRecord(ctx, prev); delErr != nil {
+			s.logger.Warn("delete stale dns workload record", "error", delErr)
+		}
 	}
 	s.workloadRecords.Set(key, norm)
 	s.logger.Debug("dns workload registered", "fqdn", norm.Name, "ip", ipv4)

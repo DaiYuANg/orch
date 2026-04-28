@@ -20,8 +20,8 @@ import (
 	"github.com/vishvananda/netns"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/pkg/oopsx"
 	"github.com/daiyuang/orch/internal/workloadmeta"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 const orchContainerdNamespace = "orch"

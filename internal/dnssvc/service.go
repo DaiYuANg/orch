@@ -12,6 +12,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 type Service struct {
@@ -40,13 +41,13 @@ func (s *Service) Start(ctx context.Context) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.cfg.Data.Path), 0o755); err != nil {
-		return err
+	if err := os.MkdirAll(filepath.Dir(s.cfg.Data.Path), 0o750); err != nil {
+		return oopsx.B("dns").Wrapf(err, "mkdir dns data dir")
 	}
 
 	store, err := dnsserver.OpenBboltStore(s.cfg.Data.Path, s.logger)
 	if err != nil {
-		return err
+		return oopsx.B("dns").Wrapf(err, "open dns store")
 	}
 
 	server := dnsserver.NewServerWithRepository(
@@ -55,21 +56,25 @@ func (s *Service) Start(ctx context.Context) error {
 		dnsserver.WithLogger(s.logger),
 	)
 	if err := server.Start(ctx); err != nil {
-		_ = store.Close()
-		return err
+		if closeErr := store.Close(); closeErr != nil {
+			s.logger.Warn("close dns store after start failure", "error", closeErr)
+		}
+		return oopsx.B("dns").Wrapf(err, "start dns server")
 	}
 
 	s.store = store
 	s.server = server
 	s.started.Store(true)
 	zone := dnsZoneName(s.cfg)
-	_ = s.store.SaveRecord(ctx, dnsserver.Record{
+	if err := s.store.SaveRecord(ctx, dnsserver.Record{
 		Zone: zone,
 		Name: zone,
 		TTL:  60,
 		Type: dns.TypeA,
 		Data: "127.0.0.1",
-	})
+	}); err != nil {
+		return oopsx.B("dns").Wrapf(err, "seed zone record")
+	}
 	s.logger.Info("dns service started", "listen", s.cfg.Listen, "udp", server.UDPAddr(), "tcp", server.TCPAddr())
 	return nil
 }
@@ -81,12 +86,12 @@ func (s *Service) Stop(ctx context.Context) error {
 
 	if s.server != nil {
 		if err := s.server.Stop(ctx); err != nil {
-			return err
+			return oopsx.B("dns").Wrapf(err, "stop dns server")
 		}
 	}
 	if s.store != nil {
 		if err := s.store.Close(); err != nil {
-			return err
+			return oopsx.B("dns").Wrapf(err, "close dns store")
 		}
 	}
 

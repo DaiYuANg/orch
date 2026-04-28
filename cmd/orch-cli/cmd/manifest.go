@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"os"
 
@@ -14,6 +13,60 @@ import (
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
+func loadValidatedManifest(file string) (*deployv1.App, error) {
+	if file == "" {
+		return nil, oopsx.B("cli").Errorf("--file is required")
+	}
+	app, err := deployv1.LoadAppFile(file)
+	if err != nil {
+		return nil, oopsx.B("cli").Wrapf(err, "load manifest")
+	}
+	if err := app.Validate(); err != nil {
+		return nil, oopsx.B("cli").Wrapf(err, "validate manifest")
+	}
+	return app, nil
+}
+
+func runValidateManifest(file string, lg *slog.Logger) error {
+	app, err := loadValidatedManifest(file)
+	if err != nil {
+		return err
+	}
+	if err := fprintfStdout("OK app=%s namespace=%s\n", app.Metadata.Name, app.Metadata.Namespace); err != nil {
+		return err
+	}
+	lg.Debug("manifest validated", "app", app.Metadata.Name, "namespace", app.Metadata.Namespace)
+	return nil
+}
+
+func runParseManifest(file string, jsonOut bool, lg *slog.Logger) error {
+	app, err := loadValidatedManifest(file)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(app); err != nil {
+			return oopsx.B("cli").Wrapf(err, "encode manifest JSON")
+		}
+		return nil
+	}
+	if err := fprintfStdout("app=%s namespace=%s workloads=%d ingresses=%d volumes=%d configs=%d secrets=%d\n",
+		app.Metadata.Name,
+		app.Metadata.Namespace,
+		len(app.Workloads),
+		len(app.Ingresses),
+		len(app.Volumes),
+		len(app.Configs),
+		len(app.Secrets),
+	); err != nil {
+		return err
+	}
+	lg.Debug("manifest parsed", "app", app.Metadata.Name)
+	return nil
+}
+
 func newValidateCmd() *cobra.Command {
 	var file string
 	cmd := &cobra.Command{
@@ -23,19 +76,7 @@ func newValidateCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cliapp.RunManifest(contextFromCmd(cmd), func(ctx context.Context, lg *slog.Logger) error {
 				_ = ctx
-				if file == "" {
-					return oopsx.B("cli").Errorf("--file is required")
-				}
-				app, err := deployv1.LoadAppFile(file)
-				if err != nil {
-					return err
-				}
-				if err := app.Validate(); err != nil {
-					return err
-				}
-				fmt.Fprintf(os.Stdout, "OK app=%s namespace=%s\n", app.Metadata.Name, app.Metadata.Namespace)
-				lg.Debug("manifest validated", "app", app.Metadata.Name, "namespace", app.Metadata.Namespace)
-				return nil
+				return runValidateManifest(file, lg)
 			})
 		},
 	}
@@ -54,35 +95,7 @@ func newParseCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cliapp.RunManifest(contextFromCmd(cmd), func(ctx context.Context, lg *slog.Logger) error {
 				_ = ctx
-				if file == "" {
-					return oopsx.B("cli").Errorf("--file is required")
-				}
-
-				app, err := deployv1.LoadAppFile(file)
-				if err != nil {
-					return err
-				}
-				if err := app.Validate(); err != nil {
-					return err
-				}
-
-				if jsonOut {
-					enc := json.NewEncoder(os.Stdout)
-					enc.SetIndent("", "  ")
-					return enc.Encode(app)
-				}
-
-				fmt.Fprintf(os.Stdout, "app=%s namespace=%s workloads=%d ingresses=%d volumes=%d configs=%d secrets=%d\n",
-					app.Metadata.Name,
-					app.Metadata.Namespace,
-					len(app.Workloads),
-					len(app.Ingresses),
-					len(app.Volumes),
-					len(app.Configs),
-					len(app.Secrets),
-				)
-				lg.Debug("manifest parsed", "app", app.Metadata.Name)
-				return nil
+				return runParseManifest(file, jsonOut, lg)
 			})
 		},
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/raftsvc"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // Service wraps a gocron scheduler for periodic tasks.
@@ -39,7 +40,7 @@ func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service) (*Servic
 
 	s, err := gocron.NewScheduler(opts...)
 	if err != nil {
-		return nil, err
+		return nil, oopsx.B("scheduler").Wrapf(err, "new gocron scheduler")
 	}
 	return &Service{
 		logger: logger,
@@ -69,7 +70,7 @@ func (s *Service) Start(_ context.Context) error {
 		gocron.WithTags("orch", "heartbeat"),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	); err != nil {
-		return err
+		return oopsx.B("scheduler").Wrapf(err, "register heartbeat job")
 	}
 
 	s.sched.Start()
@@ -83,7 +84,7 @@ func (s *Service) Stop(ctx context.Context) error {
 		return nil
 	}
 	if err := s.sched.ShutdownWithContext(ctx); err != nil {
-		return err
+		return oopsx.B("scheduler").Wrapf(err, "shutdown scheduler")
 	}
 	s.logger.Info("scheduler stopped")
 	return nil

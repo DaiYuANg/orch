@@ -8,9 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/internal/apiclient"
 	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
+	"github.com/daiyuang/orch/internal/api"
+	"github.com/daiyuang/orch/internal/apiclient"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -26,15 +28,14 @@ func newHealthCmd() *cobra.Command {
 			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
 				out, err := c.Health(ctx)
 				if err != nil {
-					return err
+					return oopsx.B("cli").Wrapf(err, "health")
 				}
 				if jsonOut {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					return enc.Encode(out)
 				}
-				fmt.Fprintf(os.Stdout, "status=%s time=%s\n", out.Body.Status, out.Body.Timestamp)
-				return nil
+				return fprintfStdout("status=%s time=%s\n", out.Body.Status, out.Body.Timestamp)
 			})
 		},
 	}
@@ -54,27 +55,14 @@ func newHostinfoCmd() *cobra.Command {
 			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
 				out, err := c.Hostinfo(ctx)
 				if err != nil {
-					return err
+					return oopsx.B("cli").Wrapf(err, "hostinfo")
 				}
 				if jsonOut {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					return enc.Encode(out.Body)
 				}
-				h := out.Body.Host
-				cpu := out.Body.CPU
-				mem := out.Body.Memory
-				fmt.Fprintf(os.Stdout, "hostname=%s os=%s/%s kernel=%s arch=%s\n",
-					h.Hostname, h.OS, h.Platform, h.KernelVersion, h.KernelArch)
-				fmt.Fprintf(os.Stdout, "cpu_cores=%d model=%s usage_percent=%.1f\n",
-					cpu.LogicalCores, cpu.ModelName, cpu.UsagePercent)
-				fmt.Fprintf(os.Stdout, "memory_total_bytes=%d used_percent=%.1f\n",
-					mem.TotalBytes, mem.UsedPercent)
-				if out.Body.Load != nil {
-					l := out.Body.Load
-					fmt.Fprintf(os.Stdout, "load_1=%.2f load_5=%.2f load_15=%.2f\n", l.Load1, l.Load5, l.Load15)
-				}
-				return nil
+				return writeHostinfoHuman(out)
 			})
 		},
 	}
@@ -94,18 +82,14 @@ func newWorkloadsCmd() *cobra.Command {
 			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
 				out, err := c.ListWorkloads(ctx)
 				if err != nil {
-					return err
+					return oopsx.B("cli").Wrapf(err, "list workloads")
 				}
 				if jsonOut {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					return enc.Encode(out.Body.Items)
 				}
-				fmt.Fprintf(os.Stdout, "NAME\tRUNTIME\tSTATUS\tIMAGE\n")
-				for _, w := range out.Body.Items {
-					fmt.Fprintf(os.Stdout, "%s\t%s\t%s\t%s\n", w.Name, w.Runtime, w.Status, w.Image)
-				}
-				return nil
+				return writeWorkloadsHuman(out.Body.Items)
 			})
 		},
 	}
@@ -127,28 +111,71 @@ related resources can be reconciled. Requires a reachable control plane (--serve
 			}
 			app, err := deployv1.LoadAppFile(file)
 			if err != nil {
-				return err
+				return oopsx.B("cli").Wrapf(err, "load manifest")
 			}
 			ctx := contextFromCmd(cmd)
 			conn := cliapp.ConnFromGlobals(serverURL, authToken)
 			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
 				out, err := c.Deploy(ctx, app)
 				if err != nil {
-					return err
+					return oopsx.B("cli").Wrapf(err, "deploy")
 				}
 				if jsonOut {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					return enc.Encode(out)
 				}
-				fmt.Fprintf(os.Stdout, "accepted app=%s workloads=%d\n", out.Body.App, out.Body.Workloads)
-				return nil
+				return fprintfStdout("accepted app=%s workloads=%d\n", out.Body.App, out.Body.Workloads)
 			})
 		},
 	}
 	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy YAML")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON response")
 	return cmd
+}
+
+func writeHostinfoHuman(out *api.HostinfoOutput) error {
+	body := out.Body
+	h := body.Host
+	cpu := body.CPU
+	mem := body.Memory
+	if err := fprintfStdout("hostname=%s os=%s/%s kernel=%s arch=%s\n",
+		h.Hostname, h.OS, h.Platform, h.KernelVersion, h.KernelArch); err != nil {
+		return err
+	}
+	if err := fprintfStdout("cpu_cores=%d model=%s usage_percent=%.1f\n",
+		cpu.LogicalCores, cpu.ModelName, cpu.UsagePercent); err != nil {
+		return err
+	}
+	if err := fprintfStdout("memory_total_bytes=%d used_percent=%.1f\n",
+		mem.TotalBytes, mem.UsedPercent); err != nil {
+		return err
+	}
+	if body.Load != nil {
+		l := body.Load
+		return fprintfStdout("load_1=%.2f load_5=%.2f load_15=%.2f\n", l.Load1, l.Load5, l.Load15)
+	}
+	return nil
+}
+
+func writeWorkloadsHuman(items []registry.WorkloadRecord) error {
+	if err := fprintfStdout("NAME\tRUNTIME\tSTATUS\tIMAGE\n"); err != nil {
+		return err
+	}
+	for _, w := range items {
+		if err := fprintfStdout("%s\t%s\t%s\t%s\n", w.Name, w.Runtime, w.Status, w.Image); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func fprintfStdout(format string, a ...any) error {
+	_, err := fmt.Fprintf(os.Stdout, format, a...)
+	if err != nil {
+		return oopsx.B("cli").Wrapf(err, "write stdout")
+	}
+	return nil
 }
 
 func contextFromCmd(cmd *cobra.Command) context.Context {

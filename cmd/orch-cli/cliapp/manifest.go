@@ -8,6 +8,7 @@ import (
 	"github.com/arcgolabs/dix"
 
 	"github.com/daiyuang/orch/internal/buildmeta"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // ManifestEnv is reserved for manifest-local dependencies (paths, schema validators, etc.).
@@ -27,7 +28,7 @@ func NewManifestApp() *dix.App {
 	return dix.New(
 		"orch-cli-manifest",
 		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom0(func() *slog.Logger { return slog.Default() }),
+		dix.WithLoggerFrom0(slog.Default),
 		dix.WithModules(
 			moduleManifest(),
 		),
@@ -39,11 +40,15 @@ func RunManifest(ctx context.Context, fn func(ctx context.Context, lg *slog.Logg
 	app := NewManifestApp()
 	rt, err := app.Start(ctx)
 	if err != nil {
-		return err
+		return oopsx.B("cli").Wrapf(err, "start orch-cli-manifest")
 	}
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	defer func() { _ = rt.Stop(stopCtx) }()
+	defer func() {
+		if stopErr := rt.Stop(stopCtx); stopErr != nil {
+			rt.Logger().Warn("runtime stop", "error", stopErr)
+		}
+	}()
 
 	return fn(ctx, rt.Logger())
 }

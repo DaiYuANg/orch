@@ -38,7 +38,10 @@ func (m *Manager) Deploy(ctx context.Context, meta deployv1.Metadata, workload d
 		return oopsx.B("runtime").Errorf("runtime provider not registered: %s", workload.Runtime)
 	}
 	m.logger.Info("deploy workload", "workload", workload.Name, "runtime", workload.Runtime)
-	return p.Deploy(ctx, meta, workload)
+	if err := p.Deploy(ctx, meta, workload); err != nil {
+		return oopsx.B("runtime").Wrapf(err, "deploy workload %s", workload.Name)
+	}
+	return nil
 }
 
 func (m *Manager) Stop(ctx context.Context, runtime deployv1.RuntimeKind, meta deployv1.Metadata, workloadName string) error {
@@ -47,5 +50,8 @@ func (m *Manager) Stop(ctx context.Context, runtime deployv1.RuntimeKind, meta d
 		return oopsx.B("runtime").Errorf("runtime provider not registered: %s", runtime)
 	}
 	m.logger.Info("stop workload", "workload", workloadName, "runtime", runtime)
-	return p.Stop(ctx, meta, workloadName)
+	if err := p.Stop(ctx, meta, workloadName); err != nil {
+		return oopsx.B("runtime").Wrapf(err, "stop workload %s", workloadName)
+	}
+	return nil
 }

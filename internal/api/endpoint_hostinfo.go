@@ -6,6 +6,7 @@ import (
 	"github.com/arcgolabs/httpx"
 
 	"github.com/daiyuang/orch/internal/hostinfo"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // HostinfoEndpoint serves GET /api/v1/hostinfo.
@@ -30,7 +31,7 @@ func (e *HostinfoEndpoint) Register(r httpx.Registrar) {
 func (e *HostinfoEndpoint) handle(ctx context.Context, _ *EmptyInput) (*HostinfoOutput, error) {
 	snap, err := hostinfo.Collect(ctx)
 	if err != nil {
-		return nil, err
+		return nil, oopsx.B("api").Wrapf(err, "collect hostinfo")
 	}
 	out := &HostinfoOutput{}
 	out.Body = *snap

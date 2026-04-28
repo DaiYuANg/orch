@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -52,7 +53,7 @@ func newRootCmd() *cobra.Command {
 func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 	cfg, err := config.LoadFromCobra(cmd)
 	if err != nil {
-		return err
+		return fmt.Errorf("load config: %w", err)
 	}
 
 	srv.app = dix.New(
@@ -83,7 +84,7 @@ func (srv *serverRunner) run(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	rt, err := srv.app.Start(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("start orch-server: %w", err)
 	}
 	rt.Logger().Info("lifecycle", "phase", "ready", "app", "orch-server")
 

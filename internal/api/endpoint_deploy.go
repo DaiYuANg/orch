@@ -6,6 +6,7 @@ import (
 	"github.com/arcgolabs/httpx"
 
 	"github.com/daiyuang/orch/internal/services/task"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // DeployEndpoint serves POST /api/v1/deploy.
@@ -31,7 +32,7 @@ func (e *DeployEndpoint) Register(r httpx.Registrar) {
 
 func (e *DeployEndpoint) handle(ctx context.Context, in *DeployInput) (*DeployOutput, error) {
 	if err := e.tasks.DeployApp(ctx, &in.Body); err != nil {
-		return nil, err
+		return nil, oopsx.B("api").Wrapf(err, "deploy app")
 	}
 	out := &DeployOutput{}
 	out.Body.Accepted = true

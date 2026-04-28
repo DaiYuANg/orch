@@ -11,10 +11,10 @@ import (
 )
 
 // NewEngine builds the authx engine and registers the JWT authentication provider when Auth.Enabled is true.
-// When auth is disabled it returns nil, nil.
+// When auth is disabled it returns an empty engine (no providers); routing skips deploy auth unless Auth.Enabled is true.
 func NewEngine(cfg config.Config, logger *slog.Logger, jwt authx.AuthenticationProvider) (*authx.Engine, error) {
 	if !cfg.Auth.Enabled {
-		return nil, nil
+		return authx.NewEngine(authx.WithLogger(logger)), nil
 	}
 	if jwt == nil {
 		return nil, oopsx.B("auth").Errorf("JWT authentication provider is required when auth is enabled")
@@ -37,7 +37,7 @@ func NewEngine(cfg config.Config, logger *slog.Logger, jwt authx.AuthenticationP
 	)
 
 	if err := authx.RegisterProvider(engine, jwt); err != nil {
-		return nil, err
+		return nil, oopsx.B("auth").Wrapf(err, "register JWT provider")
 	}
 	return engine, nil
 }

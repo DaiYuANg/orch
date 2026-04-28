@@ -52,7 +52,10 @@ func (c *Client) Close() error {
 	if c == nil || c.hc == nil {
 		return nil
 	}
-	return c.hc.Close()
+	if err := c.hc.Close(); err != nil {
+		return oopsx.B("cli", "apiclient").Wrapf(err, "close http client")
+	}
+	return nil
 }
 
 // Health calls GET /api/health.
@@ -113,7 +116,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	return nil
 }
 
-func (c *Client) post(ctx context.Context, path string, body any, out any) error {
+func (c *Client) post(ctx context.Context, path string, body, out any) error {
 	if c == nil || c.hc == nil {
 		return oopsx.B("cli", "apiclient").Errorf("nil client")
 	}

@@ -6,9 +6,9 @@ import (
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/metrics"
-	"github.com/daiyuang/orch/pkg/oopsx"
 	"github.com/daiyuang/orch/internal/runtime"
 	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 type Service struct {
@@ -30,11 +30,12 @@ func NewService(logger *slog.Logger, metricService *metrics.Service, runtimeMana
 func (s *Service) DeployApp(ctx context.Context, app *deployv1.App) error {
 	if err := app.Validate(); err != nil {
 		s.metrics.IncDeployApp(ctx, "invalid")
-		return err
+		return oopsx.B("task").Wrapf(err, "validate app")
 	}
 
-	for _, w := range app.Workloads {
-		if err := s.runtime.Deploy(ctx, app.Metadata, w); err != nil {
+	for i := range app.Workloads {
+		w := &app.Workloads[i]
+		if err := s.runtime.Deploy(ctx, app.Metadata, *w); err != nil {
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
 			return oopsx.B("task").Wrapf(err, "deploy workload %s", w.Name)

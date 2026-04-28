@@ -3,6 +3,7 @@ package workloadmeta
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
@@ -17,18 +18,18 @@ func NamespaceOrDefault(ns string) string {
 
 // SanitizeName maps arbitrary strings to container-friendly identifiers.
 func SanitizeName(s string) string {
-	var b strings.Builder
+	var buf []byte
 	for _, r := range strings.ToLower(s) {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			b.WriteRune(r)
+			buf = utf8.AppendRune(buf, r)
 		case r == '.' || r == '_' || r == '-':
-			b.WriteRune(r)
+			buf = utf8.AppendRune(buf, r)
 		default:
-			b.WriteByte('-')
+			buf = append(buf, '-')
 		}
 	}
-	out := strings.Trim(b.String(), "-")
+	out := strings.Trim(string(buf), "-")
 	if out == "" {
 		return "x"
 	}

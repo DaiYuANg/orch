@@ -9,6 +9,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/apiclient"
 	"github.com/daiyuang/orch/internal/buildmeta"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // Conn holds values from global CLI flags (orch --server / --token); it is the injectable boundary for cluster commands.
@@ -27,7 +28,7 @@ func NewClusterApp(conn Conn) *dix.App {
 	return dix.New(
 		"orch-cli-cluster",
 		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom0(func() *slog.Logger { return slog.Default() }),
+		dix.WithLoggerFrom0(slog.Default),
 		dix.WithModules(
 			moduleConn(conn),
 			moduleClusterClient(),
@@ -68,15 +69,19 @@ func RunCluster(ctx context.Context, conn Conn, fn func(ctx context.Context, c *
 	app := NewClusterApp(conn)
 	rt, err := app.Start(ctx)
 	if err != nil {
-		return err
+		return oopsx.B("cli").Wrapf(err, "start orch-cli-cluster")
 	}
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	defer func() { _ = rt.Stop(stopCtx) }()
+	defer func() {
+		if stopErr := rt.Stop(stopCtx); stopErr != nil {
+			rt.Logger().Warn("runtime stop", "error", stopErr)
+		}
+	}()
 
 	c, err := dix.ResolveAs[*apiclient.Client](rt.Container())
 	if err != nil {
-		return err
+		return oopsx.B("cli").Wrapf(err, "resolve HTTP client")
 	}
 	return fn(ctx, c)
 }

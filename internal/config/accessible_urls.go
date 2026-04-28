@@ -135,6 +135,71 @@ func LogSchedulerReachableContext(logger *slog.Logger, cfg Config) {
 		"note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used")
 }
 
+func ingressReachabilityURLs(cfg Config) []string {
+	if !cfg.Ingress.Enabled {
+		return nil
+	}
+	addrs := cfg.Ingress.ListenAddrs()
+	urls := list.NewListWithCapacity[string](len(addrs))
+	for _, a := range addrs {
+		d := FixLoopbackHost(a)
+		if d == "" {
+			continue
+		}
+		_, port, err := net.SplitHostPort(d)
+		if err != nil {
+			urls.Add("http://" + d + "/")
+			continue
+		}
+		scheme := "http"
+		if port == "443" {
+			scheme = "https"
+		}
+		urls.Add(scheme + "://" + d + "/")
+	}
+	if urls.Len() == 0 {
+		return nil
+	}
+	return urls.Values()
+}
+
+func prometheusMetricsAttr(apiBase string, cfg Config) (slog.Attr, bool) {
+	if !cfg.Observability.Prometheus.Enabled {
+		return slog.Attr{}, false
+	}
+	path := strings.TrimSpace(cfg.Observability.Prometheus.Path)
+	if path == "" {
+		path = "/metrics"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return slog.String("metrics", apiBase+path), true
+}
+
+func appendReachabilityDNS(attrs *list.List[any], cfg Config) {
+	if cfg.DNS.Enabled && strings.TrimSpace(cfg.DNS.Listen) != "" {
+		attrs.Add(slog.String("dns_listen", cfg.DNS.Listen))
+		attrs.Add(slog.String("dns_zone", dnsZoneFromConfig(cfg.DNS)))
+	}
+}
+
+func appendReachabilityRaft(attrs *list.List[any], cfg Config) {
+	if cfg.Raft.Enabled && strings.TrimSpace(cfg.Raft.Bind) != "" {
+		attrs.Add(slog.String("raft_transport", cfg.Raft.Bind))
+	}
+}
+
+func appendReachabilityScheduler(attrs *list.List[any], cfg Config) {
+	if !cfg.Scheduler.Enabled {
+		return
+	}
+	attrs.Add(
+		slog.String("scheduler_heartbeat_interval", cfg.Scheduler.HeartbeatInterval),
+		slog.String("scheduler_note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used"),
+	)
+}
+
 // LogReachableEndpoints writes one structured log line with all URLs (optional summary after startup).
 func LogReachableEndpoints(logger *slog.Logger, cfg Config) {
 	if logger == nil {
@@ -156,56 +221,17 @@ func LogReachableEndpoints(logger *slog.Logger, cfg Config) {
 		slog.String("swagger_ui", apiBase+"/swagger-ui"),
 	)
 
-	if cfg.Observability.Prometheus.Enabled {
-		path := strings.TrimSpace(cfg.Observability.Prometheus.Path)
-		if path == "" {
-			path = "/metrics"
-		}
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-		attrs.Add(slog.String("metrics", apiBase+path))
+	if attr, ok := prometheusMetricsAttr(apiBase, cfg); ok {
+		attrs.Add(attr)
 	}
 
-	if cfg.Ingress.Enabled {
-		addrs := cfg.Ingress.ListenAddrs()
-		urls := list.NewListWithCapacity[string](len(addrs))
-		for _, a := range addrs {
-			d := FixLoopbackHost(a)
-			if d == "" {
-				continue
-			}
-			_, port, err := net.SplitHostPort(d)
-			if err != nil {
-				urls.Add("http://" + d + "/")
-				continue
-			}
-			scheme := "http"
-			if port == "443" {
-				scheme = "https"
-			}
-			urls.Add(scheme + "://" + d + "/")
-		}
-		if urls.Len() > 0 {
-			attrs.Add(slog.Any("ingress", urls.Values()))
-		}
+	if ingressURLs := ingressReachabilityURLs(cfg); len(ingressURLs) > 0 {
+		attrs.Add(slog.Any("ingress", ingressURLs))
 	}
 
-	if cfg.DNS.Enabled && strings.TrimSpace(cfg.DNS.Listen) != "" {
-		attrs.Add(slog.String("dns_listen", cfg.DNS.Listen))
-		attrs.Add(slog.String("dns_zone", dnsZoneFromConfig(cfg.DNS)))
-	}
-
-	if cfg.Raft.Enabled && strings.TrimSpace(cfg.Raft.Bind) != "" {
-		attrs.Add(slog.String("raft_transport", cfg.Raft.Bind))
-	}
-
-	if cfg.Scheduler.Enabled {
-		attrs.Add(
-			slog.String("scheduler_heartbeat_interval", cfg.Scheduler.HeartbeatInterval),
-			slog.String("scheduler_note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used"),
-		)
-	}
+	appendReachabilityDNS(attrs, cfg)
+	appendReachabilityRaft(attrs, cfg)
+	appendReachabilityScheduler(attrs, cfg)
 
 	logger.Info("lifecycle reachability summary", attrs.Values()...)
 }

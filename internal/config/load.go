@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/arcgolabs/configx"
@@ -13,7 +14,7 @@ import (
 func LoadFromCobra(cmd *cobra.Command) (Config, error) {
 	cfgPath, err := cmd.Flags().GetString("config")
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("cobra config flag: %w", err)
 	}
 	var opts []configx.Option
 	if p := strings.TrimSpace(cfgPath); p != "" {

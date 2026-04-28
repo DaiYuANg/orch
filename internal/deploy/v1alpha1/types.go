@@ -1,15 +1,5 @@
 package v1alpha1
 
-import (
-	"regexp"
-	"strings"
-
-	"github.com/arcgolabs/collectionx/set"
-	"gopkg.in/yaml.v3"
-
-	"github.com/daiyuang/orch/pkg/oopsx"
-)
-
 // App is the YAML-friendly canonical deploy model for the first Go rewrite
 // iteration. It intentionally mirrors the canonical model described in
 // docs/src/dsl.md and docs/src/dsl.zh.md.
@@ -72,12 +62,12 @@ const (
 )
 
 type RunSpec struct {
-	Image   string     `json:"image"                    yaml:"image"`
-	Command []string   `json:"command,omitempty"        yaml:"command,omitempty"`
-	Args    []string   `json:"args,omitempty"           yaml:"args,omitempty"`
-	Env     []EnvVar   `json:"env,omitempty"            yaml:"env,omitempty"`
-	Cwd     string     `json:"cwd,omitempty"            yaml:"cwd,omitempty"`
-	Options RunOptions `json:"runtimeOptions,omitempty" yaml:"runtimeOptions,omitempty"`
+	Image   string     `json:"image"             yaml:"image"`
+	Command []string   `json:"command,omitempty" yaml:"command,omitempty"`
+	Args    []string   `json:"args,omitempty"    yaml:"args,omitempty"`
+	Env     []EnvVar   `json:"env,omitempty"     yaml:"env,omitempty"`
+	Cwd     string     `json:"cwd,omitempty"     yaml:"cwd,omitempty"`
+	Options RunOptions `json:"runtimeOptions"    yaml:"runtimeOptions"`
 }
 
 type EnvVar struct {
@@ -192,46 +182,10 @@ type WorkloadRef struct {
 	Name string `json:"name" yaml:"name"`
 }
 
-func (r *WorkloadRef) UnmarshalYAML(value *yaml.Node) error {
-	switch value.Kind {
-	case yaml.ScalarNode:
-		r.Name = strings.TrimSpace(value.Value)
-		return nil
-	case yaml.MappingNode:
-		type alias WorkloadRef
-		var a alias
-		if err := value.Decode(&a); err != nil {
-			return err
-		}
-		*r = WorkloadRef(a)
-		return nil
-	default:
-		return oopsx.B("deploy").Errorf("invalid workload ref")
-	}
-}
-
 // VolumeRef refers to a volume by name. YAML form:
 // - "redisData"  OR  { name: "redisData" }
 type VolumeRef struct {
 	Name string `json:"name" yaml:"name"`
-}
-
-func (r *VolumeRef) UnmarshalYAML(value *yaml.Node) error {
-	switch value.Kind {
-	case yaml.ScalarNode:
-		r.Name = strings.TrimSpace(value.Value)
-		return nil
-	case yaml.MappingNode:
-		type alias VolumeRef
-		var a alias
-		if err := value.Decode(&a); err != nil {
-			return err
-		}
-		*r = VolumeRef(a)
-		return nil
-	default:
-		return oopsx.B("deploy").Errorf("invalid volume ref")
-	}
 }
 
 // EndpointRef refers to a workload endpoint. YAML form:
@@ -239,145 +193,4 @@ func (r *VolumeRef) UnmarshalYAML(value *yaml.Node) error {
 type EndpointRef struct {
 	Workload string `json:"workload" yaml:"workload"`
 	Endpoint string `json:"endpoint" yaml:"endpoint"`
-}
-
-func (r *EndpointRef) UnmarshalYAML(value *yaml.Node) error {
-	switch value.Kind {
-	case yaml.ScalarNode:
-		s := strings.TrimSpace(value.Value)
-		if s == "" {
-			return nil
-		}
-		parts := strings.SplitN(s, ":", 2)
-		if len(parts) != 2 {
-			return oopsx.B("deploy").Errorf("invalid endpoint ref %q (expected workload:endpoint)", s)
-		}
-		r.Workload = strings.TrimSpace(parts[0])
-		r.Endpoint = strings.TrimSpace(parts[1])
-		return nil
-	case yaml.MappingNode:
-		type alias EndpointRef
-		var a alias
-		if err := value.Decode(&a); err != nil {
-			return err
-		}
-		*r = EndpointRef(a)
-		return nil
-	default:
-		return oopsx.B("deploy").Errorf("invalid endpoint ref")
-	}
-}
-
-var (
-	nameRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9._-]{0,127}$`)
-)
-
-func (a *App) Validate() error {
-	if strings.TrimSpace(a.Metadata.Name) == "" {
-		return oopsx.B("deploy").Errorf("metadata.name is required")
-	}
-	if !nameRe.MatchString(a.Metadata.Name) {
-		return oopsx.B("deploy").Errorf("metadata.name is invalid: %q", a.Metadata.Name)
-	}
-	if a.Metadata.Namespace != "" && !nameRe.MatchString(a.Metadata.Namespace) {
-		return oopsx.B("deploy").Errorf("metadata.namespace is invalid: %q", a.Metadata.Namespace)
-	}
-
-	seenWorkloads := set.NewSet[string]()
-	for i := range a.Workloads {
-		w := &a.Workloads[i]
-		if err := w.validate(seenWorkloads); err != nil {
-			return oopsx.B("deploy").Wrapf(err, "workloads[%d]", i)
-		}
-	}
-
-	// Basic cross-ref validation (best-effort in v0.1)
-	for i := range a.Workloads {
-		w := &a.Workloads[i]
-		for j := range w.DependsOn {
-			if !seenWorkloads.Contains(w.DependsOn[j].Name) {
-				return oopsx.B("deploy").Errorf("workloads[%d].dependsOn[%d]: unknown workload %q", i, j, w.DependsOn[j].Name)
-			}
-		}
-		for j := range w.Mounts {
-			if strings.TrimSpace(w.Mounts[j].Volume.Name) == "" {
-				return oopsx.B("deploy").Errorf("workloads[%d].mounts[%d].volume: name is required", i, j)
-			}
-		}
-		for j := range w.Endpoints {
-			if err := w.Endpoints[j].validate(); err != nil {
-				return oopsx.B("deploy").Wrapf(err, "workloads[%d].endpoints[%d]", i, j)
-			}
-		}
-	}
-
-	for i := range a.Ingresses {
-		ing := &a.Ingresses[i]
-		if strings.TrimSpace(ing.Name) == "" {
-			return oopsx.B("deploy").Errorf("ingresses[%d].name is required", i)
-		}
-		for j := range ing.Routes {
-			r := &ing.Routes[j]
-			if strings.TrimSpace(r.Path) == "" {
-				return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].path is required", i, j)
-			}
-			if strings.TrimSpace(r.Backend.Workload) == "" || strings.TrimSpace(r.Backend.Endpoint) == "" {
-				return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend must specify workload + endpoint", i, j)
-			}
-			if !seenWorkloads.Contains(r.Backend.Workload) {
-				return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend: unknown workload %q", i, j, r.Backend.Workload)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (w *Workload) validate(seen *set.Set[string]) error {
-	if strings.TrimSpace(w.Name) == "" {
-		return oopsx.B("deploy").Errorf("name is required")
-	}
-	if !nameRe.MatchString(w.Name) {
-		return oopsx.B("deploy").Errorf("name is invalid: %q", w.Name)
-	}
-	if seen.Contains(w.Name) {
-		return oopsx.B("deploy").Errorf("duplicate workload name %q", w.Name)
-	}
-	seen.Add(w.Name)
-
-	switch w.Kind {
-	case WorkloadKindService, WorkloadKindWorker, WorkloadKindJob, WorkloadKindCron, WorkloadKindStateful:
-	default:
-		return oopsx.B("deploy").Errorf("invalid kind %q", w.Kind)
-	}
-	switch w.Runtime {
-	case RuntimeDocker, RuntimeContainerd, RuntimeFirecracker, RuntimeProcess:
-	default:
-		return oopsx.B("deploy").Errorf("invalid runtime %q", w.Runtime)
-	}
-	if strings.TrimSpace(w.Run.Image) == "" {
-		return oopsx.B("deploy").Errorf("run.image is required")
-	}
-	if w.Replicas < 0 {
-		return oopsx.B("deploy").Errorf("replicas must be >= 0")
-	}
-	return nil
-}
-
-func (e *Endpoint) validate() error {
-	if strings.TrimSpace(e.Name) == "" {
-		return oopsx.B("deploy").Errorf("name is required")
-	}
-	if !nameRe.MatchString(e.Name) {
-		return oopsx.B("deploy").Errorf("name is invalid: %q", e.Name)
-	}
-	if e.Port <= 0 || e.Port > 65535 {
-		return oopsx.B("deploy").Errorf("port must be 1..65535 (got %d)", e.Port)
-	}
-	switch e.Protocol {
-	case ProtoTCP, ProtoUDP, ProtoHTTP:
-	default:
-		return oopsx.B("deploy").Errorf("invalid protocol %q", e.Protocol)
-	}
-	return nil
 }

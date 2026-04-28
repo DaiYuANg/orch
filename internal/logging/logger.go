@@ -6,6 +6,7 @@ import (
 	"github.com/arcgolabs/logx"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 func New(cfg config.LogConfig) (*slog.Logger, error) {
@@ -14,10 +15,13 @@ func New(cfg config.LogConfig) (*slog.Logger, error) {
 		level = slog.LevelInfo
 	}
 
-	return logx.New(
+	logger, err := logx.New(
 		logx.WithConsole(true),
 		logx.WithCaller(true),
 		logx.WithLevel(level),
 	)
+	if err != nil {
+		return nil, oopsx.B("logging").Wrapf(err, "build logger")
+	}
+	return logger, nil
 }
-

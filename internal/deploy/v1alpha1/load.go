@@ -25,9 +25,10 @@ import (
 //	  run:
 //	    image: redis:7
 func LoadAppFile(path string) (*App, error) {
+	path = filepath.Clean(path)
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, oopsx.B("deploy").Wrapf(err, "read %s", filepath.Base(path))
 	}
 
 	var app App

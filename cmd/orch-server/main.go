@@ -23,14 +23,17 @@ func main() {
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
+
 	runErr := newRootCmd().ExecuteContext(ctx)
 	if runErr != nil {
 		slog.Default().Error("start application failed", "error", runErr)
 	}
 	if bootstrap != nil {
-		_ = logx.Close(bootstrap)
+		if closeErr := logx.Close(bootstrap); closeErr != nil {
+			slog.Default().Warn("close bootstrap logger", "error", closeErr)
+		}
 	}
+	cancel()
 	if runErr != nil {
 		os.Exit(1)
 	}

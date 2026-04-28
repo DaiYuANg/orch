@@ -9,6 +9,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/observability"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 type Server struct {
@@ -51,5 +52,8 @@ func (s *Server) Start(ctx context.Context) error {
 
 func (s *Server) Stop(_ context.Context) error {
 	s.logger.Info("http server stopping")
-	return s.runtime.Shutdown()
+	if err := s.runtime.Shutdown(); err != nil {
+		return oopsx.B("http").Wrapf(err, "shutdown httpx runtime")
+	}
+	return nil
 }

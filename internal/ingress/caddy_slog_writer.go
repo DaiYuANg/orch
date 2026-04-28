@@ -58,7 +58,7 @@ func (w *orchSlogLineWriter) Write(p []byte) (int, error) {
 	defer w.mu.Unlock()
 	n, err := w.buf.Write(p)
 	if err != nil {
-		return n, err
+		return n, oopsx.B("ingress").Wrapf(err, "caddy slog buffer write")
 	}
 	w.flushLinesLocked()
 	return n, nil
@@ -97,13 +97,22 @@ func emitZapJSONLine(line []byte, lg *slog.Logger) {
 		lg.Info("caddy log line (unparsed)", slog.String("error", err.Error()), slog.String("raw", string(line)))
 		return
 	}
-	lvlStr, _ := m["level"].(string)
-	msg, _ := m["msg"].(string)
+	lvlStr := ""
+	if v, ok := m["level"].(string); ok {
+		lvlStr = v
+	}
+	msg := ""
+	if v, ok := m["msg"].(string); ok {
+		msg = v
+	}
 	// Internal bootstrap noise when swapping Caddy's default zap logger onto our writer (not useful in orch logs).
 	if msg == "redirected default logger" {
 		return
 	}
-	caddyLogger, _ := m["logger"].(string)
+	caddyLogger := ""
+	if v, ok := m["logger"].(string); ok {
+		caddyLogger = v
+	}
 	delete(m, "level")
 	delete(m, "msg")
 	delete(m, "logger")

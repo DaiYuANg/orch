@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	hraft "github.com/hashicorp/raft"
+
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // schedulingFSM is a minimal replicated state machine placeholder; scheduling
@@ -34,15 +36,18 @@ func (f *schedulingFSM) Snapshot() (hraft.FSMSnapshot, error) {
 }
 
 func (f *schedulingFSM) Restore(rc io.ReadCloser) error {
-	defer rc.Close()
 	data, err := io.ReadAll(rc)
+	closeErr := rc.Close()
 	if err != nil {
-		return err
+		return oopsx.B("raft").Wrapf(err, "fsm restore read snapshot")
+	}
+	if closeErr != nil {
+		return oopsx.B("raft").Wrapf(closeErr, "fsm restore close reader")
 	}
 	var st fsmSnapshotState
 	if len(data) > 0 {
 		if err := json.Unmarshal(data, &st); err != nil {
-			return err
+			return oopsx.B("raft").Wrapf(err, "fsm restore unmarshal")
 		}
 	}
 	f.mu.Lock()
@@ -58,14 +63,23 @@ type schedulingSnapshot struct {
 func (s *schedulingSnapshot) Persist(sink hraft.SnapshotSink) error {
 	b, err := json.Marshal(s.payload)
 	if err != nil {
-		_ = sink.Cancel()
-		return err
+		cancelErr := sink.Cancel()
+		if cancelErr != nil {
+			return oopsx.B("raft").Wrapf(err, "snapshot marshal (cancel: %v)", cancelErr)
+		}
+		return oopsx.B("raft").Wrapf(err, "snapshot marshal")
 	}
 	if _, err := sink.Write(b); err != nil {
-		_ = sink.Cancel()
-		return err
+		cancelErr := sink.Cancel()
+		if cancelErr != nil {
+			return oopsx.B("raft").Wrapf(err, "snapshot write (cancel: %v)", cancelErr)
+		}
+		return oopsx.B("raft").Wrapf(err, "snapshot write")
 	}
-	return sink.Close()
+	if err := sink.Close(); err != nil {
+		return oopsx.B("raft").Wrapf(err, "snapshot close sink")
+	}
+	return nil
 }
 
 func (s *schedulingSnapshot) Release() {}

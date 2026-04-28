@@ -1,6 +1,6 @@
-# AGENTS.md - Warden
+# AGENTS.md - orch
 
-Warden is a lightweight runtime and control layer for long-lived, stateful services
+orch is a lightweight runtime and control layer for long-lived, stateful services
 (DB/MQ/Object Storage, etc.) outside traditional container orchestrators.
 
 This file defines how an agent should work in this repository: build/run/test flows,
@@ -42,8 +42,9 @@ Non-goals for now:
 - `internal/`
  - `internal/deploy/v1alpha1`: canonical deploy YAML model (v0.1).
  - `internal/runtime/*`: runtime abstraction and providers (docker/containerd first).
- - `internal/api/*`: HTTP API layer (planned).
-- `docs/`: mdBook sources (`docs/book.toml`, `docs/src/*`).
+ - `internal/api/*`: HTTP API layer (OpenAPI via httpx/fiber).
+ - `internal/services/*`: registry, task orchestration.
+ - `internal/dnssvc`, `internal/ingress`, `internal/raftsvc`, `internal/scheduler`: control-plane services.
 - `docs/`: mdBook sources (`docs/book.toml`, `docs/src/*`).
 
 Note: Frontend dashboard source has been removed from this repository and is maintained externally.
@@ -52,18 +53,17 @@ Note: Frontend dashboard source has been removed from this repository and is mai
 
 ## Boot path (important)
 
-`orch-server` startup flow in Go (planned):
+`orch-server` startup flow in Go:
 
-1. Parse `--conf` arguments.
+1. Parse config (flags/env/files via configx).
 2. Load validated config.
 3. Initialize logger.
-4. Build store and seed demo baseline data.
-5. Create registry, DNS, ingress, runtime engine, raft service, task service.
-6. Register runtime providers (`docker`, `containerd`, `firecracker`).
-7. Start DNS, ingress, task, raft services.
-8. Build API router and run HTTP transport listeners.
+4. Wire DI modules (registry, DNS, ingress, runtime, raft, task, scheduler, HTTP API).
+5. Register runtime providers (`docker`, `containerd`, …).
+6. Start DNS, ingress, raft, scheduler, HTTP transport.
+7. Optional: reachable-endpoints logging.
 
-When adding a new subsystem, wire it explicitly in this composition root.
+When adding a new subsystem, wire it explicitly in this composition root (`cmd/orch-server/main.go` and `internal/*/module.go`).
 
 ---
 
@@ -90,7 +90,7 @@ CLI (parse deploy YAML):
 go run ./cmd/orch-cli dsl parse --file path/to/app.yaml --json
 ```
 
-Server (skeleton):
+Server:
 
 ```bash
 go run ./cmd/orch-server
@@ -100,15 +100,15 @@ go run ./cmd/orch-server
 
 ## Config conventions
 
-Source of truth (Go rewrite): `internal/deploy/v1alpha1` + future `internal/config`.
+Source of truth: `internal/config` + `internal/deploy/v1alpha1`.
 
 - Keep config changes additive.
-- Provide sensible defaults in `impl Default for Config`.
-- Validate with `validator` rules before runtime uses config.
+- Provide sensible defaults in `Default()` / typed defaults.
+- Validate before runtime uses config where applicable.
 - Supported file formats: `.yaml/.yml/.toml/.json`.
 - Env overrides:
-  - `WARDEN__...` (preferred nested form).
-  - `WARDEN_...` (compatibility form).
+  - `ORCH__...` (preferred nested form).
+  - `ORCH_...` (flat form).
 
 When adding config:
 
@@ -121,35 +121,28 @@ When adding config:
 
 ## API and transport conventions
 
-- Handlers should stay thin: parse/validate -> service call -> envelope mapping.
-- Keep business logic in service crates (`warden-task`, `warden-registry`, etc.), not in handler functions.
-- Keep OpenAPI in sync:
-  - Add route docs annotations in handlers.
-  - Register schema/path in `crates/warden-api/src/doc.rs`.
-- Swagger UI is served from `/swagger-ui`.
+- Handlers should stay thin: parse/validate -> service call -> response mapping.
+- Keep business logic in `internal/services/*` and domain packages, not in handlers.
+- OpenAPI/Swagger is exposed via httpx + fiber (`/openapi.json`, `/swagger-ui`).
 
-CLI/server transport:
+HTTP defaults:
 
-- Prefer platform-local endpoints first via `--api auto`:
-  - unix: `unix://...` then `http://127.0.0.1:17443`
-  - windows: `npipe://...` then `http://127.0.0.1:17443`
-- Explicit endpoint forms supported: `auto`, `unix://`, `npipe://`, `http://`, `https://`.
+- Control plane listens on `:17443` unless overridden (`HTTP.Addr` / `ORCH_HTTP__ADDR`).
 
 ---
 
 ## Runtime and scheduling conventions
 
-- `warden-runtime` is the abstraction boundary.
-- Driver-specific logic must live in driver crates (`warden-runtime-docker`, etc.).
-- Do not leak driver concrete types into API/type crates.
-- Keep scheduling decisions in `warden-task`.
-- Mutating operations that require consensus should go through raft apply paths.
+- `internal/runtime` is the abstraction boundary; drivers live under `internal/runtime/<driver>/`.
+- Do not leak driver concrete types into API-facing structs.
+- Scheduling/orchestration belongs in `internal/services/task` and future scheduler pipelines.
+- Mutating cluster state that requires consensus should go through Raft apply paths when wired.
 
 When adding a runtime driver:
 
-1. Add `crates/warden-runtime-<driver>/`.
-2. Implement provider trait(s) from `warden-runtime`.
-3. Register in server composition root.
+1. Add `internal/runtime/<driver>/`.
+2. Implement `runtime.Provider`.
+3. Register in `internal/runtime/module.go`.
 4. Add focused tests for lifecycle parity (deploy/stop/logs/recovery basics).
 
 ---
@@ -158,13 +151,13 @@ When adding a runtime driver:
 
 - CLI is a composition layer in `cmd/orch-cli`.
 - Command definitions use `cobra`.
-- Subcommands follow Cobra template layout in `cmd/orch-cli/cmd`.
+- Subcommands live under `cmd/orch-cli/cmd`.
 - Keep output stable JSON for automation-friendly usage.
 
 When adding a new command:
 
 1. Add cobra args/subcommand definitions.
-2. Add command handler wiring in `cmd/orch-cli/cmd`.
+2. Wire handlers in `cmd/orch-cli/cmd`.
 3. Reuse shared packages; do not duplicate transport logic.
 4. Add/update docs examples.
 
@@ -174,7 +167,7 @@ When adding a new command:
 
 - No hidden global mutable state.
 - Return contextual errors with wrapping (`fmt.Errorf("...: %w", err)`).
-- Use structured logs with clear fields (logger TBD).
+- Use structured logs with clear fields.
 - Prefer small modules and explicit boundaries.
 - Keep hot-path code simple; avoid unnecessary allocations/abstractions.
 
@@ -207,6 +200,6 @@ Before finishing changes:
 ## When unsure
 
 - Prefer minimal, additive changes.
-- Do not invent API contracts; inspect existing crates first.
+- Do not invent API contracts; inspect existing packages first.
 - Leave TODOs only with concrete next steps and file pointers.
-- If design is unclear, align with existing crate boundaries rather than introducing a new architecture.
+- If design is unclear, align with existing package boundaries rather than introducing a new architecture.

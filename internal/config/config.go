@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/configx"
 )
 
@@ -50,20 +51,30 @@ func (c IngressConfig) ListenAddrs() []string {
 		return c.Listen
 	}
 	if strings.TrimSpace(c.Addr) != "" {
-		return []string{c.Addr}
+		return list.NewList(c.Addr).Values()
 	}
-	return []string{":80", ":443"}
+	return list.NewList(":80", ":443").Values()
 }
 
 type DNSConfig struct {
 	Enabled  bool
 	Listen   string
 	DataPath string
+	// Zone is the authoritative DNS zone for orch service names (e.g. orch.local).
+	Zone string `yaml:"zone,omitempty"`
 }
 
 type SchedulerConfig struct {
 	Enabled           bool
 	HeartbeatInterval string
+	// RaftLeaderOnly wires gocron WithDistributedElector to Raft leadership:
+	// only the Raft leader runs scheduled jobs when Raft is enabled.
+	RaftLeaderOnly bool `yaml:"raftLeaderOnly,omitempty"`
+	// MaxConcurrentJobs caps simultaneous jobs across the whole scheduler (gocron WithLimitConcurrentJobs).
+	// 0 means unlimited.
+	MaxConcurrentJobs uint `yaml:"maxConcurrentJobs,omitempty"`
+	// ConcurrentJobsMode is reschedule or wait — maps to gocron LimitMode when MaxConcurrentJobs > 0.
+	ConcurrentJobsMode string `yaml:"concurrentJobsMode,omitempty"`
 }
 
 type AuthConfig struct {
@@ -83,7 +94,7 @@ type RaftConfig struct {
 func Load() (Config, error) {
 	return configx.LoadTErr[Config](
 		configx.WithTypedDefaults(Default()),
-		configx.WithEnvPrefix("WARDEN"),
+		configx.WithEnvPrefix("ORCH"),
 		configx.WithPriority(configx.SourceEnv),
 		configx.WithValidateLevel(configx.ValidateLevelNone),
 	)
@@ -107,16 +118,20 @@ func Default() Config {
 		},
 		Ingress: IngressConfig{
 			Enabled: true,
-			Listen:  []string{":80", ":443"},
+			Listen:  list.NewList(":80", ":443").Values(),
 		},
 		DNS: DNSConfig{
 			Enabled:  true,
 			Listen:   "127.0.0.1:15353",
 			DataPath: "./data/dnsx.db",
+			Zone:     "orch.local",
 		},
 		Scheduler: SchedulerConfig{
-			Enabled:           true,
-			HeartbeatInterval: "2m",
+			Enabled:            true,
+			HeartbeatInterval:  "2m",
+			RaftLeaderOnly:     false,
+			MaxConcurrentJobs:  0,
+			ConcurrentJobsMode: "reschedule",
 		},
 		Auth: AuthConfig{
 			Enabled:   false,

@@ -3,11 +3,13 @@ package scheduler
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	gocron "github.com/go-co-op/gocron/v2"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/raftsvc"
 )
 
 // Service wraps a gocron scheduler for periodic tasks.
@@ -18,8 +20,24 @@ type Service struct {
 }
 
 // New constructs the scheduler worker (not started until Start).
-func New(cfg config.Config, logger *slog.Logger) (*Service, error) {
-	s, err := gocron.NewScheduler(gocron.WithLocation(time.Local))
+func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service) (*Service, error) {
+	opts := []gocron.SchedulerOption{
+		gocron.WithLocation(time.Local),
+	}
+
+	if cfg.Raft.Enabled && cfg.Scheduler.RaftLeaderOnly {
+		opts = append(opts, gocron.WithDistributedElector(newRaftElector(raft)))
+	}
+
+	if cfg.Scheduler.MaxConcurrentJobs > 0 {
+		var mode gocron.LimitMode = gocron.LimitModeReschedule
+		if strings.EqualFold(strings.TrimSpace(cfg.Scheduler.ConcurrentJobsMode), "wait") {
+			mode = gocron.LimitModeWait
+		}
+		opts = append(opts, gocron.WithLimitConcurrentJobs(cfg.Scheduler.MaxConcurrentJobs, mode))
+	}
+
+	s, err := gocron.NewScheduler(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +67,7 @@ func (s *Service) Start(_ context.Context) error {
 		}),
 		gocron.WithName("orch-heartbeat"),
 		gocron.WithTags("orch", "heartbeat"),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	); err != nil {
 		return err
 	}

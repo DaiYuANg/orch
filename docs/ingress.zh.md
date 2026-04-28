@@ -1,6 +1,8 @@
-# Warden Ingress 设计 v1
+# orch Ingress 设计 v1
 
-状态：Warden 内建 ingress 系统的 server 侧设计规范。
+> 本仓库为 **orch**；文中 “Warden” 多为历史命名。运行时配置使用 **`ORCH`** 环境变量前缀。
+
+状态：内建 ingress 系统的 server 侧设计规范。
 
 对应英文版：`ingress.md`
 

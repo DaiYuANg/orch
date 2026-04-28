@@ -34,7 +34,7 @@ func (s *Service) DeployApp(ctx context.Context, app *deployv1.App) error {
 	}
 
 	for _, w := range app.Workloads {
-		if err := s.runtime.Deploy(ctx, w); err != nil {
+		if err := s.runtime.Deploy(ctx, app.Metadata, w); err != nil {
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
 			return fmt.Errorf("deploy workload %s: %w", w.Name, err)

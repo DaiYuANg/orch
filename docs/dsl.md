@@ -1,7 +1,9 @@
-# Warden Workload DSL v1
+# orch Workload DSL v1
+
+> This repository is **orch**. Older prose may say “Warden” for the same control-plane lineage; configuration uses the **`ORCH`** environment prefix.
 
 Status: Design baseline plus tracked implementation subset for the first
-canonical Warden DSL.
+canonical workload DSL.
 
 Chinese version: `dsl.zh.md`
 

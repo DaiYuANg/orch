@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
@@ -111,8 +112,9 @@ func Collect(ctx context.Context) (*Report, error) {
 	parts, err := disk.PartitionsWithContext(ctx, false)
 	if err == nil {
 		seen := set.NewSet[string]()
+		disks := list.NewListWithCapacity[DiskEntry](maxDiskPartitions)
 		for _, p := range parts {
-			if len(out.Disks) >= maxDiskPartitions {
+			if disks.Len() >= maxDiskPartitions {
 				break
 			}
 			mp := p.Mountpoint
@@ -128,7 +130,7 @@ func Collect(ctx context.Context) (*Report, error) {
 			if err != nil || usage == nil {
 				continue
 			}
-			out.Disks = append(out.Disks, DiskEntry{
+			disks.Add(DiskEntry{
 				Device:      p.Device,
 				Mountpoint:  mp,
 				Fstype:      p.Fstype,
@@ -138,6 +140,7 @@ func Collect(ctx context.Context) (*Report, error) {
 				UsedPercent: usage.UsedPercent,
 			})
 		}
+		out.Disks = disks.Values()
 	}
 
 	return out, nil

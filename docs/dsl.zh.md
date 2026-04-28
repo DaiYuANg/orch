@@ -1,6 +1,8 @@
-# Warden Workload DSL v1（中文）
+# orch Workload DSL v1（中文）
 
-状态：第一版 canonical Warden DSL 的设计基线与当前实现子集跟踪。
+> 本仓库为 **orch**。文中出现的 “Warden” 多为历史产品线命名；运行时配置使用 **`ORCH`** 环境变量前缀。
+
+状态：第一版 canonical workload DSL 的设计基线与当前实现子集跟踪。
 
 对应英文版：`dsl.md`
 

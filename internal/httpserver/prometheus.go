@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	fiberprometheus "github.com/ansrivas/fiberprometheus/v2"
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/daiyuang/orch/internal/config"
@@ -33,7 +34,7 @@ func attachFiberPrometheus(app *fiber.App, cfg config.Config, obs *observability
 	}
 
 	fp := fiberprometheus.NewWithRegistry(reg, serviceName, "http", "fiber", nil)
-	fp.SetSkipPaths([]string{path})
+	fp.SetSkipPaths(list.NewList(path).Values())
 	fp.RegisterAt(app, path)
 	app.Use(fp.Middleware)
 }

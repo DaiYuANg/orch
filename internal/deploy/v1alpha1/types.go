@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/set"
 	"gopkg.in/yaml.v3"
 )
 
@@ -32,8 +33,8 @@ type Metadata struct {
 
 type Workload struct {
 	Name string       `yaml:"name" json:"name"`
-	Kind WorkloadKind `yaml:"kind" json:"kind"`       // service|worker|job|cron|stateful
-	Run  RunSpec      `yaml:"run" json:"run"`         // image/command/args/env/cwd/runtimeOptions
+	Kind WorkloadKind `yaml:"kind" json:"kind"` // service|worker|job|cron|stateful
+	Run  RunSpec      `yaml:"run" json:"run"`   // image/command/args/env/cwd/runtimeOptions
 	// Runtime selects the backend adapter. This stays separate from Run.RuntimeOptions
 	// because the canonical intent model needs a stable first-class field.
 	Runtime RuntimeKind `yaml:"runtime" json:"runtime"` // docker|containerd|firecracker|process
@@ -63,10 +64,10 @@ const (
 type RuntimeKind string
 
 const (
-	RuntimeDocker     RuntimeKind = "docker"
-	RuntimeContainerd RuntimeKind = "containerd"
+	RuntimeDocker      RuntimeKind = "docker"
+	RuntimeContainerd  RuntimeKind = "containerd"
 	RuntimeFirecracker RuntimeKind = "firecracker"
-	RuntimeProcess    RuntimeKind = "process"
+	RuntimeProcess     RuntimeKind = "process"
 )
 
 type RunSpec struct {
@@ -116,9 +117,9 @@ const (
 )
 
 type Mount struct {
-	Volume VolumeRef `yaml:"volume" json:"volume"`
-	Target string    `yaml:"target" json:"target"`
-	ReadOnly bool    `yaml:"readOnly,omitempty" json:"readOnly,omitempty"`
+	Volume   VolumeRef `yaml:"volume" json:"volume"`
+	Target   string    `yaml:"target" json:"target"`
+	ReadOnly bool      `yaml:"readOnly,omitempty" json:"readOnly,omitempty"`
 }
 
 type Resources struct {
@@ -143,8 +144,8 @@ type HTTPProbe struct {
 }
 
 type Scheduling struct {
-	Stateful      bool     `yaml:"stateful,omitempty" json:"stateful,omitempty"`
-	AllowLeader   bool     `yaml:"allowLeader,omitempty" json:"allowLeader,omitempty"`
+	Stateful       bool     `yaml:"stateful,omitempty" json:"stateful,omitempty"`
+	AllowLeader    bool     `yaml:"allowLeader,omitempty" json:"allowLeader,omitempty"`
 	PreferredNodes []string `yaml:"preferredNodes,omitempty" json:"preferredNodes,omitempty"`
 }
 
@@ -172,8 +173,8 @@ type Volume struct {
 }
 
 type Ingress struct {
-	Name   string        `yaml:"name" json:"name"`
-	Host   string        `yaml:"host,omitempty" json:"host,omitempty"`
+	Name   string         `yaml:"name" json:"name"`
+	Host   string         `yaml:"host,omitempty" json:"host,omitempty"`
 	Routes []IngressRoute `yaml:"routes,omitempty" json:"routes,omitempty"`
 }
 
@@ -281,7 +282,7 @@ func (a *App) Validate() error {
 		return fmt.Errorf("metadata.namespace is invalid: %q", a.Metadata.Namespace)
 	}
 
-	seenWorkloads := map[string]struct{}{}
+	seenWorkloads := set.NewSet[string]()
 	for i := range a.Workloads {
 		w := &a.Workloads[i]
 		if err := w.validate(seenWorkloads); err != nil {
@@ -293,7 +294,7 @@ func (a *App) Validate() error {
 	for i := range a.Workloads {
 		w := &a.Workloads[i]
 		for j := range w.DependsOn {
-			if _, ok := seenWorkloads[w.DependsOn[j].Name]; !ok {
+			if !seenWorkloads.Contains(w.DependsOn[j].Name) {
 				return fmt.Errorf("workloads[%d].dependsOn[%d]: unknown workload %q", i, j, w.DependsOn[j].Name)
 			}
 		}
@@ -322,7 +323,7 @@ func (a *App) Validate() error {
 			if strings.TrimSpace(r.Backend.Workload) == "" || strings.TrimSpace(r.Backend.Endpoint) == "" {
 				return fmt.Errorf("ingresses[%d].routes[%d].backend must specify workload + endpoint", i, j)
 			}
-			if _, ok := seenWorkloads[r.Backend.Workload]; !ok {
+			if !seenWorkloads.Contains(r.Backend.Workload) {
 				return fmt.Errorf("ingresses[%d].routes[%d].backend: unknown workload %q", i, j, r.Backend.Workload)
 			}
 		}
@@ -331,17 +332,17 @@ func (a *App) Validate() error {
 	return nil
 }
 
-func (w *Workload) validate(seen map[string]struct{}) error {
+func (w *Workload) validate(seen *set.Set[string]) error {
 	if strings.TrimSpace(w.Name) == "" {
 		return fmt.Errorf("name is required")
 	}
 	if !nameRe.MatchString(w.Name) {
 		return fmt.Errorf("name is invalid: %q", w.Name)
 	}
-	if _, ok := seen[w.Name]; ok {
+	if seen.Contains(w.Name) {
 		return fmt.Errorf("duplicate workload name %q", w.Name)
 	}
-	seen[w.Name] = struct{}{}
+	seen.Add(w.Name)
 
 	switch w.Kind {
 	case WorkloadKindService, WorkloadKindWorker, WorkloadKindJob, WorkloadKindCron, WorkloadKindStateful:
@@ -379,4 +380,3 @@ func (e *Endpoint) validate() error {
 	}
 	return nil
 }
-

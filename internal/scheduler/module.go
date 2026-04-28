@@ -11,7 +11,7 @@ func Module() dix.Module {
 	return dix.NewModule(
 		"scheduler",
 		dix.Providers(
-			dix.ProviderErr2(New),
+			dix.ProviderErr3(New),
 		),
 		dix.Hooks(
 			dix.OnStart2(func(ctx context.Context, logger *slog.Logger, s *Service) error {

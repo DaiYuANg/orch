@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
+	"github.com/arcgolabs/collectionx/mapping"
 	"github.com/arcgolabs/dnsx/dnsserver"
 	"github.com/miekg/dns"
 
@@ -14,17 +15,19 @@ import (
 )
 
 type Service struct {
-	logger  *slog.Logger
-	cfg     config.DNSConfig
-	store   *dnsserver.BboltStore
-	server  *dnsserver.Server
-	started atomic.Bool
+	logger          *slog.Logger
+	cfg             config.DNSConfig
+	store           *dnsserver.BboltStore
+	server          *dnsserver.Server
+	workloadRecords *mapping.ConcurrentMap[string, dnsserver.Record]
+	started         atomic.Bool
 }
 
 func New(cfg config.Config, logger *slog.Logger) *Service {
 	return &Service{
-		logger: logger,
-		cfg:    cfg.DNS,
+		logger:          logger,
+		cfg:             cfg.DNS,
+		workloadRecords: mapping.NewConcurrentMap[string, dnsserver.Record](),
 	}
 }
 
@@ -59,9 +62,10 @@ func (s *Service) Start(ctx context.Context) error {
 	s.store = store
 	s.server = server
 	s.started.Store(true)
+	zone := dnsZoneName(s.cfg)
 	_ = s.store.SaveRecord(ctx, dnsserver.Record{
-		Zone: "orch.local",
-		Name: "orch.local",
+		Zone: zone,
+		Name: zone,
 		TTL:  60,
 		Type: dns.TypeA,
 		Data: "127.0.0.1",

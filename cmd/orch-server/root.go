@@ -17,6 +17,7 @@ import (
 	"github.com/daiyuang/orch/internal/ingress"
 	"github.com/daiyuang/orch/internal/logging"
 	"github.com/daiyuang/orch/internal/metrics"
+	"github.com/daiyuang/orch/internal/nodeid"
 	"github.com/daiyuang/orch/internal/observability"
 	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/runtime"
@@ -63,6 +64,7 @@ func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 		dix.WithModules(
 			config.Static(cfg),
 			logging.Module(),
+			nodeid.Module(),
 			observability.Module(),
 			metrics.Module(),
 			securityauth.Module(),

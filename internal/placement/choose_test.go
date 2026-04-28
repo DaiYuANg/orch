@@ -65,7 +65,8 @@ func TestChoose_prefersLowerCPU(t *testing.T) {
 		},
 	)
 
-	got, err := Choose(context.Background(), deployv1.Workload{Name: "w"}, cat, "local")
+	eng := NewEngine()
+	got, err := eng.Choose(context.Background(), deployv1.Workload{Name: "w"}, cat, "local")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +94,8 @@ func TestChoose_respectsPreferredNodes(t *testing.T) {
 			PreferredNodes: []string{"cold"},
 		},
 	}
-	got, err := Choose(context.Background(), w, cat, "local")
+	eng := NewEngine()
+	got, err := eng.Choose(context.Background(), w, cat, "local")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,14 +8,29 @@ import (
 	gocron "github.com/go-co-op/gocron/v2"
 
 	"github.com/daiyuang/orch/internal/nodecapacity"
+	"github.com/daiyuang/orch/internal/nodeid"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // RegisterResourceSnapshotJob runs an initial local refresh, then registers the periodic
 // node resource snapshot job on s using cat.
-func RegisterResourceSnapshotJob(ctx context.Context, s *Service, cat *nodecapacity.Catalog) error {
-	if err := cat.RefreshLocal(ctx, s.cfg); err != nil {
-		s.logger.Warn("initial node resource snapshot failed", "error", err)
+func RegisterResourceSnapshotJob(ctx context.Context, s *Service, cat *nodecapacity.Catalog, local nodeid.Local) error {
+	initStart := time.Now()
+	if err := cat.RefreshLocal(ctx, local, s.cfg); err != nil {
+		s.logger.Warn("scheduler job failed",
+			"component", "scheduler",
+			"job", "orch-node-resources",
+			"event", "initial_refresh",
+			"duration", time.Since(initStart),
+			"error", err,
+		)
+	} else {
+		s.logger.Info("scheduler job completed",
+			"component", "scheduler",
+			"job", "orch-node-resources",
+			"event", "initial_refresh",
+			"duration", time.Since(initStart),
+		)
 	}
 	sc := s.cfg.Scheduler
 	resInt := 30 * time.Second
@@ -25,11 +40,25 @@ func RegisterResourceSnapshotJob(ctx context.Context, s *Service, cat *nodecapac
 	if _, err := s.Jobs().NewJob(
 		gocron.DurationJob(resInt),
 		gocron.NewTask(func() {
+			start := time.Now()
 			cctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
-			if err := cat.RefreshLocal(cctx, s.cfg); err != nil {
-				s.logger.Warn("node resource snapshot refresh failed", "error", err)
+			if err := cat.RefreshLocal(cctx, local, s.cfg); err != nil {
+				s.logger.Warn("scheduler job failed",
+					"component", "scheduler",
+					"job", "orch-node-resources",
+					"event", "tick",
+					"duration", time.Since(start),
+					"error", err,
+				)
+				return
 			}
+			s.logger.Debug("scheduler job completed",
+				"component", "scheduler",
+				"job", "orch-node-resources",
+				"event", "tick",
+				"duration", time.Since(start),
+			)
 		}),
 		gocron.WithName("orch-node-resources"),
 		gocron.WithTags("orch", "nodecapacity"),

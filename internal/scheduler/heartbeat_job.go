@@ -18,7 +18,11 @@ func RegisterHeartbeatJob(s *Service) error {
 	if _, err := s.Jobs().NewJob(
 		gocron.DurationJob(interval),
 		gocron.NewTask(func() {
-			s.logger.Debug("scheduler heartbeat")
+			s.logger.Debug("scheduler job completed",
+				"component", "scheduler",
+				"job", "orch-heartbeat",
+				"event", "tick",
+			)
 		}),
 		gocron.WithName("orch-heartbeat"),
 		gocron.WithTags("orch", "heartbeat"),

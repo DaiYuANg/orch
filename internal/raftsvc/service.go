@@ -18,13 +18,15 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/logging"
+	"github.com/daiyuang/orch/internal/nodeid"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // Service owns hashicorp raft backed by storx (Badger logs + bbolt stable metadata).
 type Service struct {
-	logger *slog.Logger
-	cfg    config.Config
+	logger  *slog.Logger
+	cfg     config.Config
+	localID nodeid.Local
 
 	r         *hraft.Raft
 	fsm       *schedulingFSM
@@ -38,11 +40,12 @@ type Service struct {
 }
 
 // New constructs the service (Raft starts in Start).
-func New(cfg config.Config, logger *slog.Logger) *Service {
+func New(cfg config.Config, logger *slog.Logger, local nodeid.Local) *Service {
 	return &Service{
-		logger: logger,
-		cfg:    cfg,
-		fsm:    &schedulingFSM{},
+		logger:  logger,
+		cfg:     cfg,
+		localID: local,
+		fsm:     &schedulingFSM{},
 	}
 }
 
@@ -154,7 +157,7 @@ func (s *Service) Start(_ context.Context) error {
 	localAddr, transport := hraft.NewInmemTransport("")
 
 	hrCfg := hraft.DefaultConfig()
-	hrCfg.LocalID = hraft.ServerID(s.cfg.Raft.Node.ID)
+	hrCfg.LocalID = hraft.ServerID(s.localID.String())
 	hrCfg.Logger = st.raftHC
 
 	hasState, err := hraft.HasExistingState(logStore, stable, snapStore)

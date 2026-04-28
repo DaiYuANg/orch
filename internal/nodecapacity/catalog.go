@@ -6,6 +6,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/hostinfo"
+	"github.com/daiyuang/orch/internal/nodeid"
 )
 
 // Catalog exposes placement-facing reads and RefreshLocal writes via [SnapshotStore].
@@ -45,12 +46,12 @@ func (c *Catalog) NodeIDs() []string {
 	return c.store.NodeIDs()
 }
 
-// RefreshLocal samples this host via hostinfo and upserts cfg.raft.node.id through the store.
-func (c *Catalog) RefreshLocal(ctx context.Context, cfg config.Config) error {
+// RefreshLocal samples this host via hostinfo and upserts local node id through the store.
+func (c *Catalog) RefreshLocal(ctx context.Context, local nodeid.Local, cfg config.Config) error {
 	if c == nil || c.store == nil {
 		return nil
 	}
-	nodeID := strings.TrimSpace(cfg.Raft.Node.ID)
+	nodeID := strings.TrimSpace(local.String())
 	if nodeID == "" {
 		nodeID = "local"
 	}

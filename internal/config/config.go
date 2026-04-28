@@ -88,6 +88,7 @@ type AuthConfig struct {
 type RaftConfig struct {
 	Enabled bool `json:"enabled"`
 	Node    struct {
+		// ID forces this Raft/server identity (omit, "", or "auto" → resolved via nodeid hardware resolver).
 		ID string `json:"id"`
 	} `json:"node"`
 	Bind   string `json:"bind"`
@@ -137,7 +138,8 @@ func Default() Config {
 
 	var raft RaftConfig
 	raft.Enabled = true
-	raft.Node.ID = "node-1"
+	// raft.Node.ID empty or "auto" → resolved from hardware at runtime ([nodeid.Resolve]).
+	raft.Node.ID = ""
 	raft.Bind = "127.0.0.1:7444"
 	raft.Badger.Dir = filepath.Join(root, "raft-sched")
 	raft.Bolt.Path = filepath.Join(root, "raft-meta.db")

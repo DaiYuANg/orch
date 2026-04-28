@@ -33,7 +33,7 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.String("auth-jwt-secret", def.Auth.JWT.Secret, "config path auth.jwt.secret")
 
 	fs.Bool("raft-enabled", def.Raft.Enabled, "config path raft.enabled")
-	fs.String("raft-node-id", def.Raft.Node.ID, "config path raft.node.id")
+	fs.String("raft-node-id", def.Raft.Node.ID, "config path raft.node.id (empty or 'auto': OS host id / hardware fingerprint)")
 	fs.String("raft-bind", def.Raft.Bind, "config path raft.bind")
 	fs.String("raft-badger-dir", def.Raft.Badger.Dir, "config path raft.badger.dir")
 	fs.String("raft-bolt-path", def.Raft.Bolt.Path, "config path raft.bolt.path")

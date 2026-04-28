@@ -11,7 +11,7 @@ func Module() dix.Module {
 	return dix.NewModule(
 		"raft",
 		dix.Providers(
-			dix.Provider2(New),
+			dix.Provider3(New),
 		),
 		dix.Hooks(
 			dix.OnStart2(func(ctx context.Context, logger *slog.Logger, s *Service) error {

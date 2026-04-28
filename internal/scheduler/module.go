@@ -7,17 +7,19 @@ import (
 	"github.com/arcgolabs/dix"
 
 	"github.com/daiyuang/orch/internal/nodecapacity"
+	"github.com/daiyuang/orch/internal/nodeid"
 )
 
 // startDeps bundles scheduler startup dependencies for a single OnStart hook.
 type startDeps struct {
-	Logger  *slog.Logger
-	Service *Service
-	Catalog *nodecapacity.Catalog
+	Logger    *slog.Logger
+	Service   *Service
+	Catalog   *nodecapacity.Catalog
+	LocalNode nodeid.Local
 }
 
-func newStartDeps(logger *slog.Logger, s *Service, cat *nodecapacity.Catalog) startDeps {
-	return startDeps{Logger: logger, Service: s, Catalog: cat}
+func newStartDeps(logger *slog.Logger, s *Service, cat *nodecapacity.Catalog, local nodeid.Local) startDeps {
+	return startDeps{Logger: logger, Service: s, Catalog: cat, LocalNode: local}
 }
 
 func Module() dix.Module {
@@ -25,7 +27,7 @@ func Module() dix.Module {
 		"scheduler",
 		dix.Providers(
 			dix.ProviderErr3(New),
-			dix.Provider3(newStartDeps),
+			dix.Provider4(newStartDeps),
 		),
 		dix.Hooks(
 			dix.OnStart(func(ctx context.Context, d startDeps) error {
@@ -34,7 +36,7 @@ func Module() dix.Module {
 					d.Logger.Error("lifecycle", "phase", "start_failed", "component", "scheduler", "error", err)
 					return err
 				}
-				if err := RegisterResourceSnapshotJob(ctx, d.Service, d.Catalog); err != nil {
+				if err := RegisterResourceSnapshotJob(ctx, d.Service, d.Catalog, d.LocalNode); err != nil {
 					d.Logger.Error("lifecycle", "phase", "start_failed", "component", "scheduler", "error", err)
 					return err
 				}

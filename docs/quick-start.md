@@ -16,7 +16,7 @@ go test ./...
 ## Run CLI (parse deploy YAML)
 
 ```bash
-go run ./cmd/orch-cli dsl parse --file path/to/app.yaml --json
+go run ./cmd/orch-cli parse --file path/to/app.yaml --json
 ```
 
 ## Run server

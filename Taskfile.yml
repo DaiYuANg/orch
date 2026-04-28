@@ -35,5 +35,12 @@ tasks:
     requires:
       vars: [FILE]
     cmds:
-      - go run ./cmd/orch-cli dsl parse --file {{.FILE}} {{if .JSON}}--json{{end}}
+      - go run ./cmd/orch-cli parse --file {{.FILE}} {{if .JSON}}--json{{end}}
+
+  dsl-validate:
+    desc: "Validate deploy YAML (exit non-zero on error)"
+    requires:
+      vars: [FILE]
+    cmds:
+      - go run ./cmd/orch-cli validate --file {{.FILE}}
 

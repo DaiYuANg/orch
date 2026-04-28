@@ -38,7 +38,7 @@ Non-goals for now:
 
 - `cmd/`
  - `cmd/orch-server/`: server binary entrypoint.
- - `cmd/orch-cli/`: CLI entrypoint.
+ - `cmd/orch-cli/`: CLI entrypoint (`cmd/orch-cli/cmd` — cobra commands; `cmd/orch-cli/cliapp` — orch-cli-only dix composition, not domain libraries).
 - `internal/`
  - `internal/deploy/v1alpha1`: canonical deploy YAML model (v0.1).
  - `internal/runtime/*`: runtime abstraction and providers (docker/containerd first).
@@ -87,7 +87,7 @@ Docs:
 CLI (parse deploy YAML):
 
 ```bash
-go run ./cmd/orch-cli dsl parse --file path/to/app.yaml --json
+go run ./cmd/orch-cli parse --file path/to/app.yaml --json
 ```
 
 Server:
@@ -152,13 +152,14 @@ When adding a runtime driver:
 - CLI is a composition layer in `cmd/orch-cli`.
 - Command definitions use `cobra`.
 - Subcommands live under `cmd/orch-cli/cmd`.
+- Control-plane commands compose a short-lived `dix` graph in `cmd/orch-cli/cliapp`: cluster-facing commands use `RunCluster` (`Conn` → `*apiclient.Client` + `OnStop` close); manifest-only commands use `RunManifest` (no HTTP client; extend `moduleManifest()` as deps grow).
 - Keep output stable JSON for automation-friendly usage.
 
 When adding a new command:
 
 1. Add cobra args/subcommand definitions.
 2. Wire handlers in `cmd/orch-cli/cmd`.
-3. Reuse shared packages; do not duplicate transport logic.
+3. Reuse shared packages; do not duplicate transport logic (prefer `cmd/orch-cli/cliapp` + `internal/apiclient`).
 4. Add/update docs examples.
 
 ---

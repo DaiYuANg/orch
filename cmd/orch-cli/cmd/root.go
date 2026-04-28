@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/internal/apiclient"
+	"github.com/daiyuang/orch/internal/buildmeta"
 )
 
 var (
@@ -14,26 +16,38 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "orch",
-	Short: "orch CLI — local tooling and orch-server HTTP API",
-	Long: `orch-cli talks to orch-server using a single HTTP base URL (--server / ORCH_SERVER).
+	Use:           "orch",
+	Short:         "orch CLI — deploy manifests and operate the orch control plane",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	Version:       buildmeta.Version(),
+	Long: `Validate and inspect deploy YAML locally (validate, parse), submit manifests to the cluster (apply),
+and talk to the running control plane (--server / ORCH_SERVER): health, workloads, hostinfo.
 
-v1 keeps one endpoint so you can aim at a load balancer or any cluster peer; richer discovery/TLS profiles come later.`,
+Use a single base URL per process; in clusters you can point at a load balancer or any peer node.`,
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
 func init() {
+	rootCmd.SetVersionTemplate("{{.Name}} {{.Version}}\n")
+
 	rootCmd.PersistentFlags().StringVarP(&serverURL, "server", "s", apiclient.DefaultBaseURL(),
-		`Base URL of orch-server HTTP API (no trailing slash). Example: http://127.0.0.1:17443 or https://orch.example.com. Override with env ORCH_SERVER.`)
+		`Base URL of the orch control plane (no trailing slash). Example: http://127.0.0.1:17443. Env ORCH_SERVER.`)
 	rootCmd.PersistentFlags().StringVar(&authToken, "token", os.Getenv("ORCH_TOKEN"),
 		`Bearer token when orch-server auth is enabled (env ORCH_TOKEN).`)
 
-	rootCmd.AddCommand(newDSLCmd())
-	rootCmd.AddCommand(newAPICmds())
+	// Manifest workflow (local vs server) — primary user surface.
+	rootCmd.AddCommand(newValidateCmd())
+	rootCmd.AddCommand(newParseCmd())
+	rootCmd.AddCommand(newApplyCmd())
+	// Cluster inspection (requires reachable control plane).
+	rootCmd.AddCommand(newHealthCmd())
+	rootCmd.AddCommand(newWorkloadsCmd())
+	rootCmd.AddCommand(newHostinfoCmd())
 }
-

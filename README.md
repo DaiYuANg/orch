@@ -82,6 +82,38 @@ go mod tidy
 go test ./...
 ```
 
+### Release builds (binaries, `.deb`, `.rpm`, `.apk`)
+
+Recommended workflow is **[GoReleaser](https://goreleaser.com)** with **[nFPM](https://nfpm.goreleaser.com)** (configured in `.goreleaser.yaml`): cross-compile **orch** / **orch-server**, tar/zip archives, checksums, and Linux packages (`deb` / `rpm` / `apk`) in one pipeline.
+
+```bash
+task goreleaser-check              # validate config
+task release-snapshot              # outputs under dist/ (no tag required)
+# tagged release + GitHub publish (when wired): goreleaser release --clean
+```
+
+Other common approaches:
+
+| Approach | Notes |
+|----------|--------|
+| **GoReleaser** (this repo) | Single YAML; archives + nfpm packages + optional Homebrew/Chocolatey/GitHub Releases |
+| **[nfpm](https://github.com/goreleaser/nfpm) alone** | Only packaging step: you build binaries (`go build`), nfpm produces deb/rpm/apk from `nfpm.yaml` |
+| **[fpm](https://github.com/jordansissel/fpm)** | Flexible Ruby-based packager; many formats, extra tooling |
+| **rpmbuild / debhelper** | Classic distro-native specs (`*.spec`, `debian/`) — best when targeting specific distributions |
+| **OBS / COPR / PPA** | Build RPM/DEB on shared infra for multiple base OS versions |
+
+Full matrix builds must succeed (`go test ./...` and cross-compiles); narrow `builds` targets in `.goreleaser.yaml` if you need to iterate before fixing every GOOS/GOARCH combination.
+
+### Dev Container (VS Code / Cursor / Codespaces)
+
+Open the repo in a container using `.devcontainer/`: Go 1.26 (bookworm), `task`, Delve, and the **Docker CLI** are preinstalled; port `17443` is forwarded for `orch-server` HTTP. After the container builds, `postCreateCommand` runs `go mod download` and `docker version`. For mdBook locally, install a [release binary](https://github.com/rust-lang/mdBook/releases) or use mdBook on the host.
+
+**Docker vs nested runtimes**
+
+- **Default (Docker-from-Docker):** the devcontainer [docker-outside-of-docker](https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker) feature mounts the **host** Docker socket. Commands like `docker run` / `docker compose` use **your machine’s Docker engine** (e.g. Docker Desktop on Windows/macOS). That is enough to exercise the **docker** runtime provider without running a second daemon inside the devcontainer.
+- **Docker-in-Docker:** only if you need an **isolated** daemon (no host socket), swap the feature for `ghcr.io/devcontainers/features/docker-in-docker` and add `"runArgs": ["--privileged"]` (heavier; can be awkward with Docker Desktop). See the [feature docs](https://github.com/devcontainers/features/tree/main/src/docker-in-docker).
+- **containerd provider:** orch talks to **containerd’s API/socket**, not the same path as “Docker CLI + host engine”. Nested **containerd + nerdctl** inside a devcontainer is possible but heavy (extra daemons, Linux-only nuances). Typical approaches: run containerd-backed tests on a **Linux host/VM/CI** with `/run/containerd/containerd.sock` (or your distro path) reachable, or develop the docker path in devcontainer and run containerd integration elsewhere.
+
 ## Ingress Configuration
 
 Environment variables use the **`ORCH`** prefix (see `internal/config`, loaded via configx).

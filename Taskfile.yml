@@ -1,5 +1,8 @@
 version: "3"
 
+vars:
+  GORELEASER_VER: v2.12.2
+
 tasks:
   tidy:
     desc: "Go: tidy modules"
@@ -43,4 +46,14 @@ tasks:
       vars: [FILE]
     cmds:
       - go run ./cmd/orch-cli validate --file {{.FILE}}
+
+  goreleaser-check:
+    desc: "Validate .goreleaser.yaml"
+    cmds:
+      - go run github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VER}} check
+
+  release-snapshot:
+    desc: "Archives + deb/rpm/apk snapshot under dist/ (no GitHub publish)"
+    cmds:
+      - go run github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VER}} release --snapshot --clean
 

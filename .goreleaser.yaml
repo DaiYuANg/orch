@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# https://goreleaser.com — check: goreleaser check
+# Snapshot (no Git tag): goreleaser release --snapshot --clean
+#
+# Alternatives (if you prefer not to use GoReleaser):
+# - nfpm alone: YAML-only deb/rpm/apk from built binaries — https://nfpm.goreleaser.com
+# - fpm: Ruby gem wrapping many package formats (deb/rpm/solaris/etc.)
+# - distro packaging: rpmbuild / debhelper on native Linux builders or OBS
+version: 2
+
+project_name: orch
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: orch-cli
+    main: ./cmd/orch-cli
+    binary: orch
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s
+      - -w
+
+  - id: orch-server
+    main: ./cmd/orch-server
+    binary: orch-server
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s
+      - -w
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-SNAPSHOT-{{.ShortCommit}}"
+
+nfpms:
+  - package_name: orch
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: orch
+    homepage: https://github.com/daiyuang/orch
+    maintainer: orch maintainers <orch@users.noreply.github.com>
+    description: orch control plane server and CLI (stateful workload runtime layer).
+    license: MIT
+    section: utils
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin

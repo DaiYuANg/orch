@@ -31,6 +31,8 @@ Non-goals for now:
 - Tooling:
   - `task` (go-task) for daily developer commands.
   - `mdBook` for docs (`docs/`).
+  - Releases: `.goreleaser.yaml` + `task release-snapshot` / `task goreleaser-check` (archives + deb/rpm/apk via nfpm).
+  - Dev Container: `.devcontainer/` (Go 1.26 bookworm, `task`, Delve, Docker CLI via docker-outside-of-docker host socket; forwards `17443`).
 
 ---
 

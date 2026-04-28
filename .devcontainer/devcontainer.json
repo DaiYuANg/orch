@@ -1,0 +1,43 @@
+{
+  "name": "orch",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "moby": true,
+      "dockerDashComposeVersion": "v2",
+      "installDockerBuildx": true
+    }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-azuretools.vscode-containers"
+      ],
+      "settings": {
+        "go.testFlags": ["-v"],
+        "go.useLanguageServer": true
+      }
+    }
+  },
+
+  "postCreateCommand": "go mod download && go version && task --version",
+
+  "forwardPorts": [17443],
+  "portsAttributes": {
+    "17443": {
+      "label": "orch-server HTTP",
+      "onAutoForward": "notify"
+    }
+  },
+
+  "containerEnv": {
+    "CGO_ENABLED": "1"
+  }
+}

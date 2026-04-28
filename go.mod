@@ -1,5 +1,9 @@
 module github.com/daiyuang/orch
 
+// The `go` line is the minimum language version for this module; `go mod tidy` raises it to match
+// transitive requirements (currently 1.26.x). Toolchain selection must be >= this `go` line — you
+// cannot pin toolchain below `go` to “fix” a dependency; resolve outdated deps via version bumps or
+// `replace`. Use GOTOOLCHAIN=local only to forbid auto-download of another toolchain (offline CI).
 go 1.26.2
 
 require (
@@ -36,6 +40,7 @@ require (
 	github.com/samber/oops v1.21.0
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/vishvananda/netns v0.0.5
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -232,7 +237,6 @@ require (
 	github.com/smallstep/scep v0.0.0-20260331191114-261f960a40d1 // indirect
 	github.com/smallstep/truststore v0.13.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55 // indirect
 	github.com/tailscale/tscert v0.0.0-20251216020129-aea342f6d747 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect

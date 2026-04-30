@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/pterm/pterm"
 )
 
 func main() {
@@ -13,9 +14,7 @@ func main() {
 
 	runErr := newRootCmd().ExecuteContext(ctx)
 	if runErr != nil {
-		if _, werr := fmt.Fprintf(os.Stderr, "%v\n", runErr); werr != nil {
-			os.Exit(2)
-		}
+		pterm.Error.Println(runErr)
 	}
 	cancel()
 	if runErr != nil {

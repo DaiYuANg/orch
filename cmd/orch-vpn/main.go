@@ -11,13 +11,10 @@ import (
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
-	runErr := newRootCmd().ExecuteContext(ctx)
-	if runErr != nil {
-		pterm.Error.Println(runErr)
-	}
-	cancel()
-	if runErr != nil {
+	if err := newRootCmd().ExecuteContext(ctx); err != nil {
+		pterm.Error.Println(err)
 		os.Exit(1)
 	}
 }

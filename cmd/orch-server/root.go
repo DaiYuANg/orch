@@ -21,6 +21,7 @@ import (
 	"github.com/daiyuang/orch/internal/metrics"
 	"github.com/daiyuang/orch/internal/nodeid"
 	"github.com/daiyuang/orch/internal/observability"
+	"github.com/daiyuang/orch/internal/orchvpn"
 	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/runtime"
 	"github.com/daiyuang/orch/internal/scheduler"
@@ -73,6 +74,7 @@ func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 			metrics.Module(),
 			securityauth.Module(),
 			dnssvc.Module(),
+			orchvpn.GatewayModule(),
 			runtime.Module(),
 			raftsvc.Module(),
 			services.Module(),
@@ -92,15 +94,15 @@ func (srv *serverRunner) run(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("start orch-server: %w", err)
 	}
-	rt.Logger().Info("lifecycle", "phase", "ready", "app", "orch-server")
+	rt.Logger().Info("orch-server ready (control plane running; Ctrl+C to stop)")
 
 	<-ctx.Done()
-	rt.Logger().Info("lifecycle", "phase", "shutdown_requested", "app", "orch-server")
+	rt.Logger().Info("orch-server shutdown requested")
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()
 	if err := rt.Stop(shutdownCtx); err != nil {
-		rt.Logger().Warn("graceful stop error", "error", err)
+		rt.Logger().Warn("orch-server graceful stop error", "error", err)
 	}
 	return nil
 }

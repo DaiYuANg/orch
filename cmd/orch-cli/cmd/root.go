@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/internal/apiclient"
@@ -29,9 +29,7 @@ Use a single base URL per process; in clusters you can point at a load balancer 
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		if _, werr := fmt.Fprintf(os.Stderr, "%v\n", err); werr != nil {
-			os.Exit(2)
-		}
+		pterm.Error.Println(err)
 		os.Exit(1)
 	}
 }

@@ -40,6 +40,13 @@ tasks:
     vars:
       LSP_ARGS: '{{default "" .LSP_ARGS}}'
 
+  run-vpn:
+    desc: "Run orch-vpn workstation daemon (dev)"
+    cmds:
+      - go run ./cmd/orch-vpn {{.VPN_ARGS}}
+    vars:
+      VPN_ARGS: '{{default "" .VPN_ARGS}}'
+
   dsl-parse:
     desc: "Parse deploy YAML into canonical model"
     requires:

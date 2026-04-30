@@ -41,6 +41,7 @@ Non-goals for now:
 - `cmd/`
  - `cmd/orch-server/`: server binary entrypoint.
  - `cmd/orch-cli/`: CLI entrypoint (`cmd/orch-cli/cmd` — cobra commands; `cmd/orch-cli/cliapp` — orch-cli-only dix composition, not domain libraries).
+ - `cmd/orch-vpn/`: workstation daemon for orch-vpn; builds a short-lived dix graph (`internal/orchvpn` WorkstationApp) similar to orch-cli cluster commands.
 - `pkg/`
  - `pkg/oopsx`: stable helper API ([samber/oops](https://github.com/samber/oops) wrappers); safe for external modules to import.
 - `internal/`
@@ -51,7 +52,7 @@ Non-goals for now:
  - `internal/runtime/*`: runtime abstraction and providers (docker/containerd first).
  - `internal/api/*`: HTTP API layer (OpenAPI via httpx/fiber).
  - `internal/services/*`: registry, task orchestration.
- - `internal/dnssvc`, `internal/ingress`, `internal/raftsvc`, `internal/scheduler`: control-plane services.
+ - `internal/dnssvc`, `internal/ingress`, `internal/orchvpn`, `internal/raftsvc`, `internal/scheduler`: control-plane services and orch-vpn tunnel (in progress).
 - `docs/`: mdBook sources (`docs/book.toml`, `docs/src/*`).
 
 Note: Frontend dashboard source has been removed from this repository and is maintained externally.

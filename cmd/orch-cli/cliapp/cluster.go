@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/arcgolabs/dix"
+	"github.com/pterm/pterm"
 
 	"github.com/daiyuang/orch/internal/apiclient"
 	"github.com/daiyuang/orch/internal/buildmeta"
@@ -79,7 +80,7 @@ func RunCluster(ctx context.Context, conn Conn, fn func(ctx context.Context, c *
 	defer cancel()
 	defer func() {
 		if stopErr := rt.Stop(stopCtx); stopErr != nil {
-			rt.Logger().Warn("runtime stop", "error", stopErr)
+			pterm.Warning.Printfln("orch-cli cluster runtime stop: %v", stopErr)
 		}
 	}()
 

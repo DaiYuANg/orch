@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/arcgolabs/dix"
+	"github.com/pterm/pterm"
 
 	"github.com/daiyuang/orch/internal/buildmeta"
 	"github.com/daiyuang/orch/internal/deploy/loader"
@@ -39,7 +40,7 @@ func NewManifestApp() *dix.App {
 }
 
 // RunManifest starts a manifest-scoped graph (deploy/orch + deploy/loader) and runs fn.
-func RunManifest(ctx context.Context, fn func(ctx context.Context, lg *slog.Logger, deploy *loader.Loader) error) error {
+func RunManifest(ctx context.Context, fn func(ctx context.Context, deploy *loader.Loader) error) error {
 	app := NewManifestApp()
 	rt, err := app.Start(ctx)
 	if err != nil {
@@ -49,7 +50,7 @@ func RunManifest(ctx context.Context, fn func(ctx context.Context, lg *slog.Logg
 	defer cancel()
 	defer func() {
 		if stopErr := rt.Stop(stopCtx); stopErr != nil {
-			rt.Logger().Warn("runtime stop", "error", stopErr)
+			pterm.Warning.Printfln("orch-cli manifest runtime stop: %v", stopErr)
 		}
 	}()
 
@@ -57,5 +58,5 @@ func RunManifest(ctx context.Context, fn func(ctx context.Context, lg *slog.Logg
 	if err != nil {
 		return oopsx.B("cli").Wrapf(err, "resolve deploy loader")
 	}
-	return fn(ctx, rt.Logger(), deploy)
+	return fn(ctx, deploy)
 }

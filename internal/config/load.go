@@ -60,6 +60,8 @@ func orchFlagToPath(name string) string {
 		"observability-otlp-insecure":               "observability.otlp.insecure",
 		"observability-otlp-service-name":           "observability.otlp.service_name",
 		"dns-data-path":                             "dns.data.path",
+		"orch-vpn-enabled":                          "orch_vpn.enabled",
+		"orch-vpn-tunnel-listen-udp":                "orch_vpn.tunnel_listen_udp",
 		"auth-jwt-secret":                           "auth.jwt.secret",
 		"raft-node-id":                              "raft.node.id",
 		"raft-badger-dir":                           "raft.badger.dir",

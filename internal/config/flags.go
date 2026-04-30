@@ -37,6 +37,9 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.String("dns-data-path", def.DNS.Data.Path, "config path dns.data.path")
 	fs.String("dns-zone", def.DNS.Zone, "config path dns.zone")
 
+	fs.Bool("orch-vpn-enabled", def.OrchVPN.Enabled, "config path orch_vpn.enabled (UDP tunnel gateway)")
+	fs.String("orch-vpn-tunnel-listen-udp", def.OrchVPN.TunnelListenUDP, "config path orch_vpn.tunnel_listen_udp")
+
 	fs.String("scheduler-heartbeat-interval", def.Scheduler.HeartbeatInterval, "config path scheduler.heartbeat_interval")
 	fs.String("scheduler-resource-refresh-interval", def.Scheduler.ResourceRefreshInterval, "config path scheduler.resource_refresh_interval")
 	fs.Bool("scheduler-raft-leader-only", def.Scheduler.RaftLeaderOnly, "config path scheduler.raft_leader_only")

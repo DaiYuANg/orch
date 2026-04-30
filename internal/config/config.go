@@ -1,7 +1,9 @@
 package config
 
 import (
+	"net"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
@@ -16,6 +18,7 @@ type Config struct {
 	Observability ObservabilityConfig `json:"observability"`
 	Ingress       IngressConfig       `json:"ingress"`
 	DNS           DNSConfig           `json:"dns"`
+	OrchVPN       OrchVPNConfig       `json:"orch_vpn"`
 	Scheduler     SchedulerConfig     `json:"scheduler"`
 	Auth          AuthConfig          `json:"auth"`
 	Raft          RaftConfig          `json:"raft"`
@@ -180,6 +183,35 @@ func (c IngressConfig) TLSAutocertDomains() []string {
 	return out
 }
 
+// OrchVPNConfig enables the orch-vpn tunnel listener and bootstrap metadata (see GET /api/v1/orch-vpn/bootstrap).
+type OrchVPNConfig struct {
+	Enabled         bool   `json:"enabled"`
+	TunnelListenUDP string `json:"tunnel_listen_udp,omitempty"` // e.g. ":15888" or "0.0.0.0:15888"
+}
+
+// ListenUDPOrDefault returns tunnel_listen_udp or ":15888".
+func (c OrchVPNConfig) ListenUDPOrDefault() string {
+	s := strings.TrimSpace(c.TunnelListenUDP)
+	if s == "" {
+		return ":15888"
+	}
+	return s
+}
+
+// TunnelUDPPort returns the UDP port from ListenUDPOrDefault (default 15888 if parse fails).
+func (c OrchVPNConfig) TunnelUDPPort() int {
+	addr := c.ListenUDPOrDefault()
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 15888
+	}
+	p, err := strconv.Atoi(portStr)
+	if err != nil || p <= 0 {
+		return 15888
+	}
+	return p
+}
+
 // DNSConfig matches koanf paths like dns.data.path (env ORCH_DNS_DATA_PATH → dns.data.path).
 type DNSConfig struct {
 	Enabled bool   `json:"enabled"`
@@ -285,6 +317,10 @@ func Default() Config {
 			Listen:  list.NewList(":80", ":443").Values(),
 		},
 		DNS: dns,
+		OrchVPN: OrchVPNConfig{
+			Enabled:         false,
+			TunnelListenUDP: ":15888",
+		},
 		Scheduler: SchedulerConfig{
 			HeartbeatInterval:       "2m",
 			ResourceRefreshInterval: "30s",

@@ -120,6 +120,15 @@ func (c *Client) DeploySource(ctx context.Context, virtualPath, source string) (
 	return &out, nil
 }
 
+// OrchVPNBootstrap calls GET /api/v1/orch-vpn/bootstrap.
+func (c *Client) OrchVPNBootstrap(ctx context.Context) (*api.OrchVPNBootstrapOutput, error) {
+	var out api.OrchVPNBootstrapOutput
+	if err := c.get(ctx, api.PathV1OrchVPNBootstrap, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *Client) get(ctx context.Context, path string, out any) error {
 	if c == nil || c.hc == nil {
 		return oopsx.B("cli", "apiclient").Errorf("nil client")

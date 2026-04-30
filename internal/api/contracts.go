@@ -51,3 +51,16 @@ type DeployOutput struct {
 		Workloads int    `json:"workloads"`
 	} `json:"body"`
 }
+
+// OrchVPNBootstrapOutput is the response body for GET PathV1OrchVPNBootstrap.
+type OrchVPNBootstrapOutput struct {
+	Body struct {
+		Enabled         bool     `json:"enabled"`
+		APIVersion      string   `json:"api_version"`
+		Encap           string   `json:"encap"`
+		MTU             int      `json:"mtu"`
+		TunnelUDPPort   int      `json:"tunnel_udp_port"`
+		DNSZone         string   `json:"dns_zone"`
+		ContainerRoutes []string `json:"container_routes,omitempty"`
+	} `json:"body"`
+}

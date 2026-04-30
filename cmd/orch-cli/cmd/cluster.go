@@ -3,10 +3,11 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
@@ -36,7 +37,8 @@ func newHealthCmd() *cobra.Command {
 					enc.SetIndent("", "  ")
 					return enc.Encode(out)
 				}
-				return fprintfStdout("status=%s time=%s\n", out.Body.Status, out.Body.Timestamp)
+				pterm.Info.Printfln("status=%s time=%s", out.Body.Status, out.Body.Timestamp)
+				return nil
 			})
 		},
 	}
@@ -127,7 +129,8 @@ Requires a reachable control plane (--server / ORCH_SERVER); clustered Raft depl
 					enc.SetIndent("", "  ")
 					return enc.Encode(out)
 				}
-				return fprintfStdout("accepted app=%s workloads=%d\n", out.Body.App, out.Body.Workloads)
+				pterm.Success.Printfln("accepted app=%s workloads=%d", out.Body.App, out.Body.Workloads)
+				return nil
 			})
 		},
 	}
@@ -141,45 +144,42 @@ func writeHostinfoHuman(out *api.HostinfoOutput) error {
 	h := body.Host
 	cpu := body.CPU
 	mem := body.Memory
-	if err := fprintfStdout("hostname=%s os=%s/%s kernel=%s arch=%s\n",
-		h.Hostname, h.OS, h.Platform, h.KernelVersion, h.KernelArch); err != nil {
-		return err
-	}
-	if err := fprintfStdout("cpu_cores=%d model=%s usage_percent=%.1f\n",
-		cpu.LogicalCores, cpu.ModelName, cpu.UsagePercent); err != nil {
-		return err
-	}
-	if err := fprintfStdout("memory_total_bytes=%d used_percent=%.1f\n",
-		mem.TotalBytes, mem.UsedPercent); err != nil {
-		return err
+	rows := pterm.TableData{
+		{"Property", "Value"},
+		{"hostname", h.Hostname},
+		{"os", h.OS},
+		{"platform", h.Platform},
+		{"kernel", h.KernelVersion},
+		{"arch", h.KernelArch},
+		{"cpu_cores", strconv.Itoa(cpu.LogicalCores)},
+		{"cpu_model", cpu.ModelName},
+		{"cpu_usage_pct", strconv.FormatFloat(cpu.UsagePercent, 'f', 1, 64)},
+		{"memory_total_bytes", strconv.FormatUint(mem.TotalBytes, 10)},
+		{"memory_used_pct", strconv.FormatFloat(mem.UsedPercent, 'f', 1, 64)},
 	}
 	if body.Load != nil {
 		l := body.Load
-		return fprintfStdout("load_1=%.2f load_5=%.2f load_15=%.2f\n", l.Load1, l.Load5, l.Load15)
+		rows = append(rows, []string{"load_1", strconv.FormatFloat(l.Load1, 'f', 2, 64)})
+		rows = append(rows, []string{"load_5", strconv.FormatFloat(l.Load5, 'f', 2, 64)})
+		rows = append(rows, []string{"load_15", strconv.FormatFloat(l.Load15, 'f', 2, 64)})
+	}
+	if err := pterm.DefaultTable.WithHasHeader().WithData(rows).Render(); err != nil {
+		return oopsx.B("cli").Wrapf(err, "render hostinfo table")
 	}
 	return nil
 }
 
 func writeWorkloadsHuman(items []registry.WorkloadRecord) error {
-	if err := fprintfStdout("NAME\tNODE\tRUNTIME\tSTATUS\tIMAGE\n"); err != nil {
-		return err
-	}
+	rows := pterm.TableData{{"NAME", "NODE", "RUNTIME", "STATUS", "IMAGE"}}
 	for _, w := range items {
 		node := w.Node
 		if node == "" {
 			node = "-"
 		}
-		if err := fprintfStdout("%s\t%s\t%s\t%s\t%s\n", w.Name, node, w.Runtime, w.Status, w.Image); err != nil {
-			return err
-		}
+		rows = append(rows, []string{w.Name, node, w.Runtime, w.Status, w.Image})
 	}
-	return nil
-}
-
-func fprintfStdout(format string, a ...any) error {
-	_, err := fmt.Fprintf(os.Stdout, format, a...)
-	if err != nil {
-		return oopsx.B("cli").Wrapf(err, "write stdout")
+	if err := pterm.DefaultTable.WithHasHeader().WithData(rows).Render(); err != nil {
+		return oopsx.B("cli").Wrapf(err, "render workloads table")
 	}
 	return nil
 }

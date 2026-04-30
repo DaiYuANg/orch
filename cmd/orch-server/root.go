@@ -12,6 +12,8 @@ import (
 	"github.com/daiyuang/orch/internal/api"
 	"github.com/daiyuang/orch/internal/buildmeta"
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/deploy/loader"
+	"github.com/daiyuang/orch/internal/deploy/orch"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/httpserver"
 	"github.com/daiyuang/orch/internal/ingress"
@@ -64,6 +66,8 @@ func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 		dix.WithModules(
 			config.Static(cfg),
 			logging.Module(),
+			orch.Module(),
+			loader.Module(),
 			nodeid.Module(),
 			observability.Module(),
 			metrics.Module(),

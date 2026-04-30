@@ -10,6 +10,7 @@ import (
 	"github.com/daiyuang/orch/internal/nodecapacity"
 	"github.com/daiyuang/orch/internal/nodeid"
 	"github.com/daiyuang/orch/internal/placement"
+	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/runtime"
 	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/pkg/oopsx"
@@ -24,6 +25,7 @@ type Service struct {
 	catalog   *nodecapacity.Catalog
 	placement *placement.Engine
 	local     nodeid.Local
+	raft      *raftsvc.Service
 }
 
 func NewService(logger *slog.Logger, metricService *metrics.Service, runtimeManager *runtime.Manager, registryService *registry.Service, cfg config.Config, bundle Bundle) *Service {
@@ -36,12 +38,70 @@ func NewService(logger *slog.Logger, metricService *metrics.Service, runtimeMana
 		catalog:   bundle.Catalog,
 		placement: bundle.Placement,
 		local:     bundle.LocalNode,
+		raft:      bundle.Raft,
 	}
 }
 
-// DeployApp validates the app, runs placement against the node resource catalog, then deploys each
-// workload on the local runtime when placement selects this node (remote execution is not implemented yet).
+// StartDeployReconcile runs a background loop that executes [Service.deployAppWorkloads] whenever the Raft FSM
+// updates desired deploy documents (and once immediately for startup catch-up).
+func (s *Service) StartDeployReconcile(ctx context.Context) {
+	if s == nil || s.raft == nil {
+		return
+	}
+	ch := s.raft.DeployReconcileSignals()
+	if ch == nil {
+		return
+	}
+	go func() {
+		s.reconcileAll(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ch:
+				s.reconcileAll(ctx)
+			}
+		}
+	}()
+}
+
+func (s *Service) reconcileAll(ctx context.Context) {
+	for _, app := range s.raft.ListDesiredDeployApps() {
+		app := app
+		if err := s.deployAppWorkloads(ctx, &app); err != nil {
+			s.logger.Warn("deploy reconcile", "error", err, "app", app.Metadata.Name)
+		}
+	}
+}
+
+// SubmitDeploy validates the app and appends it to the replicated desired state (Raft when enabled).
+// Local container startup happens asynchronously via [Service.StartDeployReconcile] on each node.
+func (s *Service) SubmitDeploy(ctx context.Context, app *deployv1.App) error {
+	if app == nil {
+		return oopsx.B("task").Errorf("nil app")
+	}
+	if err := app.Validate(); err != nil {
+		s.metrics.IncDeployApp(ctx, "invalid")
+		return oopsx.B("task").Wrapf(err, "validate app")
+	}
+	if s.raft == nil {
+		return oopsx.B("task").Errorf("raft service unavailable")
+	}
+	if err := s.raft.ApplyDeployApp(*app); err != nil {
+		return oopsx.B("task").Wrapf(err, "replicate deploy")
+	}
+	s.logger.Info("deploy submitted", "app", app.Metadata.Name, "workloads", len(app.Workloads))
+	return nil
+}
+
+// DeployApp is an alias for [Service.SubmitDeploy] (HTTP handlers and older callers).
 func (s *Service) DeployApp(ctx context.Context, app *deployv1.App) error {
+	return s.SubmitDeploy(ctx, app)
+}
+
+// deployAppWorkloads runs placement against the node resource catalog, then deploys each workload on the local
+// runtime when placement selects this node (remote execution is not implemented yet).
+func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) error {
 	if err := app.Validate(); err != nil {
 		s.metrics.IncDeployApp(ctx, "invalid")
 		return oopsx.B("task").Wrapf(err, "validate app")

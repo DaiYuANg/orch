@@ -19,6 +19,10 @@ func Module() dix.Module {
 			}),
 		),
 		dix.Hooks(
+			dix.OnStart(func(_ context.Context, logger *slog.Logger) error {
+				slog.SetDefault(logger)
+				return nil
+			}),
 			dix.OnStop(func(_ context.Context, logger *slog.Logger) error {
 				logger.Info("lifecycle", "phase", "closing_log_sink", "component", "logging")
 				return logx.Close(logger)

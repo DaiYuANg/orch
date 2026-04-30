@@ -17,7 +17,9 @@ import (
 
 // newFiberAppAndRuntime wires Fiber + httpx with OpenAPI defaults and optional deploy-route auth.
 func newFiberAppAndRuntime(cfg config.Config, logger *slog.Logger, guard *authhttp.Guard) (*fiber.App, httpx.ServerRuntime) {
-	fiberApp := fiber.New()
+	fiberApp := fiber.New(fiber.Config{
+		DisableStartupMessage: true,
+	})
 	fiberAdapter := adapterfiber.New(fiberApp, adapter.HumaOptions{
 		Title:       "orch API",
 		Version:     buildmeta.Version(),

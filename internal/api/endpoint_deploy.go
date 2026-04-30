@@ -37,7 +37,7 @@ func (e *DeployEndpoint) Register(r httpx.Registrar) {
 }
 
 func (e *DeployEndpoint) handle(ctx context.Context, in *DeployInput) (*DeployOutput, error) {
-	if err := e.tasks.DeployApp(ctx, &in.Body); err != nil {
+	if err := e.tasks.SubmitDeploy(ctx, &in.Body); err != nil {
 		return nil, oopsx.B("api").Wrapf(err, "deploy app")
 	}
 	out := &DeployOutput{}

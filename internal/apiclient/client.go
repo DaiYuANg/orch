@@ -105,6 +105,21 @@ func (c *Client) Deploy(ctx context.Context, app *deployv1.App) (*api.DeployOutp
 	return &out, nil
 }
 
+// DeploySource calls POST /api/v1/deploy/source with manifest source; virtualPath should end with .orch or .yaml/.yml (or JSON-shaped YAML).
+func (c *Client) DeploySource(ctx context.Context, virtualPath, source string) (*api.DeployOutput, error) {
+	if virtualPath == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("empty virtualPath")
+	}
+	var in api.DeploySourceInput
+	in.Body.VirtualPath = virtualPath
+	in.Body.Source = source
+	var out api.DeployOutput
+	if err := c.post(ctx, api.PathV1DeploySource, &in, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *Client) get(ctx context.Context, path string, out any) error {
 	if c == nil || c.hc == nil {
 		return oopsx.B("cli", "apiclient").Errorf("nil client")

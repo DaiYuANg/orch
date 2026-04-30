@@ -8,6 +8,8 @@ import (
 	"github.com/arcgolabs/dix"
 
 	"github.com/daiyuang/orch/internal/buildmeta"
+	"github.com/daiyuang/orch/internal/deploy/loader"
+	"github.com/daiyuang/orch/internal/deploy/orch"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -23,7 +25,6 @@ func moduleManifest() dix.Module {
 	)
 }
 
-// NewManifestApp wires modules used only by validate/parse-style commands (no control-plane HTTP client).
 func NewManifestApp() *dix.App {
 	return dix.New(
 		"orch-cli-manifest",
@@ -31,12 +32,14 @@ func NewManifestApp() *dix.App {
 		dix.WithLoggerFrom0(slog.Default),
 		dix.WithModules(
 			moduleManifest(),
+			orch.Module(),
+			loader.Module(),
 		),
 	)
 }
 
-// RunManifest Starts a manifest-scoped graph and exposes the runtime logger for consistent observability hooks later.
-func RunManifest(ctx context.Context, fn func(ctx context.Context, lg *slog.Logger) error) error {
+// RunManifest starts a manifest-scoped graph (deploy/orch + deploy/loader) and runs fn.
+func RunManifest(ctx context.Context, fn func(ctx context.Context, lg *slog.Logger, deploy *loader.Loader) error) error {
 	app := NewManifestApp()
 	rt, err := app.Start(ctx)
 	if err != nil {
@@ -50,5 +53,9 @@ func RunManifest(ctx context.Context, fn func(ctx context.Context, lg *slog.Logg
 		}
 	}()
 
-	return fn(ctx, rt.Logger())
+	deploy, err := dix.ResolveAs[*loader.Loader](rt.Container())
+	if err != nil {
+		return oopsx.B("cli").Wrapf(err, "resolve deploy loader")
+	}
+	return fn(ctx, rt.Logger(), deploy)
 }

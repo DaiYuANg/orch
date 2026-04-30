@@ -28,25 +28,36 @@ type Service struct {
 	cfg     config.Config
 	localID nodeid.Local
 
-	r         *hraft.Raft
-	fsm       *schedulingFSM
-	badgerDB  *badgerx.DB
-	bboltDB   *bboltx.DB
-	logStore  *storxBadgerLogStore
-	stable    *storxBoltStableStore
-	transport *hraft.InmemTransport
+	r              *hraft.Raft
+	fsm            *schedulingFSM
+	deploySignalCh chan struct{}
+	badgerDB       *badgerx.DB
+	bboltDB        *bboltx.DB
+	logStore       *storxBadgerLogStore
+	stable         *storxBoltStableStore
+	transport      *hraft.InmemTransport
 
 	started atomic.Bool
 }
 
 // New constructs the service (Raft starts in Start).
 func New(cfg config.Config, logger *slog.Logger, local nodeid.Local) *Service {
-	return &Service{
-		logger:  logger,
-		cfg:     cfg,
-		localID: local,
-		fsm:     &schedulingFSM{},
+	ch := make(chan struct{}, 1)
+	fsm := &schedulingFSM{}
+	s := &Service{
+		logger:         logger,
+		cfg:            cfg,
+		localID:        local,
+		fsm:            fsm,
+		deploySignalCh: ch,
 	}
+	fsm.setNotifyDeploy(func() {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	})
+	return s
 }
 
 func warnRaftCleanup(logger *slog.Logger, cleaners ...func() error) {

@@ -9,15 +9,19 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
+	"github.com/daiyuang/orch/internal/deploy/loader"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
-func loadValidatedManifest(file string) (*deployv1.App, error) {
+func loadValidatedManifest(ctx context.Context, deploy *loader.Loader, file string) (*deployv1.App, error) {
 	if file == "" {
 		return nil, oopsx.B("cli").Errorf("--file is required")
 	}
-	app, err := deployv1.LoadAppFile(file)
+	if deploy == nil {
+		return nil, oopsx.B("cli").Errorf("deploy loader is nil")
+	}
+	app, err := deploy.LoadApp(ctx, file)
 	if err != nil {
 		return nil, oopsx.B("cli").Wrapf(err, "load manifest")
 	}
@@ -27,8 +31,8 @@ func loadValidatedManifest(file string) (*deployv1.App, error) {
 	return app, nil
 }
 
-func runValidateManifest(file string, lg *slog.Logger) error {
-	app, err := loadValidatedManifest(file)
+func runValidateManifest(ctx context.Context, deploy *loader.Loader, file string, lg *slog.Logger) error {
+	app, err := loadValidatedManifest(ctx, deploy, file)
 	if err != nil {
 		return err
 	}
@@ -39,8 +43,8 @@ func runValidateManifest(file string, lg *slog.Logger) error {
 	return nil
 }
 
-func runParseManifest(file string, jsonOut bool, lg *slog.Logger) error {
-	app, err := loadValidatedManifest(file)
+func runParseManifest(ctx context.Context, deploy *loader.Loader, file string, jsonOut bool, lg *slog.Logger) error {
+	app, err := loadValidatedManifest(ctx, deploy, file)
 	if err != nil {
 		return err
 	}
@@ -71,16 +75,15 @@ func newValidateCmd() *cobra.Command {
 	var file string
 	cmd := &cobra.Command{
 		Use:   "validate",
-		Short: "Validate a deploy YAML without contacting the server",
+		Short: "Validate a deploy manifest (.orch or YAML) without contacting the server",
 		Long:  `Runs the same parse and validation rules the control plane uses. Exit 0 if the manifest is OK (useful in CI).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cliapp.RunManifest(contextFromCmd(cmd), func(ctx context.Context, lg *slog.Logger) error {
-				_ = ctx
-				return runValidateManifest(file, lg)
+			return cliapp.RunManifest(contextFromCmd(cmd), func(ctx context.Context, lg *slog.Logger, deploy *loader.Loader) error {
+				return runValidateManifest(ctx, deploy, file, lg)
 			})
 		},
 	}
-	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy YAML file")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy file (.orch or YAML)")
 	return cmd
 }
 
@@ -91,16 +94,15 @@ func newParseCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "parse",
 		Short: "Parse a deploy YAML and print a summary or the canonical JSON model",
-		Long:  `Loads the file, validates it, then prints either a one-line summary or the full structured app document with --json.`,
+		Long:  `Loads the file (.orch or YAML), validates it, then prints either a one-line summary or the full structured app document with --json.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cliapp.RunManifest(contextFromCmd(cmd), func(ctx context.Context, lg *slog.Logger) error {
-				_ = ctx
-				return runParseManifest(file, jsonOut, lg)
+			return cliapp.RunManifest(contextFromCmd(cmd), func(ctx context.Context, lg *slog.Logger, deploy *loader.Loader) error {
+				return runParseManifest(ctx, deploy, file, jsonOut, lg)
 			})
 		},
 	}
 
-	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy YAML file")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy file (.orch or YAML)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output parsed model as JSON")
 	return cmd
 }

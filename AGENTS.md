@@ -26,7 +26,7 @@ Non-goals for now:
 
 - Language: Go (1.22+).
 - CLI: `cobra`.
-- Deploy file: YAML (canonical model in `internal/deploy/v1alpha1`).
+- Deploy: canonical document is `internal/deploy/v1alpha1.App`. Compatibility layers are separate packages: `internal/deploy/orch` (.orch DSL), `internal/deploy/composeimport` (Docker Compose), `internal/deploy/loader` (manifest dispatch: .orch vs YAML).
 - Raft: `github.com/hashicorp/raft` integration path.
 - Tooling:
   - `task` (go-task) for daily developer commands.
@@ -44,7 +44,10 @@ Non-goals for now:
 - `pkg/`
  - `pkg/oopsx`: stable helper API ([samber/oops](https://github.com/samber/oops) wrappers); safe for external modules to import.
 - `internal/`
- - `internal/deploy/v1alpha1`: canonical deploy YAML model (v0.1).
+ - `internal/deploy/v1alpha1`: canonical deploy model (types, validation, YAML load/parse).
+ - `internal/deploy/orch`: `.orch` plano DSL compatibility ([orch.Module] → `*orch.Orch`).
+ - `internal/deploy/composeimport`: Docker Compose → v1alpha1 import.
+ - `internal/deploy/loader`: manifest [Loader] (.orch via orch, YAML via v1alpha1); register `loader.Module` after `orch.Module`.
  - `internal/runtime/*`: runtime abstraction and providers (docker/containerd first).
  - `internal/api/*`: HTTP API layer (OpenAPI via httpx/fiber).
  - `internal/services/*`: registry, task orchestration.
@@ -104,7 +107,7 @@ go run ./cmd/orch-server
 
 ## Config conventions
 
-Source of truth: `internal/config` + `internal/deploy/v1alpha1`.
+Source of truth: `internal/config` + `internal/deploy/v1alpha1` (orch/composeimport/loader translate into this model).
 
 - Keep config changes additive.
 - Provide sensible defaults in `Default()` / typed defaults.
@@ -156,7 +159,7 @@ When adding a runtime driver:
 - CLI is a composition layer in `cmd/orch-cli`.
 - Command definitions use `cobra`.
 - Subcommands live under `cmd/orch-cli/cmd`.
-- Control-plane commands compose a short-lived `dix` graph in `cmd/orch-cli/cliapp`: cluster-facing commands use `RunCluster` (`Conn` → `*apiclient.Client` + `OnStop` close); manifest-only commands use `RunManifest` (no HTTP client; extend `moduleManifest()` as deps grow).
+- Control-plane commands compose a short-lived `dix` graph in `cmd/orch-cli/cliapp`: cluster-facing commands use `RunCluster` (`Conn` → `*apiclient.Client` + `loader.Loader` + `OnStop` close); manifest-only commands use `RunManifest` (`orch.Module` + `loader.Module`, no HTTP client).
 - Keep output stable JSON for automation-friendly usage.
 
 When adding a new command:

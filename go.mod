@@ -22,6 +22,8 @@ require (
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.2
 	github.com/arcgolabs/logx v0.1.1
 	github.com/arcgolabs/observabilityx v0.3.0
+	github.com/arcgolabs/plano v0.2.0
+	github.com/arcgolabs/plano/lsp v0.0.0-20260429150020-93c29b878803
 	github.com/arcgolabs/storx/badgerx v0.3.0
 	github.com/arcgolabs/storx/bboltx v0.3.0
 	github.com/arcgolabs/storx/codec v0.1.0
@@ -81,18 +83,22 @@ require (
 	github.com/alecthomas/chroma/v2 v2.23.1 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+	github.com/arcgolabs/collectionx/graph v0.5.0 // indirect
 	github.com/arcgolabs/collectionx/internal v0.6.0 // indirect
+	github.com/arcgolabs/collectionx/interval v0.6.0 // indirect
 	github.com/arcgolabs/collectionx/prefix v0.6.0 // indirect
 	github.com/arcgolabs/dnsx/dnsclient v0.1.1 // indirect
 	github.com/arcgolabs/httpx/adapter/echo v0.1.2 // indirect
 	github.com/arcgolabs/httpx/adapter/gin v0.1.2 // indirect
 	github.com/arcgolabs/httpx/adapter/std v0.1.2 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
+	github.com/arcgolabs/plano/examples/builddsl v0.0.0-20260429150020-93c29b878803 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/observer v0.1.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/caddyserver/certmagic v0.25.3 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
@@ -163,6 +169,7 @@ require (
 	github.com/hashicorp/go-metrics v0.5.4 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.5 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -234,6 +241,8 @@ require (
 	github.com/samber/slog-common v0.22.0 // indirect
 	github.com/samber/slog-zerolog/v2 v2.9.2 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	github.com/segmentio/asm v1.1.3 // indirect
+	github.com/segmentio/encoding v0.3.4 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
@@ -261,6 +270,10 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
+	go.lsp.dev/jsonrpc2 v0.10.0 // indirect
+	go.lsp.dev/pkg v0.0.0-20210717090340-384b27a52fb2 // indirect
+	go.lsp.dev/protocol v0.12.0 // indirect
+	go.lsp.dev/uri v0.3.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

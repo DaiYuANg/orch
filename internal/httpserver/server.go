@@ -3,9 +3,12 @@ package httpserver
 import (
 	"context"
 	"log/slog"
+	"slices"
+	"strings"
 
 	authhttp "github.com/arcgolabs/authx/http"
 	"github.com/arcgolabs/httpx"
+	"github.com/gofiber/fiber/v2"
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/observability"
@@ -13,9 +16,10 @@ import (
 )
 
 type Server struct {
-	logger  *slog.Logger
-	addr    string
-	runtime httpx.ServerRuntime
+	logger   *slog.Logger
+	addr     string
+	runtime  httpx.ServerRuntime
+	fiberApp *fiber.App
 }
 
 func New(cfg config.Config, logger *slog.Logger, guard *authhttp.Guard, obs *observability.Service) (*Server, error) {
@@ -23,10 +27,35 @@ func New(cfg config.Config, logger *slog.Logger, guard *authhttp.Guard, obs *obs
 	attachFiberPrometheus(fiberApp, cfg, obs)
 
 	return &Server{
-		logger:  logger,
-		addr:    cfg.HTTP.Addr,
-		runtime: rt,
+		logger:   logger,
+		addr:     cfg.HTTP.Addr,
+		runtime:  rt,
+		fiberApp: fiberApp,
 	}, nil
+}
+
+// LogRegisteredRoutes logs Fiber routes (methods + paths) after handlers are registered.
+// Passing true to [fiber.App.GetRoutes] skips middleware-only registrations.
+func (s *Server) LogRegisteredRoutes() {
+	if s == nil || s.fiberApp == nil || s.logger == nil {
+		return
+	}
+	routes := s.fiberApp.GetRoutes(true)
+	slices.SortFunc(routes, func(a, b fiber.Route) int {
+		if c := strings.Compare(a.Method, b.Method); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Path, b.Path)
+	})
+	s.logger.Info("http routes registered", "count", len(routes))
+	for i := range routes {
+		r := routes[i]
+		if r.Name != "" {
+			s.logger.Info("http route", "method", r.Method, "path", r.Path, "name", r.Name)
+		} else {
+			s.logger.Info("http route", "method", r.Method, "path", r.Path)
+		}
+	}
 }
 
 func (s *Server) Runtime() httpx.ServerRuntime {

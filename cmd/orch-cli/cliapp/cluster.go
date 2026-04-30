@@ -9,6 +9,8 @@ import (
 
 	"github.com/daiyuang/orch/internal/apiclient"
 	"github.com/daiyuang/orch/internal/buildmeta"
+	"github.com/daiyuang/orch/internal/deploy/loader"
+	"github.com/daiyuang/orch/internal/deploy/orch"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -32,6 +34,8 @@ func NewClusterApp(conn Conn) *dix.App {
 		dix.WithModules(
 			moduleConn(conn),
 			moduleClusterClient(),
+			orch.Module(),
+			loader.Module(),
 		),
 	)
 }
@@ -64,8 +68,8 @@ func moduleClusterClient() dix.Module {
 	)
 }
 
-// RunCluster builds a short-lived app, Starts it, resolves *apiclient.Client, runs fn, then Stops (invokes Close via OnStop).
-func RunCluster(ctx context.Context, conn Conn, fn func(ctx context.Context, c *apiclient.Client) error) error {
+// RunCluster builds a short-lived app, Starts it, resolves *apiclient.Client and [loader.Loader], runs fn, then Stops.
+func RunCluster(ctx context.Context, conn Conn, fn func(ctx context.Context, c *apiclient.Client, deploy *loader.Loader) error) error {
 	app := NewClusterApp(conn)
 	rt, err := app.Start(ctx)
 	if err != nil {
@@ -83,5 +87,9 @@ func RunCluster(ctx context.Context, conn Conn, fn func(ctx context.Context, c *
 	if err != nil {
 		return oopsx.B("cli").Wrapf(err, "resolve HTTP client")
 	}
-	return fn(ctx, c)
+	deploy, err := dix.ResolveAs[*loader.Loader](rt.Container())
+	if err != nil {
+		return oopsx.B("cli").Wrapf(err, "resolve deploy loader")
+	}
+	return fn(ctx, c, deploy)
 }

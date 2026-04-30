@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
 	"github.com/daiyuang/orch/internal/api"
 	"github.com/daiyuang/orch/internal/apiclient"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/deploy/loader"
 	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -25,7 +26,7 @@ func newHealthCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
 			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
 				out, err := c.Health(ctx)
 				if err != nil {
 					return oopsx.B("cli").Wrapf(err, "health")
@@ -52,7 +53,7 @@ func newHostinfoCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
 			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
 				out, err := c.Hostinfo(ctx)
 				if err != nil {
 					return oopsx.B("cli").Wrapf(err, "hostinfo")
@@ -79,7 +80,7 @@ func newWorkloadsCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
 			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
 				out, err := c.ListWorkloads(ctx)
 				if err != nil {
 					return oopsx.B("cli").Wrapf(err, "list workloads")
@@ -102,21 +103,22 @@ func newApplyCmd() *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
 		Use:   "apply",
-		Short: "Deploy a manifest to the cluster from a YAML file",
-		Long: `Loads and validates the deploy YAML locally, then submits it to orch-server so workloads and
-related resources can be reconciled. Requires a reachable control plane (--server / ORCH_SERVER).`,
+		Short: "Deploy a manifest to the cluster from a .orch or YAML file",
+		Long: `Reads the deploy file locally and sends its source to orch-server. The server parses the document (virtual path
+suffix selects .orch vs YAML), replicates desired state through Raft, then reconciles workloads on each node.
+Requires a reachable control plane (--server / ORCH_SERVER); clustered Raft deploys must target the leader.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
 			if file == "" {
 				return oopsx.B("cli").Errorf("--file is required")
 			}
-			app, err := deployv1.LoadAppFile(file)
+			src, err := os.ReadFile(file)
 			if err != nil {
-				return oopsx.B("cli").Wrapf(err, "load manifest")
+				return oopsx.B("cli").Wrapf(err, "read manifest file")
 			}
-			ctx := contextFromCmd(cmd)
 			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client) error {
-				out, err := c.Deploy(ctx, app)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.DeploySource(ctx, filepath.Base(file), string(src))
 				if err != nil {
 					return oopsx.B("cli").Wrapf(err, "deploy")
 				}
@@ -129,7 +131,7 @@ related resources can be reconciled. Requires a reachable control plane (--serve
 			})
 		},
 	}
-	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy YAML")
+	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy file (.orch or YAML)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON response")
 	return cmd
 }

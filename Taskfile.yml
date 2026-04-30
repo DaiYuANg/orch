@@ -33,6 +33,13 @@ tasks:
     vars:
       SERVER_ARGS: '{{default "" .SERVER_ARGS}}'
 
+  run-lsp:
+    desc: "Run orch language server (stdio LSP)"
+    cmds:
+      - go run ./cmd/orch-lsp {{.LSP_ARGS}}
+    vars:
+      LSP_ARGS: '{{default "" .LSP_ARGS}}'
+
   dsl-parse:
     desc: "Parse deploy YAML into canonical model"
     requires:

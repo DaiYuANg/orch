@@ -8,21 +8,33 @@ import (
 
 	hraft "github.com/hashicorp/raft"
 
+	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodecapacity"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
-const cmdUpsertNodeCapacity = "upsert_node_capacity"
+const (
+	cmdUpsertNodeCapacity = "upsert_node_capacity"
+	cmdUpsertDeployApp    = "upsert_deploy_app"
+)
 
 // schedulingFSM holds replicated control-plane state (node capacity snapshots, etc.).
 type schedulingFSM struct {
-	mu    sync.Mutex
-	state fsmSnapshotState
+	mu           sync.Mutex
+	state        fsmSnapshotState
+	notifyDeploy func()
 }
 
 type fsmSnapshotState struct {
 	AppliedCommands uint64                           `json:"appliedCommands"`
 	NodeCapacity    map[string]nodecapacity.Snapshot `json:"nodeCapacity,omitempty"`
+	DeployApps      map[string]deployv1.App          `json:"deployApps,omitempty"`
+}
+
+func (f *schedulingFSM) setNotifyDeploy(fn func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.notifyDeploy = fn
 }
 
 func (f *schedulingFSM) Apply(l *hraft.Log) any {
@@ -32,25 +44,84 @@ func (f *schedulingFSM) Apply(l *hraft.Log) any {
 	if len(l.Data) == 0 {
 		return f.state.AppliedCommands
 	}
-	var env struct {
-		Type string                `json:"type"`
-		Node nodecapacity.Snapshot `json:"node"`
-	}
-	if err := json.Unmarshal(l.Data, &env); err != nil {
-		return f.state.AppliedCommands
-	}
-	if env.Type != cmdUpsertNodeCapacity {
-		return f.state.AppliedCommands
-	}
-	id := strings.TrimSpace(env.Node.NodeID)
-	if id == "" {
-		return f.state.AppliedCommands
-	}
-	if f.state.NodeCapacity == nil {
-		f.state.NodeCapacity = make(map[string]nodecapacity.Snapshot)
-	}
-	f.state.NodeCapacity[id] = env.Node
+	f.applyPayloadLocked(l.Data)
 	return f.state.AppliedCommands
+}
+
+// applyCommandPayload applies a replicated (or local single-node) command without going through the Raft log reader.
+func (f *schedulingFSM) applyCommandPayload(data []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.state.AppliedCommands++
+	if len(data) == 0 {
+		return
+	}
+	f.applyPayloadLocked(data)
+}
+
+func (f *schedulingFSM) applyPayloadLocked(data []byte) {
+	var head struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &head); err != nil {
+		return
+	}
+	switch head.Type {
+	case cmdUpsertNodeCapacity:
+		var env struct {
+			Type string                `json:"type"`
+			Node nodecapacity.Snapshot `json:"node"`
+		}
+		if err := json.Unmarshal(data, &env); err != nil {
+			return
+		}
+		id := strings.TrimSpace(env.Node.NodeID)
+		if id == "" {
+			return
+		}
+		if f.state.NodeCapacity == nil {
+			f.state.NodeCapacity = make(map[string]nodecapacity.Snapshot)
+		}
+		f.state.NodeCapacity[id] = env.Node
+	case cmdUpsertDeployApp:
+		var env struct {
+			Type string       `json:"type"`
+			App  deployv1.App `json:"app"`
+		}
+		if err := json.Unmarshal(data, &env); err != nil {
+			return
+		}
+		if strings.TrimSpace(env.App.Metadata.Name) == "" {
+			return
+		}
+		key := deployAppMapKey(env.App.Metadata)
+		if f.state.DeployApps == nil {
+			f.state.DeployApps = make(map[string]deployv1.App)
+		}
+		f.state.DeployApps[key] = env.App
+		if f.notifyDeploy != nil {
+			f.notifyDeploy()
+		}
+	default:
+		return
+	}
+}
+
+func deployAppMapKey(m deployv1.Metadata) string {
+	return strings.TrimSpace(m.Namespace) + "/" + strings.TrimSpace(m.Name)
+}
+
+func (f *schedulingFSM) listDeployApps() []deployv1.App {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.state.DeployApps) == 0 {
+		return nil
+	}
+	out := make([]deployv1.App, 0, len(f.state.DeployApps))
+	for _, app := range f.state.DeployApps {
+		out = append(out, app)
+	}
+	return out
 }
 
 func (f *schedulingFSM) Snapshot() (hraft.FSMSnapshot, error) {

@@ -96,3 +96,18 @@ func (s *Service) RemoveWorkloadA(ctx context.Context, namespace, workloadName s
 	s.logger.Debug("dns workload deregistered", "workload", workloadName, "namespace", namespace)
 	return nil
 }
+
+// LookupWorkloadIPv4 returns the last registered A record data for workload DNS (in-memory + store),
+// using the same keying as UpsertWorkloadA.
+func (s *Service) LookupWorkloadIPv4(namespace, workloadName string) (string, bool) {
+	key := workloadRecordKey(namespace, workloadName)
+	rec, ok := s.workloadRecords.Get(key)
+	if !ok {
+		return "", false
+	}
+	ip := strings.TrimSpace(rec.Data)
+	if ip == "" {
+		return "", false
+	}
+	return ip, true
+}

@@ -1,0 +1,208 @@
+package ingress
+
+import (
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	"github.com/gofiber/fiber/v2"
+
+	"github.com/daiyuang/orch/internal/config"
+	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+)
+
+func testFiberApp(t *testing.T, routes []config.IngressRoute) *fiber.App {
+	t.Helper()
+	live := &atomic.Pointer[liveRoutes]{}
+	compiled, err := buildFiberRoutes(routes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live.Store(&liveRoutes{compiled: compiled})
+	app, err := newIngressFiberApp(slog.Default(), live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return app
+}
+
+func TestNewIngressFiberApp_proxyPathRewrite(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(r.URL.Path))
+	}))
+	t.Cleanup(upstream.Close)
+
+	app := testFiberApp(t, []config.IngressRoute{
+		{PathPrefix: "/api", Upstream: upstream.URL},
+	})
+
+	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/hello", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "127.0.0.1"
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: %d", resp.StatusCode)
+	}
+	if string(body) != "/v1/hello" {
+		t.Fatalf("upstream saw path: got %q want %q", body, "/v1/hello")
+	}
+}
+
+func TestNewIngressFiberApp_noRouteNotFound(t *testing.T) {
+	t.Parallel()
+
+	app := testFiberApp(t, []config.IngressRoute{
+		{PathPrefix: "/api", Upstream: "http://127.0.0.1:1"},
+	})
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/other", nil)
+	req.Host = "127.0.0.1"
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: %d", resp.StatusCode)
+	}
+}
+
+func TestNewIngressFiberApp_placeholderNoRoutes(t *testing.T) {
+	t.Parallel()
+	live := &atomic.Pointer[liveRoutes]{}
+	app, err := newIngressFiberApp(slog.Default(), live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	req.Host = "127.0.0.1"
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: %d", resp.StatusCode)
+	}
+}
+
+func TestNewIngressFiberApp_roundRobinDistributes(t *testing.T) {
+	t.Parallel()
+
+	var hitsA, hitsB int
+	srvA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitsA++
+		_, _ = w.Write([]byte("a"))
+	}))
+	srvB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitsB++
+		_, _ = w.Write([]byte("b"))
+	}))
+	t.Cleanup(srvA.Close)
+	t.Cleanup(srvB.Close)
+
+	app := testFiberApp(t, []config.IngressRoute{
+		{
+			PathPrefix: "/p",
+			Upstreams:  []string{srvA.URL, srvB.URL},
+			LB:         "round_robin",
+		},
+	})
+
+	for range 8 {
+		req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/p/x", nil)
+		req.Host = "127.0.0.1"
+		resp, err := app.Test(req, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status: %d", resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+
+	if hitsA < 1 || hitsB < 1 {
+		t.Fatalf("expected both upstreams to receive traffic, got hitsA=%d hitsB=%d", hitsA, hitsB)
+	}
+	if hitsA+hitsB != 8 {
+		t.Fatalf("hitsA+hitsB=%d want 8", hitsA+hitsB)
+	}
+}
+
+func TestIngressRouteUpstreamEndpoints(t *testing.T) {
+	t.Parallel()
+	r := config.IngressRoute{Upstream: "http://a"}
+	if got := r.UpstreamEndpoints(); len(got) != 1 || got[0] != "http://a" {
+		t.Fatalf("got %#v", got)
+	}
+	r2 := config.IngressRoute{Upstreams: []string{"http://a", "http://b"}, Upstream: "http://ignored"}
+	got := r2.UpstreamEndpoints()
+	if len(got) != 2 {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestIngressRouteLBPolicy(t *testing.T) {
+	t.Parallel()
+	if got := (&config.IngressRoute{}).LBPolicy(); got != "round_robin" {
+		t.Fatal(got)
+	}
+	if got := (&config.IngressRoute{LB: "ROUND_ROBIN"}).LBPolicy(); got != "round_robin" {
+		t.Fatal(got)
+	}
+}
+
+// mapDNS mimics dnssvc workloadRecordKey lookup (lowercase namespace/workload).
+type mapDNS map[string]string
+
+func (m mapDNS) LookupWorkloadIPv4(namespace, workloadName string) (string, bool) {
+	if m == nil {
+		return "", false
+	}
+	ns := strings.TrimSpace(namespace)
+	if ns == "" {
+		ns = "default"
+	}
+	key := strings.ToLower(ns) + "/" + strings.ToLower(strings.TrimSpace(workloadName))
+	ip, ok := m[key]
+	return ip, ok
+}
+
+func TestCompileIngressRoutesFromDeploy(t *testing.T) {
+	t.Parallel()
+	apps := []deployv1.App{{
+		Metadata: deployv1.Metadata{Name: "a", Namespace: "ns"},
+		Workloads: []deployv1.Workload{{
+			Name: "web",
+			Endpoints: []deployv1.Endpoint{{
+				Name: "http", Port: 8080, Protocol: deployv1.ProtoHTTP,
+			}},
+		}},
+		Ingresses: []deployv1.Ingress{{
+			Routes: []deployv1.IngressRoute{{
+				Path:    "/api",
+				Backend: deployv1.EndpointRef{Workload: "web", Endpoint: "http"},
+			}},
+		}},
+	}}
+	dns := mapDNS{"ns/web": "10.0.0.2"}
+	got := CompileIngressRoutesFromDeploy(apps, dns, nil)
+	if len(got) != 1 || got[0].PathPrefix != "/api" || got[0].Upstream != "http://10.0.0.2:8080" {
+		t.Fatalf("got %#v", got)
+	}
+}

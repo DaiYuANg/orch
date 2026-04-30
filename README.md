@@ -16,7 +16,7 @@ Current core stack:
 - DI: `github.com/arcgolabs/dix`
 - Logging: `github.com/arcgolabs/logx`
 - HTTP server/API: `github.com/arcgolabs/httpx` (`fiber` adapter)
-- Ingress: embedded `github.com/caddyserver/caddy/v2`
+- Ingress: Fiber + `middleware/proxy` (round-robin); optional **Let's Encrypt** via `ingress.tls` (`golang.org/x/crypto/acme/autocert`, TLS-ALPN-01).
 - CLI: `github.com/spf13/cobra`
 - Consensus path: `github.com/hashicorp/raft`
 

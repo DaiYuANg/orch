@@ -57,13 +57,13 @@ func LogHTTPServerReachablePaths(logger *slog.Logger, cfg Config) {
 	logger.Info("lifecycle reachable paths", logArgs...)
 }
 
-// LogIngressReachablePaths logs ingress URLs after embedded Caddy has started.
+// LogIngressReachablePaths logs ingress URLs after the ingress listener(s) are up.
 func LogIngressReachablePaths(logger *slog.Logger, cfg Config) {
 	if logger == nil || !cfg.Ingress.Enabled {
 		return
 	}
 
-	urls := IngressURLsFromAddrs(cfg.Ingress.ListenAddrs())
+	urls := IngressReachabilityURLs(cfg.Ingress)
 	if len(urls) == 0 {
 		return
 	}
@@ -112,13 +112,8 @@ func ingressReachabilityURLs(cfg Config) []string {
 	if !cfg.Ingress.Enabled {
 		return nil
 	}
-	urls := IngressURLsFromAddrs(cfg.Ingress.ListenAddrs())
-	if len(urls) == 0 {
-		return nil
-	}
-	return urls
+	return IngressReachabilityURLs(cfg.Ingress)
 }
-
 func prometheusMetricsAttr(apiBase string, cfg Config) (slog.Attr, bool) {
 	if !cfg.Observability.Prometheus.Enabled {
 		return slog.Attr{}, false

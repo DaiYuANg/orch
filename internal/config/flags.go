@@ -25,6 +25,13 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.String("ingress-addr", def.Ingress.Addr, "config path ingress.addr")
 	fs.StringSlice("ingress-listen", def.Ingress.Listen, "config path ingress.listen")
 
+	fs.Bool("ingress-tls-enabled", def.Ingress.TLS.Enabled, "config path ingress.tls.enabled")
+	fs.StringSlice("ingress-tls-listen", def.Ingress.TLS.Listen, "config path ingress.tls.listen (HTTPS binds, default :443)")
+	fs.StringSlice("ingress-tls-domains", def.Ingress.TLS.Domains, "config path ingress.tls.domains (autocert host whitelist)")
+	fs.String("ingress-tls-email", def.Ingress.TLS.Email, "config path ingress.tls.email (ACME account)")
+	fs.String("ingress-tls-cache-dir", def.Ingress.TLS.CacheDir, "config path ingress.tls.cache_dir (PEM cache; default <data-dir>/autocert)")
+	fs.Bool("ingress-tls-staging", def.Ingress.TLS.Staging, "config path ingress.tls.staging (Let's Encrypt staging)")
+
 	fs.Bool("dns-enabled", def.DNS.Enabled, "config path dns.enabled")
 	fs.String("dns-listen", def.DNS.Listen, "config path dns.listen")
 	fs.String("dns-data-path", def.DNS.Data.Path, "config path dns.data.path")

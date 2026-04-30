@@ -5,15 +5,38 @@ import (
 	"log/slog"
 
 	"github.com/arcgolabs/dix"
+
+	"github.com/daiyuang/orch/internal/config"
 )
 
-// Module wires embedded Caddy lifecycle. Registration order in cmd/orch-server must place
-// this module after dns and before scheduler so start order remains: raft → dns → ingress → …
+// Module wires ingress: Fiber reverse proxy/LB and optional Let's Encrypt autocert on HTTPS listeners.
+// *ingress.Service for lifecycle and DI. Data-plane path routes are compiled from desired deploy apps
+// (ingresses) and workload DNS registrations, not from static config.
+//
+// Register this module after raft and dns so start order remains: raft → dns → ingress → …
 func Module() dix.Module {
 	return dix.NewModule(
 		"ingress",
 		dix.Providers(
-			dix.Provider2(New),
+			dix.Provider4(New),
+		),
+		dix.Invokes(
+			dix.Invoke3(func(logger *slog.Logger, cfg config.Config, _ *Service) {
+				if !cfg.Ingress.Enabled {
+					return
+				}
+				log := logger.With(slog.String("component", "ingress"))
+				log.Debug("ingress di: *ingress.Service registered for injection")
+				log.Info("ingress routes source: deploy documents (ingresses); listeners from ingress.listen / ingress.tls")
+				if cfg.Ingress.TLS.Enabled {
+					log.Info("ingress tls autocert",
+						slog.Bool("enabled", true),
+						slog.Any("domains", cfg.Ingress.TLSAutocertDomains()),
+						slog.Any("tls_listen", cfg.Ingress.TLSListenAddrs()),
+						slog.Bool("staging", cfg.Ingress.TLS.Staging),
+					)
+				}
+			}),
 		),
 		dix.Hooks(
 			dix.OnStart2(func(ctx context.Context, logger *slog.Logger, s *Service) error {

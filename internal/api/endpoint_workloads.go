@@ -26,7 +26,8 @@ func (e *WorkloadsEndpoint) EndpointSpec() httpx.EndpointSpec {
 }
 
 func (e *WorkloadsEndpoint) Register(r httpx.Registrar) {
-	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"registry"}, "listWorkloads", "List workloads known to this node"))
+	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"registry"}, "listWorkloads", "List workloads known to this node",
+		"Sorted workload records (including name, runtime, image, status) from this node registry."))
 }
 
 func (e *WorkloadsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListWorkloadsOutput, error) {

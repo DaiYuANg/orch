@@ -11,23 +11,29 @@ import (
 
 // DeployEndpoint serves POST /api/v1/deploy.
 type DeployEndpoint struct {
-	tasks *task.Service
+	tasks            *task.Service
+	openAPIAuthApply bool // when true, OpenAPI documents bearerAuth on this route (matches Fiber auth when server auth is enabled)
 }
 
-func NewDeployEndpoint(tasks *task.Service) *DeployEndpoint {
-	return &DeployEndpoint{tasks: tasks}
+func NewDeployEndpoint(tasks *task.Service, openAPIAuthApply bool) *DeployEndpoint {
+	return &DeployEndpoint{tasks: tasks, openAPIAuthApply: openAPIAuthApply}
 }
 
 func (e *DeployEndpoint) EndpointSpec() httpx.EndpointSpec {
-	return httpx.EndpointSpec{
+	spec := httpx.EndpointSpec{
 		Prefix:      "/v1/deploy",
 		Description: "Apply deploy DSL to the control plane.",
 		Tags:        httpx.Tags("deploy"),
 	}
+	if e.openAPIAuthApply {
+		spec.Security = httpx.SecurityRequirements(httpx.SecurityRequirement("bearerAuth"))
+	}
+	return spec
 }
 
 func (e *DeployEndpoint) Register(r httpx.Registrar) {
-	httpx.MustGroupPost(r.Scope(), "", e.handle, OpenAPIMeta([]string{"deploy"}, "deployApp", "Apply a deploy DSL document (submit workload desired state)"))
+	httpx.MustGroupPost(r.Scope(), "", e.handle, OpenAPIMeta([]string{"deploy"}, "deployApp", "Apply a deploy DSL document (submit workload desired state)",
+		"Accepts an orch deploy v1alpha1 document in JSON. When server auth is enabled, requires a valid JWT bearer token."))
 }
 
 func (e *DeployEndpoint) handle(ctx context.Context, in *DeployInput) (*DeployOutput, error) {

@@ -3,7 +3,6 @@ package httpserver
 import (
 	"strings"
 
-	fiberprometheus "github.com/ansrivas/fiberprometheus/v2"
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/gofiber/fiber/v2"
 
@@ -11,9 +10,12 @@ import (
 	"github.com/daiyuang/orch/internal/observability"
 )
 
-// attachFiberPrometheus registers github.com/ansrivas/fiberprometheus/v2 HTTP middleware (requests_total,
-// latency histograms, in-flight) and the scrape route on the shared Prometheus registry from observability,
-// so orch_* application metrics and http_fiber_* HTTP metrics export from one endpoint.
+// attachFiberPrometheus registers HTTP middleware (requests_total, request duration histogram,
+// requests_in_progress) and the scrape route on the shared Prometheus registry from observability,
+// so orch_* application metrics and http_fiber_* metrics share one endpoint.
+//
+// When observability.prometheus.native_histogram is true, duration uses a hybrid classic + native
+// histogram ([prometheus.HistogramOpts.NativeHistogramBucketFactor]).
 func attachFiberPrometheus(app *fiber.App, cfg config.Config, obs *observability.Service) {
 	reg := obs.PrometheusRegistry()
 	if reg == nil {
@@ -33,8 +35,8 @@ func attachFiberPrometheus(app *fiber.App, cfg config.Config, obs *observability
 		serviceName = "orch"
 	}
 
-	fp := fiberprometheus.NewWithRegistry(reg, serviceName, "http", "fiber", nil)
-	fp.SetSkipPaths(list.NewList(path).Values())
-	fp.RegisterAt(app, path)
+	fp := newFiberPromMetrics(reg, serviceName, "http", "fiber", nil, cfg.Observability.Prometheus.NativeHistogram)
+	fp.setSkipPaths(list.NewList(path).Values())
+	fp.registerAt(app, path)
 	app.Use(fp.Middleware)
 }

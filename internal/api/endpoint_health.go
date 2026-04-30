@@ -23,7 +23,8 @@ func (e *HealthEndpoint) EndpointSpec() httpx.EndpointSpec {
 }
 
 func (e *HealthEndpoint) Register(r httpx.Registrar) {
-	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"system"}, "health", "Liveness and basic connectivity check"))
+	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"system"}, "health", "Liveness and basic connectivity check",
+		"Public endpoint. Returns status ok and a UTC RFC3339 timestamp."))
 }
 
 func (e *HealthEndpoint) handle(_ context.Context, _ *EmptyInput) (*HealthOutput, error) {

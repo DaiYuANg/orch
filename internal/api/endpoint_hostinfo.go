@@ -25,7 +25,8 @@ func (e *HostinfoEndpoint) EndpointSpec() httpx.EndpointSpec {
 }
 
 func (e *HostinfoEndpoint) Register(r httpx.Registrar) {
-	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"host"}, "hostinfo", "Collect host/runtime snapshot for diagnostics"))
+	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"host"}, "hostinfo", "Collect host/runtime snapshot for diagnostics",
+		"Returns CPU, memory, load, disk usage, and OS/host metadata from the local machine."))
 }
 
 func (e *HostinfoEndpoint) handle(ctx context.Context, _ *EmptyInput) (*HostinfoOutput, error) {

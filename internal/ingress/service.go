@@ -50,7 +50,7 @@ func (s *Service) Start(_ context.Context) error {
 	)
 
 	listen := s.cfg.ListenAddrs()
-	servers := mapping.NewMap[string, *caddyhttp.Server]()
+	servers := mapping.NewOrderedMap[string, *caddyhttp.Server]()
 	servers.Set("orch-ingress", &caddyhttp.Server{
 		Listen: listen,
 		// Non-nil enables HTTP access logs ("handled request") on the default logger.
@@ -65,7 +65,7 @@ func (s *Service) Start(_ context.Context) error {
 		Servers: servers.All(),
 	}
 
-	httpApps := mapping.NewMap[string, json.RawMessage]()
+	httpApps := mapping.NewOrderedMap[string, json.RawMessage]()
 	httpApps.Set("http", caddyconfig.JSON(app, nil))
 
 	cfg := &caddy.Config{
@@ -98,7 +98,7 @@ func caddyBaseOrchLog() caddy.BaseLog {
 // caddyOrchSlogLogging sends Caddy/zap (including RedirectStdLog) through the orch slog bridge.
 func caddyOrchSlogLogging() *caddy.Logging {
 	bl := caddyBaseOrchLog()
-	logs := mapping.NewMap[string, *caddy.CustomLog]()
+	logs := mapping.NewOrderedMap[string, *caddy.CustomLog]()
 	logs.Set(caddy.DefaultLoggerName, &caddy.CustomLog{BaseLog: bl})
 	return &caddy.Logging{
 		Sink: &caddy.SinkLog{BaseLog: bl},

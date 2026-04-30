@@ -13,7 +13,7 @@ import (
 )
 
 // chooseV1Alpha1 implements v1alpha1: among feasible nodes (memory + projected CPU millicores),
-// pick lowest CPUUsagePercent, tie-break larger MemoryAvailBytes.
+// pick lowest CPUUsagePercent, tie-break larger MemoryAvailBytes, then earlier scheduling.preferredNodes entry.
 func chooseV1Alpha1(ctx context.Context, w deployv1.Workload, catalog *nodecapacity.Catalog, localNodeID string) (string, error) {
 	_ = ctx
 	if catalog == nil || catalog.Len() == 0 {
@@ -61,6 +61,12 @@ func chooseV1Alpha1(ctx context.Context, w deployv1.Workload, catalog *nodecapac
 		prev, _ := best.Get()
 		if better(cur.snap, prev.snap) {
 			best = mo.Some(cur)
+			continue
+		}
+		if restrictPreferred && snapEqual(cur.snap, prev.snap) {
+			if preferredRank(want, cur.id) < preferredRank(want, prev.id) {
+				best = mo.Some(cur)
+			}
 		}
 	}
 
@@ -76,13 +82,14 @@ type scoredNode struct {
 	snap nodecapacity.Snapshot
 }
 
-// preferredNames returns the normalized preferred-node set and whether scheduling restricts placement.
-func preferredNames(w deployv1.Workload) (*set.Set[string], bool) {
+// preferredNames returns the normalized preferred-node names in YAML/list order (deduplicated) and
+// whether scheduling restricts placement.
+func preferredNames(w deployv1.Workload) (*set.OrderedSet[string], bool) {
 	if w.Scheduling == nil || len(w.Scheduling.PreferredNodes) == 0 {
 		return nil, false
 	}
 	raw := w.Scheduling.PreferredNodes
-	s := set.NewSetWithCapacity[string](len(raw))
+	s := set.NewOrderedSetWithCapacity[string](len(raw))
 	for _, n := range raw {
 		n = strings.TrimSpace(n)
 		if n != "" {
@@ -90,6 +97,24 @@ func preferredNames(w deployv1.Workload) (*set.Set[string], bool) {
 		}
 	}
 	return s, true
+}
+
+func snapEqual(a, b nodecapacity.Snapshot) bool {
+	return a.CPUUsagePercent == b.CPUUsagePercent && a.MemoryAvailBytes == b.MemoryAvailBytes
+}
+
+// preferredRank is the zero-based index in the manifest preferred list (dedupe order); missing ids sort last.
+func preferredRank(want *set.OrderedSet[string], nodeID string) int {
+	if want == nil {
+		return 0
+	}
+	vals := want.Values()
+	for i, id := range vals {
+		if id == nodeID {
+			return i
+		}
+	}
+	return len(vals) + 1
 }
 
 func feasible(reqCPUmillis, reqMemBytes int64, s nodecapacity.Snapshot) bool {

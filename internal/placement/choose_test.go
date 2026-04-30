@@ -75,6 +75,35 @@ func TestChoose_prefersLowerCPU(t *testing.T) {
 	}
 }
 
+func TestChoose_tieBreakByPreferredOrder(t *testing.T) {
+	t.Parallel()
+	cat := testCatalog(
+		nodecapacity.Snapshot{
+			NodeID: "x", UpdatedAt: time.Now(), LogicalCPUCores: 4,
+			CPUUsagePercent: 40, MemoryAvailBytes: 8 << 30,
+		},
+		nodecapacity.Snapshot{
+			NodeID: "y", UpdatedAt: time.Now(), LogicalCPUCores: 4,
+			CPUUsagePercent: 40, MemoryAvailBytes: 8 << 30,
+		},
+	)
+
+	w := deployv1.Workload{
+		Name: "w",
+		Scheduling: &deployv1.Scheduling{
+			PreferredNodes: []string{"y", "x"},
+		},
+	}
+	eng := NewEngine()
+	got, err := eng.Choose(context.Background(), w, cat, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "y" {
+		t.Fatalf("equal metrics: got %q want y (earlier in preferredNodes)", got)
+	}
+}
+
 func TestChoose_respectsPreferredNodes(t *testing.T) {
 	t.Parallel()
 	cat := testCatalog(

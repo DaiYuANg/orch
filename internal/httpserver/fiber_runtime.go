@@ -8,6 +8,7 @@ import (
 	"github.com/arcgolabs/httpx"
 	"github.com/arcgolabs/httpx/adapter"
 	adapterfiber "github.com/arcgolabs/httpx/adapter/fiber"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/daiyuang/orch/internal/buildmeta"
@@ -28,11 +29,24 @@ func newFiberAppAndRuntime(cfg config.Config, logger *slog.Logger, guard *authht
 		fiberApp.Use("/api/v1/deploy", authfiber.Require(guard))
 	}
 
-	rt := httpx.New(
+	opts := []httpx.ServerOption{
 		httpx.WithAdapter(fiberAdapter),
 		httpx.WithLogger(logger),
 		httpx.WithValidation(),
 		httpx.WithBasePath("/api"),
-	)
+	}
+	if cfg.Auth.Enabled {
+		opts = append(opts, httpx.WithSecurity(httpx.SecurityOptions{
+			Schemes: httpx.SecuritySchemes(map[string]*huma.SecurityScheme{
+				"bearerAuth": {
+					Type:         "http",
+					Scheme:       "bearer",
+					BearerFormat: "JWT",
+					Description:  "When orch HTTP auth is enabled, send the same bearer token as the CLI (e.g. Authorization: Bearer <token>).",
+				},
+			}),
+		}))
+	}
+	rt := httpx.New(opts...)
 	return fiberApp, rt
 }

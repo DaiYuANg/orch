@@ -20,7 +20,7 @@ type Service struct {
 	cfg             config.DNSConfig
 	store           *dnsserver.BboltStore
 	server          *dnsserver.Server
-	workloadRecords *mapping.ConcurrentMap[string, dnsserver.Record]
+	workloadRecords *mapping.ShardedConcurrentMap[string, dnsserver.Record]
 	started         atomic.Bool
 }
 
@@ -28,7 +28,7 @@ func New(cfg config.Config, logger *slog.Logger) *Service {
 	return &Service{
 		logger:          logger,
 		cfg:             cfg.DNS,
-		workloadRecords: mapping.NewConcurrentMap[string, dnsserver.Record](),
+		workloadRecords: mapping.NewShardedConcurrentMap[string, dnsserver.Record](0, mapping.HashString),
 	}
 }
 

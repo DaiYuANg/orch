@@ -8,25 +8,24 @@ go 1.26.2
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/ansrivas/fiberprometheus/v2 v2.17.0
-	github.com/arcgolabs/authx v0.1.0
-	github.com/arcgolabs/authx/http/fiber v0.1.0
-	github.com/arcgolabs/authx/jwt v0.1.0
-	github.com/arcgolabs/clientx v0.1.0
-	github.com/arcgolabs/collectionx/list v0.2.0
-	github.com/arcgolabs/collectionx/mapping v0.2.0
-	github.com/arcgolabs/collectionx/set v0.2.0
-	github.com/arcgolabs/configx v0.3.0
-	github.com/arcgolabs/dix v0.6.0
-	github.com/arcgolabs/dnsx/dnsserver v0.1.0
-	github.com/arcgolabs/httpx v0.1.1
-	github.com/arcgolabs/httpx/adapter/fiber v0.1.1
-	github.com/arcgolabs/logx v0.1.0
-	github.com/arcgolabs/observabilityx v0.2.0
-	github.com/arcgolabs/storx/badgerx v0.1.0
-	github.com/arcgolabs/storx/bboltx v0.1.0
+	github.com/arcgolabs/authx v0.2.0
+	github.com/arcgolabs/authx/http/fiber v0.2.0
+	github.com/arcgolabs/authx/jwt v0.2.0
+	github.com/arcgolabs/clientx v0.1.1
+	github.com/arcgolabs/collectionx/list v0.6.0
+	github.com/arcgolabs/collectionx/mapping v0.6.0
+	github.com/arcgolabs/collectionx/set v0.6.0
+	github.com/arcgolabs/configx v0.3.1
+	github.com/arcgolabs/dix v0.7.1
+	github.com/arcgolabs/dnsx/dnsserver v0.1.1
+	github.com/arcgolabs/httpx v0.1.2
+	github.com/arcgolabs/httpx/adapter/fiber v0.1.2
+	github.com/arcgolabs/logx v0.1.1
+	github.com/arcgolabs/observabilityx v0.3.0
+	github.com/arcgolabs/storx/badgerx v0.3.0
+	github.com/arcgolabs/storx/bboltx v0.3.0
 	github.com/arcgolabs/storx/codec v0.1.0
-	github.com/arcgolabs/storx/keycodec v0.1.0
+	github.com/arcgolabs/storx/keycodec v0.2.0
 	github.com/caddyserver/caddy/v2 v2.11.2
 	github.com/compose-spec/compose-go/v2 v2.10.2
 	github.com/containerd/containerd v1.7.31
@@ -47,6 +46,14 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/vishvananda/netns v0.0.5
+	go.opentelemetry.io/otel v1.43.0
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.43.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0
+	go.opentelemetry.io/otel/sdk v1.43.0
+	go.opentelemetry.io/otel/sdk/metric v1.43.0
+	go.opentelemetry.io/otel/trace v1.43.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -74,21 +81,19 @@ require (
 	github.com/alecthomas/chroma/v2 v2.23.1 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/arcgolabs/collectionx v0.2.0 // indirect
-	github.com/arcgolabs/collectionx/internal v0.2.0 // indirect
-	github.com/arcgolabs/collectionx/interval v0.2.0 // indirect
-	github.com/arcgolabs/collectionx/prefix v0.2.0 // indirect
-	github.com/arcgolabs/collectionx/tree v0.2.0 // indirect
-	github.com/arcgolabs/dnsx/dnsclient v0.1.0 // indirect
-	github.com/arcgolabs/httpx/adapter/echo v0.1.1 // indirect
-	github.com/arcgolabs/httpx/adapter/gin v0.1.1 // indirect
-	github.com/arcgolabs/httpx/adapter/std v0.1.1 // indirect
+	github.com/arcgolabs/collectionx/internal v0.6.0 // indirect
+	github.com/arcgolabs/collectionx/prefix v0.6.0 // indirect
+	github.com/arcgolabs/dnsx/dnsclient v0.1.1 // indirect
+	github.com/arcgolabs/httpx/adapter/echo v0.1.2 // indirect
+	github.com/arcgolabs/httpx/adapter/gin v0.1.2 // indirect
+	github.com/arcgolabs/httpx/adapter/std v0.1.2 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
-	github.com/arcgolabs/storx v0.1.0 // indirect
+	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/observer v0.1.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/caddyserver/certmagic v0.25.3 // indirect
 	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/ccoveille/go-safecast/v2 v2.0.0 // indirect
@@ -124,7 +129,7 @@ require (
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/fsnotify/fsnotify v1.10.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-chi/chi/v5 v5.2.5 // indirect
@@ -176,6 +181,7 @@ require (
 	github.com/knadh/koanf/providers/env/v2 v2.0.0 // indirect
 	github.com/knadh/koanf/providers/file v1.2.1 // indirect
 	github.com/knadh/koanf/v2 v2.3.4 // indirect
+	github.com/labstack/gommon v0.5.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/libdns/libdns v1.1.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
@@ -183,7 +189,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
-	github.com/mattn/go-shellwords v1.0.13 // indirect
+	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/mholt/acmez/v3 v3.1.6 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -255,6 +261,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.68.0 // indirect
@@ -265,26 +272,18 @@ require (
 	go.opentelemetry.io/contrib/propagators/b3 v1.43.0 // indirect
 	go.opentelemetry.io/contrib/propagators/jaeger v1.43.0 // indirect
 	go.opentelemetry.io/contrib/propagators/ot v1.43.0 // indirect
-	go.opentelemetry.io/otel v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.19.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.43.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.65.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.19.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v1.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.43.0 // indirect
 	go.opentelemetry.io/otel/log v0.19.0 // indirect
 	go.opentelemetry.io/otel/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.19.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
-	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
-	go.step.sm/crypto v0.77.9 // indirect
+	go.step.sm/crypto v0.77.7 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
@@ -292,6 +291,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
+	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20260423152011-b9e53593a607 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arcgolabs/clientx"
 	clientcodec "github.com/arcgolabs/clientx/codec"
 	clientxhttp "github.com/arcgolabs/clientx/http"
 
@@ -40,6 +41,12 @@ func New(baseURL, bearerToken string) (*Client, error) {
 	hc, err := clientxhttp.New(clientxhttp.Config{
 		BaseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		Timeout: 60 * time.Second,
+		Retry: clientx.RetryConfig{
+			Enabled:    true,
+			MaxRetries: 2,
+			WaitMin:    200 * time.Millisecond,
+			WaitMax:    2 * time.Second,
+		},
 	}, opts...)
 	if err != nil {
 		return nil, oopsx.B("cli", "apiclient").Wrapf(err, "create clientx http client")

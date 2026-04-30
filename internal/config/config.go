@@ -36,9 +36,18 @@ type HTTPConfig struct {
 // ObservabilityConfig matches koanf paths like observability.prometheus.enabled (env ORCH_OBSERVABILITY_PROMETHEUS_ENABLED).
 type ObservabilityConfig struct {
 	Prometheus struct {
-		Enabled bool   `json:"enabled"`
-		Path    string `json:"path"`
+		Enabled         bool   `json:"enabled"`
+		Path            string `json:"path"`
+		NativeHistogram bool   `json:"native_histogram"` // classic + Prometheus native histogram on request duration (scrapers need native support)
 	} `json:"prometheus"`
+	// OTLP exports traces and metrics via OpenTelemetry (grpc default :4317, http default http://localhost:4318).
+	OTLP struct {
+		Enabled     bool   `json:"enabled"`
+		Protocol    string `json:"protocol"` // grpc or http
+		Endpoint    string `json:"endpoint"` // host:port for grpc; URL or host:port for http
+		Insecure    bool   `json:"insecure"` // plaintext grpc; for http, use http:// or set insecure with host:port
+		ServiceName string `json:"service_name"`
+	} `json:"otlp"`
 }
 
 type IngressConfig struct {
@@ -131,6 +140,7 @@ func Default() Config {
 	var obs ObservabilityConfig
 	obs.Prometheus.Enabled = true
 	obs.Prometheus.Path = "/metrics"
+	obs.Prometheus.NativeHistogram = true
 
 	var auth AuthConfig
 	auth.Enabled = false

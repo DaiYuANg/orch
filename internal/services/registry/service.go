@@ -2,6 +2,8 @@ package registry
 
 import (
 	"log/slog"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/arcgolabs/collectionx/mapping"
@@ -18,13 +20,13 @@ type WorkloadRecord struct {
 
 type Service struct {
 	logger *slog.Logger
-	items  *mapping.ConcurrentMap[string, WorkloadRecord]
+	items  *mapping.ShardedConcurrentMap[string, WorkloadRecord]
 }
 
 func NewService(logger *slog.Logger) *Service {
 	return &Service{
 		logger: logger,
-		items:  mapping.NewConcurrentMap[string, WorkloadRecord](),
+		items:  mapping.NewShardedConcurrentMap[string, WorkloadRecord](0, mapping.HashString),
 	}
 }
 
@@ -35,5 +37,9 @@ func (s *Service) Upsert(record WorkloadRecord) {
 }
 
 func (s *Service) List() []WorkloadRecord {
-	return s.items.Values()
+	out := s.items.Values()
+	slices.SortFunc(out, func(a, b WorkloadRecord) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return out
 }

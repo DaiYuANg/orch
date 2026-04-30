@@ -2,6 +2,8 @@ package hostinfo
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
@@ -149,7 +151,11 @@ func buildDiskEntries(ctx context.Context, parts []disk.PartitionStat) []DiskEnt
 			UsedPercent: usage.UsedPercent,
 		})
 	}
-	return disks.Values()
+	out := disks.Values()
+	slices.SortFunc(out, func(a, b DiskEntry) int {
+		return strings.Compare(a.Mountpoint, b.Mountpoint)
+	})
+	return out
 }
 
 // Collect gathers host statistics. CPU usage uses a short blocking sample (~cpuSampleWait).

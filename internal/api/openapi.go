@@ -5,11 +5,12 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// OpenAPIMeta sets Tags, OperationID, and Summary on the Huma operation (OpenAPI).
-func OpenAPIMeta(tags []string, operationID, summary string) httpx.OperationOption {
+// OpenAPIMeta sets Tags, OperationID, Summary, and optional Description on the Huma operation (OpenAPI).
+func OpenAPIMeta(tags []string, operationID, summary, description string) httpx.OperationOption {
 	return func(op *huma.Operation) {
 		op.Tags = append([]string(nil), tags...)
 		op.OperationID = operationID
 		op.Summary = summary
+		op.Description = description
 	}
 }

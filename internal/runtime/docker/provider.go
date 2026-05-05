@@ -14,6 +14,7 @@ import (
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
+	"github.com/daiyuang/orch/internal/runtime/runconfig"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -62,11 +63,19 @@ func (p *Provider) drainDockerImagePull(ctx context.Context, cli *client.Client,
 func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Client, meta deployv1.Metadata, w deployv1.Workload, ref string) error {
 	name := workloadmeta.OrchContainerName(meta, w.Name)
 	ctrCfg := &container.Config{
-		Image:  ref,
-		Labels: workloadmeta.Labels(meta, w),
+		Image:      ref,
+		Entrypoint: w.Run.Command,
+		Cmd:        w.Run.Args,
+		Env:        runconfig.Env(w.Run.Env),
+		WorkingDir: strings.TrimSpace(w.Run.Cwd),
+		Labels:     workloadmeta.Labels(meta, w),
 	}
 
 	hostCfg := &container.HostConfig{}
+	if w.Resources != nil {
+		hostCfg.Resources.Memory = w.Resources.MemoryBytes
+		hostCfg.Resources.NanoCPUs = runconfig.NanoCPUs(w.Resources.CPUMillis)
+	}
 	if w.Run.Options.Docker != nil {
 		if m := strings.TrimSpace(w.Run.Options.Docker.NetworkMode); m != "" {
 			hostCfg.NetworkMode = container.NetworkMode(m)

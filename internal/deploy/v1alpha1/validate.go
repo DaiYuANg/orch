@@ -148,8 +148,21 @@ func (w *Workload) validate(seen *set.Set[string]) error {
 	if strings.TrimSpace(w.Run.Image) == "" {
 		return oopsx.B("deploy").Errorf("run.image is required")
 	}
+	for i := range w.Run.Env {
+		if strings.TrimSpace(w.Run.Env[i].Name) == "" {
+			return oopsx.B("deploy").Errorf("run.env[%d].name is required", i)
+		}
+	}
 	if w.Replicas < 0 {
 		return oopsx.B("deploy").Errorf("replicas must be >= 0")
+	}
+	if w.Resources != nil {
+		if w.Resources.CPUMillis < 0 {
+			return oopsx.B("deploy").Errorf("resources.cpuMillis must be >= 0")
+		}
+		if w.Resources.MemoryBytes < 0 {
+			return oopsx.B("deploy").Errorf("resources.memoryBytes must be >= 0")
+		}
 	}
 	return nil
 }

@@ -8,24 +8,24 @@ go 1.26.2
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/arcgolabs/authx v0.2.0
-	github.com/arcgolabs/authx/http/fiber v0.2.0
-	github.com/arcgolabs/authx/jwt v0.2.0
-	github.com/arcgolabs/clientx v0.1.1
-	github.com/arcgolabs/collectionx/list v0.6.0
-	github.com/arcgolabs/collectionx/mapping v0.6.0
-	github.com/arcgolabs/collectionx/set v0.6.0
-	github.com/arcgolabs/configx v0.3.1
-	github.com/arcgolabs/dix v0.7.1
-	github.com/arcgolabs/dnsx/dnsserver v0.1.1
-	github.com/arcgolabs/httpx v0.1.2
-	github.com/arcgolabs/httpx/adapter/fiber v0.1.2
-	github.com/arcgolabs/logx v0.1.1
-	github.com/arcgolabs/observabilityx v0.3.0
-	github.com/arcgolabs/plano v0.2.0
-	github.com/arcgolabs/plano/lsp v0.0.0-20260429150020-93c29b878803
-	github.com/arcgolabs/storx/badgerx v0.3.0
-	github.com/arcgolabs/storx/bboltx v0.3.0
+	github.com/arcgolabs/authx v0.2.1
+	github.com/arcgolabs/authx/http/fiber v0.2.1
+	github.com/arcgolabs/authx/jwt v0.2.1
+	github.com/arcgolabs/clientx v0.1.2
+	github.com/arcgolabs/collectionx/list v0.7.0
+	github.com/arcgolabs/collectionx/mapping v0.7.0
+	github.com/arcgolabs/collectionx/set v0.7.0
+	github.com/arcgolabs/configx v0.3.2
+	github.com/arcgolabs/dix v0.7.2
+	github.com/arcgolabs/dnsx/dnsserver v0.1.2
+	github.com/arcgolabs/httpx v0.1.4
+	github.com/arcgolabs/httpx/adapter/fiber v0.1.4
+	github.com/arcgolabs/logx v0.1.2
+	github.com/arcgolabs/observabilityx v0.4.0
+	github.com/arcgolabs/plano v0.0.0-20260430012828-528122e33899
+	github.com/arcgolabs/plano/lsp v0.0.0-20260430012828-528122e33899
+	github.com/arcgolabs/storx/badgerx v0.4.0
+	github.com/arcgolabs/storx/bboltx v0.4.0
 	github.com/arcgolabs/storx/codec v0.1.0
 	github.com/arcgolabs/storx/keycodec v0.2.0
 	github.com/compose-spec/compose-go/v2 v2.10.2
@@ -72,16 +72,15 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.14.1 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
-	github.com/arcgolabs/collectionx/graph v0.5.0 // indirect
-	github.com/arcgolabs/collectionx/internal v0.6.0 // indirect
-	github.com/arcgolabs/collectionx/interval v0.6.0 // indirect
-	github.com/arcgolabs/collectionx/prefix v0.6.0 // indirect
-	github.com/arcgolabs/dnsx/dnsclient v0.1.1 // indirect
-	github.com/arcgolabs/httpx/adapter/echo v0.1.2 // indirect
-	github.com/arcgolabs/httpx/adapter/gin v0.1.2 // indirect
-	github.com/arcgolabs/httpx/adapter/std v0.1.2 // indirect
+	github.com/arcgolabs/collectionx/graph v0.7.0 // indirect
+	github.com/arcgolabs/collectionx/interval v0.7.0 // indirect
+	github.com/arcgolabs/collectionx/prefix v0.7.0 // indirect
+	github.com/arcgolabs/dnsx/dnsclient v0.1.2 // indirect
+	github.com/arcgolabs/httpx/adapter/echo v0.1.4 // indirect
+	github.com/arcgolabs/httpx/adapter/gin v0.1.4 // indirect
+	github.com/arcgolabs/httpx/adapter/std v0.1.4 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
-	github.com/arcgolabs/plano/examples/builddsl v0.0.0-20260429150020-93c29b878803 // indirect
+	github.com/arcgolabs/plano/examples/builddsl v0.0.0-20260430012828-528122e33899 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/observer v0.1.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
@@ -110,6 +109,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
+	github.com/expr-lang/expr v1.17.8 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.10.0 // indirect
@@ -149,7 +149,6 @@ require (
 	github.com/knadh/koanf/providers/env/v2 v2.0.0 // indirect
 	github.com/knadh/koanf/providers/file v1.2.1 // indirect
 	github.com/knadh/koanf/v2 v2.3.4 // indirect
-	github.com/labstack/gommon v0.5.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect

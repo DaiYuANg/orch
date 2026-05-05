@@ -20,6 +20,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/runtime/runconfig"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -93,6 +94,34 @@ func waitIPv4(pid int, attempts int, delay time.Duration) (string, error) {
 	return "", lastErr
 }
 
+func specOptsForWorkload(img containerd.Image, w deployv1.Workload) []oci.SpecOpts {
+	opts := make([]oci.SpecOpts, 0, 6)
+	if len(w.Run.Command) == 0 && len(w.Run.Args) > 0 {
+		opts = append(opts, oci.WithImageConfigArgs(img, w.Run.Args))
+	} else {
+		opts = append(opts, oci.WithImageConfig(img))
+	}
+	if args := runconfig.CommandArgs(w.Run); len(args) > 0 {
+		opts = append(opts, oci.WithProcessArgs(args...))
+	}
+	if env := runconfig.Env(w.Run.Env); len(env) > 0 {
+		opts = append(opts, oci.WithEnv(env))
+	}
+	if cwd := strings.TrimSpace(w.Run.Cwd); cwd != "" {
+		opts = append(opts, oci.WithProcessCwd(cwd))
+	}
+	if w.Resources != nil {
+		if w.Resources.MemoryBytes > 0 {
+			opts = append(opts, oci.WithMemoryLimit(uint64(w.Resources.MemoryBytes)))
+		}
+		if w.Resources.CPUMillis > 0 {
+			quota, period := runconfig.CFSQuota(w.Resources.CPUMillis)
+			opts = append(opts, oci.WithCPUCFS(quota, period))
+		}
+	}
+	return opts
+}
+
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
 	sock := containerdSocket()
 	client, err := containerd.New(sock)
@@ -125,7 +154,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	ctr, err := client.NewContainer(ctx, cid,
 		containerd.WithContainerLabels(workloadmeta.Labels(meta, w)),
 		containerd.WithNewSnapshot(snapKey, img),
-		containerd.WithNewSpec(oci.WithImageConfig(img)),
+		containerd.WithNewSpec(specOptsForWorkload(img, w)...),
 	)
 	if err != nil {
 		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd create %q", cid)

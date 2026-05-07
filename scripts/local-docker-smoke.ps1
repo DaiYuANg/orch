@@ -24,8 +24,9 @@ $binDir = Join-Path $repoRoot (Join-Path $WorkDir "bin")
 $logDir = Join-Path $repoRoot (Join-Path $WorkDir "logs")
 $serverStdout = Join-Path $logDir "orch-server.out.log"
 $serverStderr = Join-Path $logDir "orch-server.err.log"
+$dataDir = Join-Path $repoRoot (Join-Path $WorkDir "data")
 
-New-Item -ItemType Directory -Force $binDir, $logDir | Out-Null
+New-Item -ItemType Directory -Force $binDir, $logDir, $dataDir | Out-Null
 
 function Test-IsWindows {
     return [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
@@ -117,6 +118,33 @@ function Remove-SmokeContainer {
     }
 }
 
+function Set-SmokeEnvironment {
+    $vars = [ordered]@{
+        ORCH_DATA_DIR                         = $dataDir
+        ORCH_HTTP_ADDR                        = $ServerAddr
+        ORCH_RAFT_ENABLED                     = "false"
+        ORCH_RAFT_NODE_ID                     = $nodeID
+        ORCH_INGRESS_ENABLED                  = "false"
+        ORCH_DNS_ENABLED                      = "false"
+        ORCH_OBSERVABILITY_PROMETHEUS_ENABLED = "false"
+        ORCH_OBSERVABILITY_OTLP_ENABLED       = "false"
+        ORCH_LOG_LEVEL                        = "info"
+    }
+    $previous = @{}
+    foreach ($key in $vars.Keys) {
+        $previous[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+        [Environment]::SetEnvironmentVariable($key, [string]$vars[$key], "Process")
+    }
+    return $previous
+}
+
+function Restore-SmokeEnvironment {
+    param([hashtable]$Previous)
+    foreach ($key in $Previous.Keys) {
+        [Environment]::SetEnvironmentVariable($key, $Previous[$key], "Process")
+    }
+}
+
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "Docker CLI was not found on PATH"
 }
@@ -137,20 +165,8 @@ if (-not (Test-Path $cliBin)) {
 $manifestPath = (Resolve-Path (Join-Path $repoRoot $Manifest)).Path
 Remove-SmokeContainer
 
-$serverArgs = @(
-    "--http-addr", $ServerAddr,
-    "--raft-enabled=false",
-    "--raft-node-id", $nodeID,
-    "--ingress-enabled=false",
-    "--dns-enabled=false",
-    "--observability-prometheus-enabled=false",
-    "--observability-otlp-enabled=false",
-    "--log-level", "info"
-)
-
 $startArgs = @{
     FilePath               = $serverBin
-    ArgumentList           = $serverArgs
     WorkingDirectory       = $repoRoot
     RedirectStandardOutput = $serverStdout
     RedirectStandardError  = $serverStderr
@@ -161,7 +177,9 @@ if (Test-IsWindows) {
 }
 
 $serverProcess = $null
+$previousEnv = $null
 try {
+    $previousEnv = Set-SmokeEnvironment
     $serverProcess = Start-Process @startArgs
     Wait-OrchHealth $serverProcess
 
@@ -181,10 +199,7 @@ try {
 finally {
     if (-not $KeepServer -and $null -ne $serverProcess -and -not $serverProcess.HasExited) {
         Stop-Process -Id $serverProcess.Id -Force
-        try {
-            Wait-Process -Id $serverProcess.Id -Timeout 5
-        }
-        catch {
+        if (-not $serverProcess.WaitForExit(5000)) {
             Write-Warning "Timed out waiting for orch-server process to stop"
         }
     }
@@ -195,6 +210,9 @@ finally {
         catch {
             Write-Warning $_
         }
+    }
+    if ($null -ne $previousEnv) {
+        Restore-SmokeEnvironment $previousEnv
     }
     Write-Host "Server logs: $serverStdout / $serverStderr"
 }

@@ -82,3 +82,4 @@ test/node_modules
 test/build
 tmp
 data
+.orch-smoke/

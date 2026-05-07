@@ -14,6 +14,7 @@ import (
 	"github.com/daiyuang/orch/internal/placement"
 	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/runtime"
+	"github.com/daiyuang/orch/internal/runtime/runconfig"
 	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
@@ -140,11 +141,11 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 			}
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), status)
 			s.registry.Upsert(registry.WorkloadRecord{
-				Name:    w.Name,
-				Node:    chosen,
-				Runtime: string(w.Runtime),
-				Image:   w.Run.Image,
-				Status:  status,
+				Name:     w.Name,
+				Node:     chosen,
+				Runtime:  string(w.Runtime),
+				Artifact: runconfig.ArtifactSummary(w.Run),
+				Status:   status,
 			})
 			s.applyWorkloadAssignment(app.Metadata, *w, chosen, status, "")
 			continue
@@ -178,7 +179,7 @@ func (s *Service) applyWorkloadAssignment(meta deployv1.Metadata, workload deplo
 		Workload:  workload.Name,
 		Node:      strings.TrimSpace(nodeID),
 		Runtime:   workload.Runtime,
-		Image:     workload.Run.Image,
+		Artifact:  runconfig.ArtifactSummary(workload.Run),
 		Status:    status,
 		Error:     strings.TrimSpace(errMsg),
 		UpdatedAt: time.Now().UTC(),
@@ -215,11 +216,11 @@ func (s *Service) deployLocalWorkload(ctx context.Context, meta deployv1.Metadat
 		return oopsx.B("task").Wrapf(err, "deploy workload %s", workload.Name)
 	}
 	s.registry.Upsert(registry.WorkloadRecord{
-		Name:    workload.Name,
-		Node:    nodeID,
-		Runtime: string(workload.Runtime),
-		Image:   workload.Run.Image,
-		Status:  "running",
+		Name:     workload.Name,
+		Node:     nodeID,
+		Runtime:  string(workload.Runtime),
+		Artifact: runconfig.ArtifactSummary(workload.Run),
+		Status:   "running",
 	})
 	return nil
 }

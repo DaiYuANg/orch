@@ -13,9 +13,44 @@ func validApp() *App {
 				Name:    "api",
 				Kind:    WorkloadKindService,
 				Runtime: RuntimeDocker,
-				Run:     RunSpec{Image: "nginx"},
+				Run:     RunSpec{Artifact: ArtifactSpec{Image: "nginx"}},
 			},
 		},
+	}
+}
+
+func TestValidateProcessRequiresCommandOrArtifactPath(t *testing.T) {
+	app := validApp()
+	app.Workloads[0].Runtime = RuntimeProcess
+	app.Workloads[0].Run.Artifact = ArtifactSpec{}
+
+	err := app.Validate()
+	if err == nil || !strings.Contains(err.Error(), `run.exec.command or run.artifact.path is required for runtime "process"`) {
+		t.Fatalf("Validate() error = %v, want process command error", err)
+	}
+
+	app.Workloads[0].Run.Artifact.Path = "/opt/app/api"
+	if err := app.Validate(); err != nil {
+		t.Fatalf("Validate() with artifact path = %v", err)
+	}
+}
+
+func TestValidateFirecrackerRequiresRuntimeOptions(t *testing.T) {
+	app := validApp()
+	app.Workloads[0].Runtime = RuntimeFirecracker
+	app.Workloads[0].Run.Artifact = ArtifactSpec{}
+
+	err := app.Validate()
+	if err == nil || !strings.Contains(err.Error(), `run.runtimeOptions.firecracker is required`) {
+		t.Fatalf("Validate() error = %v, want firecracker options error", err)
+	}
+
+	app.Workloads[0].Run.Options.Firecracker = &FirecrackerOptions{
+		KernelImagePath: "/var/lib/orch/vmlinux",
+		RootfsPath:      "/var/lib/orch/rootfs.ext4",
+	}
+	if err := app.Validate(); err != nil {
+		t.Fatalf("Validate() with firecracker options = %v", err)
 	}
 }
 

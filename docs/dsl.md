@@ -38,6 +38,12 @@ app {
     http(8080)
   }
 
+  worker localJob {
+    runtime = "process"
+    command = ["/opt/app/job"]
+    args = ["--once"]
+  }
+
   ingress public {
     path "/" {
       workload = api
@@ -46,10 +52,23 @@ app {
 }
 ```
 
-The verbose `workload { run { ... } endpoint { ... } }` shape remains supported
-as an escape hatch. The sections below are the longer-term DSL direction and
-historical design context; the full-stack example documents the current
-recommended Go `.orch` style.
+The short `.orch` authoring fields lower into the runtime-neutral canonical
+shape:
+
+```yaml
+run:
+  artifact:
+    image: ghcr.io/acme/api:latest
+  exec:
+    command: ["/app/server"]
+    args: ["--listen", ":8080"]
+```
+
+For non-container runtimes, use `run.artifact.path` or `run.exec.command`
+rather than a container image. The verbose `workload { run { ... } endpoint {
+... } }` shape remains supported as an escape hatch. The sections below are
+the longer-term DSL direction and historical design context; the full-stack
+example documents the current recommended Go `.orch` style.
 
 This document defines the intended v1 direction for the Warden workload DSL.
 It replaces the earlier open-ended design draft as the primary reference for
@@ -133,13 +152,18 @@ Workload
 - kind
   - service | worker | job | cron | stateful
 - runtime
-  - docker | containerd | firecracker | process
+  - docker | containerd | firecracker | process | systemd | windows-service
 - run
-  - image
-  - command[]
-  - args[]
+  - artifact
+    - image
+    - path
+    - url
+  - exec
+    - command[]
+    - args[]
   - env[]
   - cwd
+  - user
   - runtime_options
 - replicas
 - depends_on[]
@@ -180,9 +204,21 @@ example:
 runtime_options.firecracker
 runtime_options.containerd
 runtime_options.docker
+runtime_options.process
+runtime_options.systemd
+runtime_options.windowsService
 ```
 
 This keeps the main DSL stable even when individual runtime adapters evolve.
+
+Current provider coverage:
+
+- `docker`, `containerd`, and `process` are deployable runtime providers.
+- `systemd` deploys Linux system units from `run.exec` / `run.artifact.path`.
+- `windows-service` registers Windows services from `run.exec` / `run.artifact.path`;
+  the target executable must currently be service-aware.
+- `firecracker` has a reserved spec branch but is not wired as a deployable
+  provider yet.
 
 ## Syntax Style
 
@@ -739,7 +775,8 @@ Current ingress forms supported:
 Current canonical normalization already done by the implementation:
 
 - Workload kind normalization to `service | worker | job | cron | stateful`
-- Runtime normalization to `docker | containerd | firecracker | process`
+- Runtime normalization to `docker | containerd | firecracker | process |
+  systemd | windows-service`
 - Endpoint protocol normalization to `tcp | udp | http`
 - CPU normalization to `cpu_millis`
 - Memory normalization to `memory_bytes`

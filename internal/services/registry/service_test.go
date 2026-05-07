@@ -8,9 +8,9 @@ import (
 func TestService_List_sortedByName(t *testing.T) {
 	t.Parallel()
 	s := NewService(slog.Default())
-	s.Upsert(WorkloadRecord{Name: "zebra", Runtime: "docker", Image: "z", Status: "up"})
-	s.Upsert(WorkloadRecord{Name: "alpha", Runtime: "docker", Image: "a", Status: "up"})
-	s.Upsert(WorkloadRecord{Name: "mule", Runtime: "docker", Image: "m", Status: "up"})
+	s.Upsert(WorkloadRecord{Name: "zebra", Runtime: "docker", Artifact: "z", Status: "up"})
+	s.Upsert(WorkloadRecord{Name: "alpha", Runtime: "docker", Artifact: "a", Status: "up"})
+	s.Upsert(WorkloadRecord{Name: "mule", Runtime: "docker", Artifact: "m", Status: "up"})
 
 	got := s.List()
 	if len(got) != 3 {

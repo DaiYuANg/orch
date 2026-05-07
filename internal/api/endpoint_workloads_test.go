@@ -15,11 +15,11 @@ func TestWorkloadsEndpointHandleMapsPublicItems(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	reg := registry.NewService(logger)
 	reg.Upsert(registry.WorkloadRecord{
-		Name:    "web",
-		Node:    "node-a",
-		Runtime: "docker",
-		Image:   "nginx:alpine",
-		Status:  "running",
+		Name:     "web",
+		Node:     "node-a",
+		Runtime:  "docker",
+		Artifact: "nginx:alpine",
+		Status:   "running",
 	})
 
 	out, err := NewWorkloadsEndpoint(reg).handle(context.Background(), &EmptyInput{})
@@ -30,7 +30,7 @@ func TestWorkloadsEndpointHandleMapsPublicItems(t *testing.T) {
 		t.Fatalf("items = %#v", out.Body.Items)
 	}
 	got := out.Body.Items[0]
-	if got.Name != "web" || got.Node != "node-a" || got.Runtime != "docker" || got.Image != "nginx:alpine" || got.Status != "running" {
+	if got.Name != "web" || got.Node != "node-a" || got.Runtime != "docker" || got.Artifact != "nginx:alpine" || got.Status != "running" {
 		t.Fatalf("workload item = %#v", got)
 	}
 	if got.UpdatedAt.IsZero() {

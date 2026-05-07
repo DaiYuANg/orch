@@ -36,6 +36,12 @@ app {
     http(8080)
   }
 
+  worker localJob {
+    runtime = "process"
+    command = ["/opt/app/job"]
+    args = ["--once"]
+  }
+
   ingress public {
     path "/" {
       workload = api
@@ -44,9 +50,21 @@ app {
 }
 ```
 
-更完整的 `workload { run { ... } endpoint { ... } }` 写法仍然保留，作为
-短写法不够表达时的 escape hatch。下面的大部分内容是更长期的 DSL 方向和历史
-设计上下文；当前推荐的 Go `.orch` 写法以 full-stack 示例文档为准。
+短 `.orch` 作者字段会 lower 到 runtime-neutral canonical 结构：
+
+```yaml
+run:
+  artifact:
+    image: ghcr.io/acme/api:latest
+  exec:
+    command: ["/app/server"]
+    args: ["--listen", ":8080"]
+```
+
+非容器 runtime 使用 `run.artifact.path` 或 `run.exec.command`，而不是把
+本地可执行文件塞进 image。更完整的 `workload { run { ... } endpoint { ... } }`
+写法仍然保留，作为短写法不够表达时的 escape hatch。下面的大部分内容是更长期的
+DSL 方向和历史设计上下文；当前推荐的 Go `.orch` 写法以 full-stack 示例文档为准。
 
 本文档用于说明 Warden Workload DSL 的 v1 方向，同时记录当前仓库里
 已经真实实现的子集与限制，避免“设计稿”和“可用能力”混在一起。
@@ -127,13 +145,18 @@ Workload
 - kind
   - service | worker | job | cron | stateful
 - runtime
-  - docker | containerd | firecracker | process
+  - docker | containerd | firecracker | process | systemd | windows-service
 - run
-  - image
-  - command[]
-  - args[]
+  - artifact
+    - image
+    - path
+    - url
+  - exec
+    - command[]
+    - args[]
   - env[]
   - cwd
+  - user
   - runtime_options
 - replicas
 - depends_on[]
@@ -173,9 +196,20 @@ backend-specific 细节应当隔离在 runtime-specific options 下，例如：
 runtime_options.firecracker
 runtime_options.containerd
 runtime_options.docker
+runtime_options.process
+runtime_options.systemd
+runtime_options.windowsService
 ```
 
 这样即使 runtime adapter 迭代，主 DSL 也能保持稳定。
+
+当前 provider 覆盖：
+
+- `docker`、`containerd`、`process` 已经是可 deploy 的 runtime provider。
+- `systemd` 会基于 `run.exec` / `run.artifact.path` 生成并启动 Linux system unit。
+- `windows-service` 会基于 `run.exec` / `run.artifact.path` 注册 Windows Service；
+  目前目标可执行文件需要自身支持 Windows Service 模式。
+- `firecracker` 目前保留 spec 分支，但尚未接入可 deploy 的 provider。
 
 ## 语法风格
 
@@ -720,7 +754,8 @@ source file
 当前 canonical normalization 已覆盖：
 
 - workload kind 归一化为 `service | worker | job | cron | stateful`
-- runtime 归一化为 `docker | containerd | firecracker | process`
+- runtime 归一化为 `docker | containerd | firecracker | process | systemd |
+  windows-service`
 - endpoint protocol 归一化为 `tcp | udp | http`
 - CPU 归一化为 `cpu_millis`
 - 内存归一化为 `memory_bytes`

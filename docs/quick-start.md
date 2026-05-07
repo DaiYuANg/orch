@@ -4,7 +4,9 @@
 
 - Go 1.22+
 - Docker (for docker runtime)
-- containerd (optional, for containerd runtime later)
+- containerd (optional, Linux-only containerd runtime)
+- Local executables on the host (for process runtime)
+- systemd on Linux or Windows Service Control Manager on Windows for native OS-service runtimes
 
 ## Build and test
 

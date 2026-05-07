@@ -50,8 +50,8 @@ func TestCompileAndLowerSample(t *testing.T) {
 	if len(app.Workloads) != 1 || app.Workloads[0].Name != "web" {
 		t.Fatalf("workloads = %#v", app.Workloads)
 	}
-	if app.Workloads[0].Run.Image != "nginx:alpine" {
-		t.Fatalf("image = %q", app.Workloads[0].Run.Image)
+	if app.Workloads[0].Run.Artifact.Image != "nginx:alpine" {
+		t.Fatalf("image = %q", app.Workloads[0].Run.Artifact.Image)
 	}
 	if err := app.Validate(); err != nil {
 		t.Fatal(err)
@@ -247,6 +247,54 @@ func TestOrchShortFormSugar(t *testing.T) {
 	route := app.Ingresses[0].Routes[0]
 	if route.Path != "/" || route.Backend.Workload != "api" || route.Backend.Endpoint != "api" {
 		t.Fatalf("route = %+v", route)
+	}
+	if err := app.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOrchProcessShortForm(t *testing.T) {
+	c, err := NewCompiler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orch, err := NewOrch(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := `app {
+  name = "process-demo"
+
+  worker local {
+    runtime = "process"
+    command = ["/opt/app/worker"]
+    args = ["--once"]
+    cwd = "/opt/app"
+
+    process {
+      graceful_stop_timeout = "2s"
+    }
+  }
+}`
+	app, err := orch.LoadAppString(context.Background(), "process.orch", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := workloadByName(t, app, "local")
+	if w.Runtime != v1.RuntimeProcess {
+		t.Fatalf("runtime = %q", w.Runtime)
+	}
+	if len(w.Run.Exec.Command) != 1 || w.Run.Exec.Command[0] != "/opt/app/worker" {
+		t.Fatalf("command = %#v", w.Run.Exec.Command)
+	}
+	if len(w.Run.Exec.Args) != 1 || w.Run.Exec.Args[0] != "--once" {
+		t.Fatalf("args = %#v", w.Run.Exec.Args)
+	}
+	if w.Run.Cwd != "/opt/app" {
+		t.Fatalf("cwd = %q", w.Run.Cwd)
+	}
+	if w.Run.Options.Process == nil || w.Run.Options.Process.GracefulStopTimeout != "2s" {
+		t.Fatalf("process options = %+v", w.Run.Options.Process)
 	}
 	if err := app.Validate(); err != nil {
 		t.Fatal(err)

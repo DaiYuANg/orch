@@ -217,9 +217,6 @@ func lowerWorkload(f *compiler.HIRForm, defaults appDefaults) (v1.Workload, erro
 	if err := fillRunFromFields(&w.Run, f); err != nil {
 		return w, fmt.Errorf("workload %q: %w", name, err)
 	}
-	if strings.TrimSpace(w.Run.Image) == "" {
-		return w, fmt.Errorf("workload %q: image is required", name)
-	}
 	if err := fillRuntimeOptions(&w.Run.Options, f); err != nil {
 		return w, fmt.Errorf("workload %q: %w", name, err)
 	}
@@ -299,44 +296,66 @@ func workloadRuntime(f *compiler.HIRForm, defaults appDefaults) v1.RuntimeKind {
 }
 
 func fillRun(run *v1.RunSpec, f *compiler.HIRForm) error {
-	img, ok := stringField(f, "image")
-	if !ok || strings.TrimSpace(img) == "" {
-		return fmt.Errorf("run.image is required")
-	}
-	run.Image = strings.TrimSpace(img)
+	fillArtifactFromFields(&run.Artifact, f)
 	if f.Fields != nil {
 		if cmd, ok := f.Fields.Get("command"); ok {
-			run.Command = stringList(cmd.Value)
+			run.Exec.Command = stringList(cmd.Value)
 		}
 		if args, ok := f.Fields.Get("args"); ok {
-			run.Args = stringList(args.Value)
+			run.Exec.Args = stringList(args.Value)
 		}
 	}
 	if cwd, ok := stringField(f, "cwd"); ok {
 		run.Cwd = cwd
+	}
+	if user, ok := stringField(f, "user"); ok {
+		run.User = strings.TrimSpace(user)
 	}
 	return nil
 }
 
 func fillRunFromFields(run *v1.RunSpec, f *compiler.HIRForm) error {
-	if img, ok := stringField(f, "image"); ok && strings.TrimSpace(img) != "" {
-		if run.Image != "" && run.Image != strings.TrimSpace(img) {
-			return fmt.Errorf("image is set both in run block and workload field")
-		}
-		run.Image = strings.TrimSpace(img)
+	before := run.Artifact
+	fillArtifactFromFields(&run.Artifact, f)
+	if before.Image != "" && run.Artifact.Image != before.Image {
+		return fmt.Errorf("image is set both in run block and workload field")
+	}
+	if before.Path != "" && run.Artifact.Path != before.Path {
+		return fmt.Errorf("path is set both in run block and workload field")
+	}
+	if before.URL != "" && run.Artifact.URL != before.URL {
+		return fmt.Errorf("url is set both in run block and workload field")
 	}
 	if f.Fields != nil {
 		if cmd, ok := f.Fields.Get("command"); ok {
-			run.Command = stringList(cmd.Value)
+			run.Exec.Command = stringList(cmd.Value)
 		}
 		if args, ok := f.Fields.Get("args"); ok {
-			run.Args = stringList(args.Value)
+			run.Exec.Args = stringList(args.Value)
 		}
 	}
 	if cwd, ok := stringField(f, "cwd"); ok {
 		run.Cwd = cwd
 	}
+	if user, ok := stringField(f, "user"); ok {
+		run.User = strings.TrimSpace(user)
+	}
 	return nil
+}
+
+func fillArtifactFromFields(artifact *v1.ArtifactSpec, f *compiler.HIRForm) {
+	if artifact == nil {
+		return
+	}
+	if img, ok := stringField(f, "image"); ok && strings.TrimSpace(img) != "" {
+		artifact.Image = strings.TrimSpace(img)
+	}
+	if path, ok := stringField(f, "path"); ok && strings.TrimSpace(path) != "" {
+		artifact.Path = strings.TrimSpace(path)
+	}
+	if url, ok := stringField(f, "url"); ok && strings.TrimSpace(url) != "" {
+		artifact.URL = strings.TrimSpace(url)
+	}
 }
 
 func fillRuntimeOptions(opts *v1.RunOptions, f *compiler.HIRForm) error {
@@ -347,27 +366,56 @@ func fillRuntimeOptions(opts *v1.RunOptions, f *compiler.HIRForm) error {
 	if len(blocks) == 0 {
 		return nil
 	}
-	dockerBlocks := childFormsByKind(&blocks[0], "docker")
-	if len(dockerBlocks) > 1 {
-		return fmt.Errorf("runtime_options: at most one docker block")
+	return fillRuntimeOptionForms(opts, &blocks[0], "runtime_options")
+}
+
+func fillRuntimeOptionForms(opts *v1.RunOptions, f *compiler.HIRForm, scope string) error {
+	if err := fillOneOption(childFormsByKind(f, "docker"), scope, "docker", func(form *compiler.HIRForm) {
+		opts.Docker = mergeDockerOptions(opts.Docker, lowerDockerOptions(form))
+	}); err != nil {
+		return err
 	}
-	if len(dockerBlocks) == 1 {
-		opts.Docker = lowerDockerOptions(&dockerBlocks[0])
+	if err := fillOneOption(childFormsByKind(f, "containerd"), scope, "containerd", func(form *compiler.HIRForm) {
+		opts.Containerd = lowerContainerdOptions(form)
+	}); err != nil {
+		return err
+	}
+	if err := fillOneOption(childFormsByKind(f, "firecracker"), scope, "firecracker", func(form *compiler.HIRForm) {
+		opts.Firecracker = lowerFirecrackerOptions(form)
+	}); err != nil {
+		return err
+	}
+	if err := fillOneOption(childFormsByKind(f, "process"), scope, "process", func(form *compiler.HIRForm) {
+		opts.Process = lowerProcessOptions(form)
+	}); err != nil {
+		return err
+	}
+	if err := fillOneOption(childFormsByKind(f, "systemd"), scope, "systemd", func(form *compiler.HIRForm) {
+		opts.Systemd = lowerSystemdOptions(form)
+	}); err != nil {
+		return err
+	}
+	return fillOneOption(childFormsByKind(f, "windows_service"), scope, "windows_service", func(form *compiler.HIRForm) {
+		opts.WindowsService = lowerWindowsServiceOptions(form)
+	})
+}
+
+func fillOneOption(forms []compiler.HIRForm, scope string, name string, fill func(*compiler.HIRForm)) error {
+	if len(forms) > 1 {
+		return fmt.Errorf("%s: at most one %s block", scope, name)
+	}
+	if len(forms) == 1 {
+		fill(&forms[0])
 	}
 	return nil
 }
 
 func fillDockerOptionsFromFields(opts *v1.RunOptions, f *compiler.HIRForm) error {
 	d := lowerDockerOptions(f)
-	dockerBlocks := childFormsByKind(f, "docker")
-	if len(dockerBlocks) > 1 {
-		return fmt.Errorf("at most one docker block")
+	if d != nil {
+		opts.Docker = mergeDockerOptions(opts.Docker, d)
 	}
-	if len(dockerBlocks) == 1 {
-		d = mergeDockerOptions(d, lowerDockerOptions(&dockerBlocks[0]))
-	}
-	opts.Docker = mergeDockerOptions(opts.Docker, d)
-	return nil
+	return fillRuntimeOptionForms(opts, f, "workload")
 }
 
 func lowerDockerOptions(f *compiler.HIRForm) *v1.DockerOptions {
@@ -388,6 +436,97 @@ func lowerDockerOptions(f *compiler.HIRForm) *v1.DockerOptions {
 		return nil
 	}
 	return &d
+}
+
+func lowerContainerdOptions(f *compiler.HIRForm) *v1.ContainerdOptions {
+	var c v1.ContainerdOptions
+	if ns, ok := stringField(f, "namespace"); ok {
+		c.Namespace = strings.TrimSpace(ns)
+	}
+	if c.Namespace == "" {
+		return nil
+	}
+	return &c
+}
+
+func lowerFirecrackerOptions(f *compiler.HIRForm) *v1.FirecrackerOptions {
+	var fc v1.FirecrackerOptions
+	if kernel, ok := stringField(f, "kernel_image_path"); ok {
+		fc.KernelImagePath = strings.TrimSpace(kernel)
+	}
+	if rootfs, ok := stringField(f, "rootfs_path"); ok {
+		fc.RootfsPath = strings.TrimSpace(rootfs)
+	}
+	if vcpu, ok := intField(f, "vcpu_count"); ok {
+		fc.VCPUCount = vcpu
+	}
+	if mem, ok := intField(f, "mem_size_mib"); ok {
+		fc.MemSizeMiB = mem
+	}
+	if fc.KernelImagePath == "" && fc.RootfsPath == "" && fc.VCPUCount == 0 && fc.MemSizeMiB == 0 {
+		return nil
+	}
+	return &fc
+}
+
+func lowerProcessOptions(f *compiler.HIRForm) *v1.ProcessOptions {
+	var p v1.ProcessOptions
+	if timeout, ok := stringField(f, "graceful_stop_timeout"); ok {
+		p.GracefulStopTimeout = strings.TrimSpace(timeout)
+	}
+	if stdoutPath, ok := stringField(f, "stdout_path"); ok {
+		p.StdoutPath = strings.TrimSpace(stdoutPath)
+	}
+	if stderrPath, ok := stringField(f, "stderr_path"); ok {
+		p.StderrPath = strings.TrimSpace(stderrPath)
+	}
+	if p.GracefulStopTimeout == "" && p.StdoutPath == "" && p.StderrPath == "" {
+		return nil
+	}
+	return &p
+}
+
+func lowerSystemdOptions(f *compiler.HIRForm) *v1.SystemdOptions {
+	var s v1.SystemdOptions
+	if unit, ok := stringField(f, "unit_name"); ok {
+		s.UnitName = strings.TrimSpace(unit)
+	}
+	if user, ok := stringField(f, "user"); ok {
+		s.User = strings.TrimSpace(user)
+	}
+	if group, ok := stringField(f, "group"); ok {
+		s.Group = strings.TrimSpace(group)
+	}
+	if restart, ok := stringField(f, "restart"); ok {
+		s.Restart = strings.TrimSpace(restart)
+	}
+	if restartSec, ok := stringField(f, "restart_sec"); ok {
+		s.RestartSec = strings.TrimSpace(restartSec)
+	}
+	if wantedBy, ok := stringField(f, "wanted_by"); ok {
+		s.WantedBy = strings.TrimSpace(wantedBy)
+	}
+	if s.UnitName == "" && s.User == "" && s.Group == "" && s.Restart == "" && s.RestartSec == "" && s.WantedBy == "" {
+		return nil
+	}
+	return &s
+}
+
+func lowerWindowsServiceOptions(f *compiler.HIRForm) *v1.WindowsServiceOptions {
+	var ws v1.WindowsServiceOptions
+	if serviceName, ok := stringField(f, "service_name"); ok {
+		ws.ServiceName = strings.TrimSpace(serviceName)
+	}
+	if displayName, ok := stringField(f, "display_name"); ok {
+		ws.DisplayName = strings.TrimSpace(displayName)
+	}
+	if startType, ok := stringField(f, "start_type"); ok {
+		ws.StartType = strings.TrimSpace(startType)
+	}
+	if ws.ServiceName == "" && ws.DisplayName == "" && ws.StartType == "" {
+		return nil
+	}
+	return &ws
 }
 
 func mergeDockerOptionsForRuntime(runtime v1.RuntimeKind, base, override *v1.DockerOptions) *v1.DockerOptions {

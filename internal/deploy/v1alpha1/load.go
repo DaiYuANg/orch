@@ -25,7 +25,8 @@ import (
 //	  kind: stateful
 //	  runtime: containerd
 //	  run:
-//	    image: redis:7
+//	    artifact:
+//	      image: redis:7
 //
 // ParseAppYAML unmarshals canonical deploy YAML (or JSON, when valid as YAML) from bytes
 // and applies the same defaults as [LoadAppFile].

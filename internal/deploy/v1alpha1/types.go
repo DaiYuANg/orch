@@ -28,10 +28,10 @@ type Metadata struct {
 type Workload struct {
 	Name string       `json:"name" yaml:"name"`
 	Kind WorkloadKind `json:"kind" yaml:"kind"` // service|worker|job|cron|stateful
-	Run  RunSpec      `json:"run"  yaml:"run"`  // image/command/args/env/cwd/runtimeOptions
+	Run  RunSpec      `json:"run"  yaml:"run"`  // runtime-neutral artifact + exec + env/cwd/runtimeOptions
 	// Runtime selects the backend adapter. This stays separate from Run.RuntimeOptions
 	// because the canonical intent model needs a stable first-class field.
-	Runtime RuntimeKind `json:"runtime" yaml:"runtime"` // docker|containerd|firecracker|process
+	Runtime RuntimeKind `json:"runtime" yaml:"runtime"` // docker|containerd|firecracker|process|systemd|windows-service
 
 	Replicas  int           `json:"replicas,omitempty"  yaml:"replicas,omitempty"`
 	DependsOn []WorkloadRef `json:"dependsOn,omitempty" yaml:"dependsOn,omitempty"`
@@ -58,19 +58,32 @@ const (
 type RuntimeKind string
 
 const (
-	RuntimeDocker      RuntimeKind = "docker"
-	RuntimeContainerd  RuntimeKind = "containerd"
-	RuntimeFirecracker RuntimeKind = "firecracker"
-	RuntimeProcess     RuntimeKind = "process"
+	RuntimeDocker         RuntimeKind = "docker"
+	RuntimeContainerd     RuntimeKind = "containerd"
+	RuntimeFirecracker    RuntimeKind = "firecracker"
+	RuntimeProcess        RuntimeKind = "process"
+	RuntimeSystemd        RuntimeKind = "systemd"
+	RuntimeWindowsService RuntimeKind = "windows-service"
 )
 
 type RunSpec struct {
-	Image   string     `json:"image"             yaml:"image"`
-	Command []string   `json:"command,omitempty" yaml:"command,omitempty"`
-	Args    []string   `json:"args,omitempty"    yaml:"args,omitempty"`
-	Env     []EnvVar   `json:"env,omitempty"     yaml:"env,omitempty"`
-	Cwd     string     `json:"cwd,omitempty"     yaml:"cwd,omitempty"`
-	Options RunOptions `json:"runtimeOptions"    yaml:"runtimeOptions"`
+	Artifact ArtifactSpec `json:"artifact,omitempty"      yaml:"artifact,omitempty"`
+	Exec     ExecSpec     `json:"exec,omitempty"          yaml:"exec,omitempty"`
+	Env      []EnvVar     `json:"env,omitempty"           yaml:"env,omitempty"`
+	Cwd      string       `json:"cwd,omitempty"           yaml:"cwd,omitempty"`
+	User     string       `json:"user,omitempty"          yaml:"user,omitempty"`
+	Options  RunOptions   `json:"runtimeOptions"          yaml:"runtimeOptions"`
+}
+
+type ArtifactSpec struct {
+	Image string `json:"image,omitempty" yaml:"image,omitempty"` // OCI/container image.
+	Path  string `json:"path,omitempty"  yaml:"path,omitempty"`  // Local executable/package/rootfs path.
+	URL   string `json:"url,omitempty"   yaml:"url,omitempty"`   // Future remote artifact source.
+}
+
+type ExecSpec struct {
+	Command []string `json:"command,omitempty" yaml:"command,omitempty"`
+	Args    []string `json:"args,omitempty"    yaml:"args,omitempty"`
 }
 
 type EnvVar struct {
@@ -78,11 +91,15 @@ type EnvVar struct {
 	Value string `json:"value" yaml:"value"`
 }
 
-// RunOptions captures backend-specific knobs. Only docker/containerd are in-scope
-// for the first Go version; other fields can be added later.
+// RunOptions captures backend-specific knobs. Cross-runtime execution intent
+// belongs on RunSpec; adapter-native details stay in these optional branches.
 type RunOptions struct {
-	Docker     *DockerOptions     `json:"docker,omitempty"     yaml:"docker,omitempty"`
-	Containerd *ContainerdOptions `json:"containerd,omitempty" yaml:"containerd,omitempty"`
+	Docker         *DockerOptions         `json:"docker,omitempty"         yaml:"docker,omitempty"`
+	Containerd     *ContainerdOptions     `json:"containerd,omitempty"     yaml:"containerd,omitempty"`
+	Firecracker    *FirecrackerOptions    `json:"firecracker,omitempty"    yaml:"firecracker,omitempty"`
+	Process        *ProcessOptions        `json:"process,omitempty"        yaml:"process,omitempty"`
+	Systemd        *SystemdOptions        `json:"systemd,omitempty"        yaml:"systemd,omitempty"`
+	WindowsService *WindowsServiceOptions `json:"windowsService,omitempty" yaml:"windowsService,omitempty"`
 }
 
 type DockerOptions struct {
@@ -94,6 +111,34 @@ type DockerOptions struct {
 type ContainerdOptions struct {
 	Namespace string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
 	// Snapshotter or runtime handler can be added later when we wire containerd.
+}
+
+type FirecrackerOptions struct {
+	KernelImagePath string `json:"kernelImagePath,omitempty" yaml:"kernelImagePath,omitempty"`
+	RootfsPath      string `json:"rootfsPath,omitempty"      yaml:"rootfsPath,omitempty"`
+	VCPUCount       int    `json:"vcpuCount,omitempty"       yaml:"vcpuCount,omitempty"`
+	MemSizeMiB      int    `json:"memSizeMiB,omitempty"      yaml:"memSizeMiB,omitempty"`
+}
+
+type ProcessOptions struct {
+	GracefulStopTimeout string `json:"gracefulStopTimeout,omitempty" yaml:"gracefulStopTimeout,omitempty"`
+	StdoutPath          string `json:"stdoutPath,omitempty"          yaml:"stdoutPath,omitempty"`
+	StderrPath          string `json:"stderrPath,omitempty"          yaml:"stderrPath,omitempty"`
+}
+
+type SystemdOptions struct {
+	UnitName   string `json:"unitName,omitempty"   yaml:"unitName,omitempty"`
+	User       string `json:"user,omitempty"       yaml:"user,omitempty"`
+	Group      string `json:"group,omitempty"      yaml:"group,omitempty"`
+	Restart    string `json:"restart,omitempty"    yaml:"restart,omitempty"`
+	RestartSec string `json:"restartSec,omitempty" yaml:"restartSec,omitempty"`
+	WantedBy   string `json:"wantedBy,omitempty"   yaml:"wantedBy,omitempty"`
+}
+
+type WindowsServiceOptions struct {
+	ServiceName string `json:"serviceName,omitempty" yaml:"serviceName,omitempty"`
+	DisplayName string `json:"displayName,omitempty" yaml:"displayName,omitempty"`
+	StartType   string `json:"startType,omitempty"   yaml:"startType,omitempty"`
 }
 
 type Endpoint struct {

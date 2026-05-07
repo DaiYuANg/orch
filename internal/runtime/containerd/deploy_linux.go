@@ -96,8 +96,8 @@ func waitIPv4(pid int, attempts int, delay time.Duration) (string, error) {
 
 func specOptsForWorkload(img containerd.Image, w deployv1.Workload) []oci.SpecOpts {
 	opts := make([]oci.SpecOpts, 0, 6)
-	if len(w.Run.Command) == 0 && len(w.Run.Args) > 0 {
-		opts = append(opts, oci.WithImageConfigArgs(img, w.Run.Args))
+	if len(w.Run.Exec.Command) == 0 && len(w.Run.Exec.Args) > 0 {
+		opts = append(opts, oci.WithImageConfigArgs(img, w.Run.Exec.Args))
 	} else {
 		opts = append(opts, oci.WithImageConfig(img))
 	}
@@ -132,9 +132,9 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 
 	ctx = namespaces.Namespace(ctx, orchContainerdNamespace)
 
-	ref := workloadmeta.NormalizeImageRef(w.Run.Image)
+	ref := workloadmeta.NormalizeImageRef(w.Run.Artifact.Image)
 	if ref == "" {
-		return oopsx.B("runtime", "containerd").Errorf("workload %q: run.image is required", w.Name)
+		return oopsx.B("runtime", "containerd").Errorf("workload %q: run.artifact.image is required", w.Name)
 	}
 
 	img, err := client.Pull(ctx, ref, containerd.WithPullUnpack())

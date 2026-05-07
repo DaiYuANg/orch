@@ -29,7 +29,7 @@ func (e *AssignmentsEndpoint) EndpointSpec() httpx.EndpointSpec {
 
 func (e *AssignmentsEndpoint) Register(r httpx.Registrar) {
 	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"scheduler"}, "listWorkloadAssignments", "List scheduler workload assignments",
-		"Sorted workload assignment records including app metadata, workload name, assigned node, runtime, image, status, and last error."))
+		"Sorted workload assignment records including app metadata, workload name, assigned node, runtime, artifact, status, and last error."))
 }
 
 func (e *AssignmentsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListAssignmentsOutput, error) {

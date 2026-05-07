@@ -13,7 +13,7 @@ type Assignment struct {
 	Workload  string               `json:"workload"`
 	Node      string               `json:"node"`
 	Runtime   deployv1.RuntimeKind `json:"runtime"`
-	Image     string               `json:"image"`
+	Artifact  string               `json:"artifact"`
 	Status    string               `json:"status"`
 	Error     string               `json:"error,omitempty"`
 	UpdatedAt time.Time            `json:"updatedAt"`

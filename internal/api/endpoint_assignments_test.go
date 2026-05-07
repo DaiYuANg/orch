@@ -27,7 +27,7 @@ func TestAssignmentsEndpointHandle(t *testing.T) {
 		Workload: "web",
 		Node:     "node-a",
 		Runtime:  deployv1.RuntimeDocker,
-		Image:    "nginx",
+		Artifact: "nginx",
 		Status:   workloadmeta.AssignmentStatusRunning,
 	}); err != nil {
 		t.Fatal(err)

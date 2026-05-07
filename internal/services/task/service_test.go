@@ -110,7 +110,7 @@ func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 				Kind:    deployv1.WorkloadKindService,
 				Runtime: deployv1.RuntimeDocker,
 				Run: deployv1.RunSpec{
-					Image: "nginx",
+					Artifact: deployv1.ArtifactSpec{Image: "nginx"},
 				},
 				Resources: &deployv1.Resources{
 					CPUMillis:   1,
@@ -153,7 +153,7 @@ func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 	}
 
 	assignment := waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "web"), "node-a", workloadmeta.AssignmentStatusRunning)
-	if assignment.Runtime != deployv1.RuntimeDocker || assignment.Image != "nginx" {
+	if assignment.Runtime != deployv1.RuntimeDocker || assignment.Artifact != "nginx" {
 		t.Fatalf("assignment payload = %#v", assignment)
 	}
 }
@@ -221,7 +221,7 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 				Kind:    deployv1.WorkloadKindWorker,
 				Runtime: deployv1.RuntimeDocker,
 				Run: deployv1.RunSpec{
-					Image: "busybox",
+					Artifact: deployv1.ArtifactSpec{Image: "busybox"},
 				},
 				Scheduling: &deployv1.Scheduling{
 					PreferredNodes: []string{"node-b"},
@@ -265,7 +265,7 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 	}
 
 	assignment := waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-b", workloadmeta.AssignmentStatusRunning)
-	if assignment.Runtime != deployv1.RuntimeDocker || assignment.Image != "busybox" {
+	if assignment.Runtime != deployv1.RuntimeDocker || assignment.Artifact != "busybox" {
 		t.Fatalf("assignment payload = %#v", assignment)
 	}
 }
@@ -327,7 +327,7 @@ func TestSubmitDeployRecordsFailedAssignmentOnRemoteDispatchError(t *testing.T) 
 				Kind:    deployv1.WorkloadKindWorker,
 				Runtime: deployv1.RuntimeDocker,
 				Run: deployv1.RunSpec{
-					Image: "busybox",
+					Artifact: deployv1.ArtifactSpec{Image: "busybox"},
 				},
 				Scheduling: &deployv1.Scheduling{
 					PreferredNodes: []string{"node-b"},

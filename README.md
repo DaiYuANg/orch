@@ -6,7 +6,7 @@ orch is a lightweight runtime and control layer for long-lived services (databas
 
 orch is being built in Go and focuses on:
 
-- Multi-runtime workload execution (`docker`, `containerd`, `firecracker`)
+- Multi-runtime workload execution (`docker`, `containerd`, `process`, `systemd`, `windows-service`; spec shape also reserves `firecracker`)
 - Built-in ingress and DNS record lifecycle
 - Raft-aware scheduling (deploy/migrate/failover/rebalance)
 - Declarative Workload DSL direction with compatibility inputs and `plan/render/apply/delete`
@@ -36,6 +36,9 @@ internal/
   runtime/
     docker/              # docker provider (v1)
     containerd/          # containerd provider (v1)
+    process/             # local subprocess provider (v1)
+    systemd/             # Linux systemd unit provider (v1)
+    windowsservice/      # Windows Service provider (v1)
   services/
     registry/            # workload registry
     task/                # deploy orchestration service

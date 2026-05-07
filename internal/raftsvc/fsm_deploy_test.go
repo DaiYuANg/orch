@@ -73,7 +73,7 @@ func TestFSMApplyWorkloadAssignment(t *testing.T) {
 		Workload: "web",
 		Node:     "node-a",
 		Runtime:  deployv1.RuntimeDocker,
-		Image:    "nginx",
+		Artifact: "nginx",
 		Status:   workloadmeta.AssignmentStatusRunning,
 	}
 	b, err := json.Marshal(struct {
@@ -89,7 +89,7 @@ func TestFSMApplyWorkloadAssignment(t *testing.T) {
 	if !ok {
 		t.Fatal("assignment not stored")
 	}
-	if got.Node != "node-a" || got.Status != workloadmeta.AssignmentStatusRunning || got.Image != "nginx" {
+	if got.Node != "node-a" || got.Status != workloadmeta.AssignmentStatusRunning || got.Artifact != "nginx" {
 		t.Fatalf("assignment = %#v", got)
 	}
 }

@@ -22,12 +22,49 @@ func TestEnv(t *testing.T) {
 
 func TestCommandArgs(t *testing.T) {
 	got := CommandArgs(deployv1.RunSpec{
-		Command: []string{"/bin/server"},
-		Args:    []string{"--port", "8080"},
+		Exec: deployv1.ExecSpec{
+			Command: []string{"/bin/server"},
+			Args:    []string{"--port", "8080"},
+		},
 	})
 	want := []string{"/bin/server", "--port", "8080"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CommandArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestProcessCommand(t *testing.T) {
+	exe, args, ok := ProcessCommand(deployv1.RunSpec{
+		Exec: deployv1.ExecSpec{
+			Command: []string{"/bin/server", "serve"},
+			Args:    []string{"--port", "8080"},
+		},
+	})
+	if !ok || exe != "/bin/server" || !reflect.DeepEqual(args, []string{"serve", "--port", "8080"}) {
+		t.Fatalf("ProcessCommand() = %q %#v %v", exe, args, ok)
+	}
+
+	exe, args, ok = ProcessCommand(deployv1.RunSpec{
+		Artifact: deployv1.ArtifactSpec{Path: "/opt/app/api"},
+		Exec:     deployv1.ExecSpec{Args: []string{"--port", "8080"}},
+	})
+	if !ok || exe != "/opt/app/api" || !reflect.DeepEqual(args, []string{"--port", "8080"}) {
+		t.Fatalf("ProcessCommand(path) = %q %#v %v", exe, args, ok)
+	}
+}
+
+func TestArtifactSummary(t *testing.T) {
+	got := ArtifactSummary(deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "nginx", Path: "/ignored"}})
+	if got != "nginx" {
+		t.Fatalf("ArtifactSummary(image) = %q", got)
+	}
+	got = ArtifactSummary(deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Path: "/opt/app/api"}})
+	if got != "/opt/app/api" {
+		t.Fatalf("ArtifactSummary(path) = %q", got)
+	}
+	got = ArtifactSummary(deployv1.RunSpec{Exec: deployv1.ExecSpec{Command: []string{"/opt/app/worker"}}})
+	if got != "/opt/app/worker" {
+		t.Fatalf("ArtifactSummary(command) = %q", got)
 	}
 }
 

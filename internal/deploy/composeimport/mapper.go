@@ -125,17 +125,15 @@ func mapService(name string, s composetypes.ServiceConfig, rep *Report) (deployv
 		Kind:    deployv1.WorkloadKindService,
 		Runtime: deployv1.RuntimeDocker,
 		Run: deployv1.RunSpec{
-			Image: image,
-			Env:   envFromCompose(s.Environment),
-			Cwd:   strings.TrimSpace(s.WorkingDir),
+			Artifact: deployv1.ArtifactSpec{Image: image},
+			Exec: deployv1.ExecSpec{
+				Command: []string(s.Entrypoint),
+				Args:    []string(s.Command),
+			},
+			Env: envFromCompose(s.Environment),
+			Cwd: strings.TrimSpace(s.WorkingDir),
 		},
 		Replicas: replicasFromCompose(&s),
-	}
-
-	if len(s.Command) > 0 {
-		w.Run.Command = []string(s.Command)
-	} else if len(s.Entrypoint) > 0 {
-		w.Run.Command = []string(s.Entrypoint)
 	}
 
 	w.Run.Options.Docker = dockerOptionsFromCompose(name, &s, rep)

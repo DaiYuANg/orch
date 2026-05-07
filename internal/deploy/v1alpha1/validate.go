@@ -141,12 +141,12 @@ func (w *Workload) validate(seen *set.Set[string]) error {
 		return oopsx.B("deploy").Errorf("invalid kind %q", w.Kind)
 	}
 	switch w.Runtime {
-	case RuntimeDocker, RuntimeContainerd, RuntimeFirecracker, RuntimeProcess:
+	case RuntimeDocker, RuntimeContainerd, RuntimeFirecracker, RuntimeProcess, RuntimeSystemd, RuntimeWindowsService:
 	default:
 		return oopsx.B("deploy").Errorf("invalid runtime %q", w.Runtime)
 	}
-	if strings.TrimSpace(w.Run.Image) == "" {
-		return oopsx.B("deploy").Errorf("run.image is required")
+	if err := w.validateRunForRuntime(); err != nil {
+		return err
 	}
 	for i := range w.Run.Env {
 		if strings.TrimSpace(w.Run.Env[i].Name) == "" {
@@ -162,6 +162,30 @@ func (w *Workload) validate(seen *set.Set[string]) error {
 		}
 		if w.Resources.MemoryBytes < 0 {
 			return oopsx.B("deploy").Errorf("resources.memoryBytes must be >= 0")
+		}
+	}
+	return nil
+}
+
+func (w *Workload) validateRunForRuntime() error {
+	switch w.Runtime {
+	case RuntimeDocker, RuntimeContainerd:
+		if strings.TrimSpace(w.Run.Artifact.Image) == "" {
+			return oopsx.B("deploy").Errorf("run.artifact.image is required for runtime %q", w.Runtime)
+		}
+	case RuntimeFirecracker:
+		if w.Run.Options.Firecracker == nil {
+			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker is required for runtime %q", w.Runtime)
+		}
+		if strings.TrimSpace(w.Run.Options.Firecracker.KernelImagePath) == "" {
+			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.kernelImagePath is required")
+		}
+		if strings.TrimSpace(w.Run.Options.Firecracker.RootfsPath) == "" {
+			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.rootfsPath is required")
+		}
+	case RuntimeProcess, RuntimeSystemd, RuntimeWindowsService:
+		if len(w.Run.Exec.Command) == 0 && strings.TrimSpace(w.Run.Artifact.Path) == "" {
+			return oopsx.B("deploy").Errorf("run.exec.command or run.artifact.path is required for runtime %q", w.Runtime)
 		}
 	}
 	return nil

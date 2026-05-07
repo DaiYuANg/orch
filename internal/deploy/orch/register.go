@@ -75,10 +75,13 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 			LabelKind: schema.LabelNone,
 			BodyMode:  schema.BodyFieldOnly,
 			Fields: schema.Fields(
-				schema.FieldSpec{Name: "image", Type: schema.TypeString, Required: true},
+				schema.FieldSpec{Name: "image", Type: schema.TypeString},
+				schema.FieldSpec{Name: "path", Type: schema.TypeString},
+				schema.FieldSpec{Name: "url", Type: schema.TypeString},
 				schema.FieldSpec{Name: "command", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
 				schema.FieldSpec{Name: "args", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
 				schema.FieldSpec{Name: "cwd", Type: schema.TypeString},
+				schema.FieldSpec{Name: "user", Type: schema.TypeString},
 			),
 		},
 		schema.FormSpec{
@@ -124,7 +127,7 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 			Name:        "runtime_options",
 			LabelKind:   schema.LabelNone,
 			BodyMode:    schema.BodyFormOnly,
-			NestedForms: schema.NestedForms("docker"),
+			NestedForms: schema.NestedForms("docker", "containerd", "firecracker", "process", "systemd", "windows_service"),
 		},
 		schema.FormSpec{
 			Name:      "docker",
@@ -135,6 +138,58 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 				schema.FieldSpec{Name: "network_mode", Type: schema.TypeString},
 				schema.FieldSpec{Name: "privileged", Type: schema.TypeBool, Default: false, HasDefault: true},
 				schema.FieldSpec{Name: "labels", Type: schema.MapType{Elem: schema.TypeString}},
+			),
+		},
+		schema.FormSpec{
+			Name:      "containerd",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "namespace", Type: schema.TypeString},
+			),
+		},
+		schema.FormSpec{
+			Name:      "firecracker",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "kernel_image_path", Type: schema.TypeString},
+				schema.FieldSpec{Name: "rootfs_path", Type: schema.TypeString},
+				schema.FieldSpec{Name: "vcpu_count", Type: schema.TypeInt},
+				schema.FieldSpec{Name: "mem_size_mib", Type: schema.TypeInt},
+			),
+		},
+		schema.FormSpec{
+			Name:      "process",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "graceful_stop_timeout", Type: schema.TypeString},
+				schema.FieldSpec{Name: "stdout_path", Type: schema.TypeString},
+				schema.FieldSpec{Name: "stderr_path", Type: schema.TypeString},
+			),
+		},
+		schema.FormSpec{
+			Name:      "systemd",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "unit_name", Type: schema.TypeString},
+				schema.FieldSpec{Name: "user", Type: schema.TypeString},
+				schema.FieldSpec{Name: "group", Type: schema.TypeString},
+				schema.FieldSpec{Name: "restart", Type: schema.TypeString},
+				schema.FieldSpec{Name: "restart_sec", Type: schema.TypeString},
+				schema.FieldSpec{Name: "wanted_by", Type: schema.TypeString},
+			),
+		},
+		schema.FormSpec{
+			Name:      "windows_service",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "service_name", Type: schema.TypeString},
+				schema.FieldSpec{Name: "display_name", Type: schema.TypeString},
+				schema.FieldSpec{Name: "start_type", Type: schema.TypeString},
 			),
 		},
 		schema.FormSpec{
@@ -228,9 +283,12 @@ func shorthandWorkloadFields() *mapping.OrderedMap[string, schema.FieldSpec] {
 	return schema.Fields(
 		schema.FieldSpec{Name: "runtime", Type: schema.TypeString},
 		schema.FieldSpec{Name: "image", Type: schema.TypeString},
+		schema.FieldSpec{Name: "path", Type: schema.TypeString},
+		schema.FieldSpec{Name: "url", Type: schema.TypeString},
 		schema.FieldSpec{Name: "command", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
 		schema.FieldSpec{Name: "args", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
 		schema.FieldSpec{Name: "cwd", Type: schema.TypeString},
+		schema.FieldSpec{Name: "user", Type: schema.TypeString},
 		schema.FieldSpec{Name: "env", Type: schema.MapType{Elem: schema.TypeString}},
 		schema.FieldSpec{Name: "resources", Type: schema.TypeString, Docs: `Compact "cpu/memory", e.g. "500m/512Mi".`},
 		schema.FieldSpec{Name: "cpu_millis", Type: schema.TypeInt},
@@ -253,7 +311,7 @@ func shorthandWorkloadFields() *mapping.OrderedMap[string, schema.FieldSpec] {
 }
 
 func workloadNestedForms() *set.Set[string] {
-	return schema.NestedForms("run", "runtime_options", "docker", "endpoint", "mount", "env", "resources", "scheduling")
+	return schema.NestedForms("run", "runtime_options", "docker", "containerd", "firecracker", "process", "systemd", "windows_service", "endpoint", "mount", "env", "resources", "scheduling")
 }
 
 func orchActionSpecs() list.List[compiler.ActionSpec] {

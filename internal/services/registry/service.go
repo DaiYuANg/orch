@@ -13,7 +13,7 @@ type WorkloadRecord struct {
 	Name      string    `json:"name"`
 	Node      string    `json:"node,omitempty"`
 	Runtime   string    `json:"runtime"`
-	Image     string    `json:"image"`
+	Artifact  string    `json:"artifact"`
 	Status    string    `json:"status"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

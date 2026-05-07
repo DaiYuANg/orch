@@ -464,20 +464,20 @@ func writeWorkloadsHuman(items []api.WorkloadItem) error {
 		if node == "" {
 			node = "-"
 		}
-		rows = append(rows, []string{w.Name, node, w.Runtime, statusBadge(w.Status), w.Image})
+		rows = append(rows, []string{w.Name, node, w.Runtime, statusBadge(w.Status), w.Artifact})
 	}
-	return writeTable([]string{"NAME", "NODE", "RUNTIME", "STATUS", "IMAGE"}, rows)
+	return writeTable([]string{"NAME", "NODE", "RUNTIME", "STATUS", "ARTIFACT"}, rows)
 }
 
 func writeAssignmentsHuman(items []api.AssignmentItem) error {
 	rows := make([][]string, 0, len(items))
 	for _, a := range items {
 		node := nonEmpty(a.Node)
-		image := nonEmpty(a.Image)
+		artifact := nonEmpty(a.Artifact)
 		errMsg := nonEmpty(a.Error)
-		rows = append(rows, []string{a.Key, node, string(a.Runtime), statusBadge(a.Status), image, errMsg})
+		rows = append(rows, []string{a.Key, node, string(a.Runtime), statusBadge(a.Status), artifact, errMsg})
 	}
-	return writeTable([]string{"KEY", "NODE", "RUNTIME", "STATUS", "IMAGE", "ERROR"}, rows)
+	return writeTable([]string{"KEY", "NODE", "RUNTIME", "STATUS", "ARTIFACT", "ERROR"}, rows)
 }
 
 func nonEmpty(s string) string {

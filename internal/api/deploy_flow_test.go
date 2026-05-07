@@ -148,7 +148,8 @@ workloads:
     kind: worker
     runtime: docker
     run:
-      image: busybox
+      artifact:
+        image: busybox
     scheduling:
       preferredNodes:
         - node-b
@@ -162,7 +163,7 @@ workloads:
 
 	select {
 	case got := <-workerCh:
-		if got.Node != "node-b" || got.Workload.Name != "worker" || got.Workload.Run.Image != "busybox" {
+		if got.Node != "node-b" || got.Workload.Name != "worker" || got.Workload.Run.Artifact.Image != "busybox" {
 			t.Fatalf("worker request = %#v", got)
 		}
 	case <-time.After(5 * time.Second):
@@ -173,12 +174,12 @@ workloads:
 	}
 
 	assignment := waitHTTPAssignment(t, ctx, client, "default/e2e-demo/worker", "node-b", workloadmeta.AssignmentStatusRunning)
-	if assignment.Node != "node-b" || assignment.Status != workloadmeta.AssignmentStatusRunning || assignment.Image != "busybox" {
+	if assignment.Node != "node-b" || assignment.Status != workloadmeta.AssignmentStatusRunning || assignment.Artifact != "busybox" {
 		t.Fatalf("assignment = %#v", assignment)
 	}
 
 	workload := waitHTTPWorkload(t, ctx, client, "worker")
-	if workload.Node != "node-b" || workload.Status != workloadmeta.AssignmentStatusRunning || workload.Image != "busybox" {
+	if workload.Node != "node-b" || workload.Status != workloadmeta.AssignmentStatusRunning || workload.Artifact != "busybox" {
 		t.Fatalf("workload = %#v", workload)
 	}
 }

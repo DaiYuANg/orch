@@ -64,8 +64,8 @@ func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Clie
 	name := workloadmeta.OrchContainerName(meta, w.Name)
 	ctrCfg := &container.Config{
 		Image:      ref,
-		Entrypoint: w.Run.Command,
-		Cmd:        w.Run.Args,
+		Entrypoint: w.Run.Exec.Command,
+		Cmd:        w.Run.Exec.Args,
 		Env:        runconfig.Env(w.Run.Env),
 		WorkingDir: strings.TrimSpace(w.Run.Cwd),
 		Labels:     containerLabels(meta, w),
@@ -152,9 +152,9 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		}
 	}()
 
-	ref := workloadmeta.NormalizeImageRef(w.Run.Image)
+	ref := workloadmeta.NormalizeImageRef(w.Run.Artifact.Image)
 	if ref == "" {
-		return oopsx.B("runtime", "docker").Errorf("docker: workload %q: run.image is required", w.Name)
+		return oopsx.B("runtime", "docker").Errorf("docker: workload %q: run.artifact.image is required", w.Name)
 	}
 
 	if pullErr := p.drainDockerImagePull(ctx, cli, ref); pullErr != nil {

@@ -49,8 +49,8 @@ services:
 	if web == nil {
 		t.Fatal("missing web workload")
 	}
-	if web.Run.Image != "nginx:alpine" {
-		t.Fatalf("image %q", web.Run.Image)
+	if web.Run.Artifact.Image != "nginx:alpine" {
+		t.Fatalf("image %q", web.Run.Artifact.Image)
 	}
 	if len(web.DependsOn) != 1 || web.DependsOn[0].Name != "db" {
 		t.Fatalf("dependsOn %+v", web.DependsOn)

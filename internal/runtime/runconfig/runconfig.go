@@ -25,15 +25,50 @@ func Env(vars []deployv1.EnvVar) []string {
 	return out
 }
 
-// CommandArgs returns an explicit process argv when run.command is set.
+// CommandArgs returns an explicit OCI process argv when run.exec.command is set.
 func CommandArgs(run deployv1.RunSpec) []string {
-	if len(run.Command) == 0 {
+	if len(run.Exec.Command) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(run.Command)+len(run.Args))
-	out = append(out, run.Command...)
-	out = append(out, run.Args...)
+	out := make([]string, 0, len(run.Exec.Command)+len(run.Exec.Args))
+	out = append(out, run.Exec.Command...)
+	out = append(out, run.Exec.Args...)
 	return out
+}
+
+// ProcessCommand returns the executable path and argv for local process-style runtimes.
+func ProcessCommand(run deployv1.RunSpec) (string, []string, bool) {
+	if len(run.Exec.Command) > 0 {
+		exe := strings.TrimSpace(run.Exec.Command[0])
+		if exe == "" {
+			return "", nil, false
+		}
+		args := make([]string, 0, len(run.Exec.Command)-1+len(run.Exec.Args))
+		args = append(args, run.Exec.Command[1:]...)
+		args = append(args, run.Exec.Args...)
+		return exe, args, true
+	}
+	exe := strings.TrimSpace(run.Artifact.Path)
+	if exe == "" {
+		return "", nil, false
+	}
+	return exe, append([]string(nil), run.Exec.Args...), true
+}
+
+// ArtifactSummary returns a compact human-facing identifier for a workload artifact.
+func ArtifactSummary(run deployv1.RunSpec) string {
+	switch {
+	case strings.TrimSpace(run.Artifact.Image) != "":
+		return strings.TrimSpace(run.Artifact.Image)
+	case strings.TrimSpace(run.Artifact.Path) != "":
+		return strings.TrimSpace(run.Artifact.Path)
+	case strings.TrimSpace(run.Artifact.URL) != "":
+		return strings.TrimSpace(run.Artifact.URL)
+	case len(run.Exec.Command) > 0:
+		return strings.TrimSpace(run.Exec.Command[0])
+	default:
+		return ""
+	}
 }
 
 // NanoCPUs converts millicores to Docker NanoCPUs.

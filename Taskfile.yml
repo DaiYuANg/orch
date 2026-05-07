@@ -47,6 +47,13 @@ tasks:
     vars:
       VPN_ARGS: '{{default "" .VPN_ARGS}}'
 
+  smoke:local-docker:
+    desc: "Run a local single-node Docker deploy smoke test"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-smoke.ps1 {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
   dsl-parse:
     desc: "Parse deploy YAML into canonical model"
     requires:
@@ -70,4 +77,3 @@ tasks:
     desc: "Archives + deb/rpm/apk snapshot under dist/ (no GitHub publish)"
     cmds:
       - go run github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VER}} release --snapshot --clean
-

@@ -26,6 +26,16 @@ go run ./cmd/orch-cli workloads
 go run ./cmd/orch-cli assignments
 ```
 
+## Run local Docker smoke test
+
+```powershell
+task smoke:local-docker
+```
+
+This starts a single-node server, deploys `examples/local-docker-smoke.yaml`,
+checks the workload status with the CLI, and cleans up by default. See
+`docs/local-docker-smoke.md`.
+
 ## Run server
 
 ```bash

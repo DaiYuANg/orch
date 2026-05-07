@@ -3,6 +3,7 @@
 - [Introduction](introduction.md)
 - [Project Status](project-status.md)
 - [Quick Start](quick-start.md)
+- [Local Docker Smoke Test](local-docker-smoke.md)
 - [Workload DSL v1 (EN)](dsl.md)
 - [Workload DSL v1（中文）](dsl.zh.md)
 - [Ingress Design v1 (EN)](ingress.md)

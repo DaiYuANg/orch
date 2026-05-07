@@ -72,6 +72,16 @@ cluster:
 The worker endpoint executes the assigned workload locally and does not mutate Raft desired state.
 The scheduler records workload assignment results in Raft; inspect them with `orch assignments --json` or `GET /api/v1/assignments`.
 
+### Local Docker smoke test
+
+Run a complete single-node smoke flow (server -> CLI deploy -> Docker runtime -> CLI status checks):
+
+```powershell
+task smoke:local-docker
+```
+
+The smoke manifest is `examples/local-docker-smoke.yaml`; details are in [Local Docker Smoke Test](docs/local-docker-smoke.md).
+
 ## Documentation (mdBook)
 
 Docs are now maintained with `mdBook`.
@@ -85,6 +95,7 @@ See:
 - [Introduction](docs/introduction.md)
 - [Project Status](docs/project-status.md)
 - [Quick Start](docs/quick-start.md)
+- [Local Docker Smoke Test](docs/local-docker-smoke.md)
 - [Workload DSL v1 (EN)](docs/dsl.md)
 - [Workload DSL v1（中文）](docs/dsl.zh.md)
 - [Ingress Design v1 (EN)](docs/ingress.md)

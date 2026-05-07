@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/arcgolabs/collectionx/set"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/gofiber/fiber/v2/utils"
@@ -46,9 +47,9 @@ type fiberPromMetrics struct {
 	requestDuration   *prometheus.HistogramVec
 	requestInFlight   *prometheus.GaugeVec
 	defaultURL        string
-	skipPaths         map[string]bool
+	skipPaths         *set.Set[string]
 	ignoreStatusCodes map[int]bool
-	registeredRoutes  map[string]struct{}
+	registeredRoutes  *set.Set[string]
 	routesOnce        sync.Once
 }
 
@@ -155,11 +156,9 @@ func (ps *fiberPromMetrics) registerAt(app fiber.Router, url string, handlers ..
 
 func (ps *fiberPromMetrics) setSkipPaths(paths []string) {
 	if ps.skipPaths == nil {
-		ps.skipPaths = make(map[string]bool)
+		ps.skipPaths = set.NewSet[string]()
 	}
-	for _, path := range paths {
-		ps.skipPaths[path] = true
-	}
+	ps.skipPaths.Add(paths...)
 }
 
 func (ps *fiberPromMetrics) Middleware(ctx *fiber.Ctx) error {
@@ -185,21 +184,21 @@ func (ps *fiberPromMetrics) Middleware(ctx *fiber.Ctx) error {
 	}
 
 	ps.routesOnce.Do(func() {
-		ps.registeredRoutes = make(map[string]struct{})
+		ps.registeredRoutes = set.NewSet[string]()
 		for _, r := range ctx.App().GetRoutes(true) {
 			p := r.Path
 			if p != "" && p != "/" {
 				p = normalizePromRoutePath(p)
 			}
-			ps.registeredRoutes[r.Method+" "+p] = struct{}{}
+			ps.registeredRoutes.Add(r.Method + " " + p)
 		}
 	})
 
-	if _, ok := ps.registeredRoutes[method+" "+routePath]; !ok {
+	if !ps.registeredRoutes.Contains(method + " " + routePath) {
 		return err
 	}
 
-	if ps.skipPaths[routePath] {
+	if ps.skipPaths.Contains(routePath) {
 		return nil
 	}
 

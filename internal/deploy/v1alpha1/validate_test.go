@@ -120,3 +120,35 @@ func TestValidateRejectsNegativeResources(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateRejectsWorkloadDependencyCycle(t *testing.T) {
+	app := validApp()
+	app.Workloads = append(app.Workloads, Workload{
+		Name:    "db",
+		Kind:    WorkloadKindStateful,
+		Runtime: RuntimeDocker,
+		Run:     RunSpec{Artifact: ArtifactSpec{Image: "postgres"}},
+	})
+	app.Workloads[0].DependsOn = []WorkloadRef{{Name: "db"}}
+	app.Workloads[1].DependsOn = []WorkloadRef{{Name: "api"}}
+
+	err := app.Validate()
+	if err == nil || !strings.Contains(err.Error(), "workloads dependsOn contains a cycle") {
+		t.Fatalf("Validate() error = %v, want dependency cycle error", err)
+	}
+}
+
+func TestValidateAllowsAcyclicWorkloadDependencies(t *testing.T) {
+	app := validApp()
+	app.Workloads = append(app.Workloads, Workload{
+		Name:    "db",
+		Kind:    WorkloadKindStateful,
+		Runtime: RuntimeDocker,
+		Run:     RunSpec{Artifact: ArtifactSpec{Image: "postgres"}},
+	})
+	app.Workloads[0].DependsOn = []WorkloadRef{{Name: "db"}}
+
+	if err := app.Validate(); err != nil {
+		t.Fatalf("Validate() with acyclic dependencies = %v", err)
+	}
+}

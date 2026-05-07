@@ -117,24 +117,31 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 		s.logger.Warn("refresh local node capacity before placement", "error", err)
 	}
 	self := s.local.String()
+	workloads, err := app.WorkloadsInDependencyOrder()
+	if err != nil {
+		s.metrics.IncDeployApp(ctx, "invalid")
+		return oopsx.B("task").Wrapf(err, "order workloads")
+	}
 
-	for i := range app.Workloads {
-		w := &app.Workloads[i]
-		chosen, err := s.placement.Choose(ctx, *w, s.catalog, self)
+	var deployErr error
+	workloads.Range(func(_ int, w deployv1.Workload) bool {
+		chosen, err := s.placement.Choose(ctx, w, s.catalog, self)
 		if err != nil {
-			s.applyWorkloadAssignment(app.Metadata, *w, "", workloadmeta.AssignmentStatusFailed, err.Error())
+			s.applyWorkloadAssignment(app.Metadata, w, "", workloadmeta.AssignmentStatusFailed, err.Error())
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
-			return oopsx.B("task").Wrapf(err, "placement workload %s", w.Name)
+			deployErr = oopsx.B("task").Wrapf(err, "placement workload %s", w.Name)
+			return false
 		}
-		s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusAssigned, "")
+		s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusAssigned, "")
 		if chosen != self {
-			status, err := s.dispatchWorkload(ctx, app.Metadata, *w, chosen)
+			status, err := s.dispatchWorkload(ctx, app.Metadata, w, chosen)
 			if err != nil {
-				s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
+				s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
 				s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 				s.metrics.IncDeployApp(ctx, "failed")
-				return err
+				deployErr = err
+				return false
 			}
 			if status == "" {
 				status = "dispatched"
@@ -147,18 +154,23 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 				Artifact: runconfig.ArtifactSummary(w.Run),
 				Status:   status,
 			})
-			s.applyWorkloadAssignment(app.Metadata, *w, chosen, status, "")
-			continue
+			s.applyWorkloadAssignment(app.Metadata, w, chosen, status, "")
+			return true
 		}
 
-		if err := s.deployLocalWorkload(ctx, app.Metadata, *w, chosen); err != nil {
-			s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
+		if err := s.deployLocalWorkload(ctx, app.Metadata, w, chosen); err != nil {
+			s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
-			return err
+			deployErr = err
+			return false
 		}
-		s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusRunning, "")
+		s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusRunning, "")
 		s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "success")
+		return true
+	})
+	if deployErr != nil {
+		return deployErr
 	}
 	s.metrics.IncDeployApp(ctx, "success")
 	s.logger.Info("application deployed", "app", app.Metadata.Name, "workloads", len(app.Workloads))

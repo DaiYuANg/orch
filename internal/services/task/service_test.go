@@ -160,6 +160,62 @@ func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 	}
 }
 
+func TestSubmitDeployReconcilesWorkloadsInDependencyOrder(t *testing.T) {
+	t.Parallel()
+
+	const deployReconcileTimeout = 10 * time.Second
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := config.Default()
+	cfg.Raft.Enabled = false
+	local := nodeid.Local{Value: "node-a"}
+	raft := raftsvc.New(cfg, logger, local)
+	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
+	fakeRuntime := newFakeRuntimeProvider()
+	runtimeManager := orchruntime.NewManager(logger, fakeRuntime)
+	registrySvc := registry.NewService(logger)
+	svc := NewService(logger, newTestMetrics(t, cfg, logger), runtimeManager, registrySvc, cfg, Bundle{
+		LocalNode: local,
+		Catalog:   catalog,
+		Placement: placement.NewEngine(),
+		Raft:      raft,
+	})
+
+	svc.StartDeployReconcile(ctx)
+
+	app := &deployv1.App{
+		Metadata: deployv1.Metadata{Name: "ordered-demo", Namespace: "default"},
+		Workloads: []deployv1.Workload{
+			{
+				Name:      "api",
+				Kind:      deployv1.WorkloadKindService,
+				Runtime:   deployv1.RuntimeDocker,
+				Run:       deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "api"}},
+				DependsOn: []deployv1.WorkloadRef{{Name: "db"}},
+			},
+			{
+				Name:    "db",
+				Kind:    deployv1.WorkloadKindStateful,
+				Runtime: deployv1.RuntimeDocker,
+				Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "postgres"}},
+			},
+		},
+	}
+
+	if err := svc.SubmitDeploy(ctx, app); err != nil {
+		t.Fatal(err)
+	}
+
+	first := waitRuntimeDeploy(t, fakeRuntime, deployReconcileTimeout)
+	second := waitRuntimeDeploy(t, fakeRuntime, deployReconcileTimeout)
+	if first.Name != "db" || second.Name != "api" {
+		t.Fatalf("deploy order = %q, %q; want db, api", first.Name, second.Name)
+	}
+}
+
 func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 	t.Parallel()
 
@@ -351,5 +407,16 @@ func TestSubmitDeployRecordsFailedAssignmentOnRemoteDispatchError(t *testing.T) 
 	assignment := waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-b", workloadmeta.AssignmentStatusFailed)
 	if assignment.Error == "" {
 		t.Fatalf("expected assignment error, got %#v", assignment)
+	}
+}
+
+func waitRuntimeDeploy(t *testing.T, fakeRuntime *fakeRuntimeProvider, timeout time.Duration) deployv1.Workload {
+	t.Helper()
+	select {
+	case got := <-fakeRuntime.ch:
+		return got
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for runtime deploy")
+		return deployv1.Workload{}
 	}
 }

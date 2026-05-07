@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/set"
 	"github.com/arcgolabs/configx"
 )
 
@@ -89,21 +90,21 @@ type IngressRoute struct {
 }
 
 // UpstreamEndpoints returns non-empty upstream URLs: Upstreams if set, else a single Upstream.
-func (r *IngressRoute) UpstreamEndpoints() []string {
-	var out []string
-	for _, u := range r.Upstreams {
+func (r *IngressRoute) UpstreamEndpoints() *list.List[string] {
+	out := list.FilterMapList(list.NewList(r.Upstreams...), func(_ int, u string) (string, bool) {
 		u = strings.TrimSpace(u)
-		if u != "" {
-			out = append(out, u)
+		if u == "" {
+			return "", false
 		}
-	}
-	if len(out) > 0 {
+		return u, true
+	})
+	if out.Len() > 0 {
 		return out
 	}
 	if u := strings.TrimSpace(r.Upstream); u != "" {
-		return []string{u}
+		return list.NewList(u)
 	}
-	return nil
+	return list.NewList[string]()
 }
 
 // LBPolicy returns the load-balancing policy name (lowercase). Empty defaults to round_robin.
@@ -133,13 +134,13 @@ func (c IngressConfig) TLSListenAddrs() []string {
 		return nil
 	}
 	if len(c.TLS.Listen) > 0 {
-		out := make([]string, 0, len(c.TLS.Listen))
-		for _, a := range c.TLS.Listen {
+		out := list.FilterMapList(list.NewList(c.TLS.Listen...), func(_ int, a string) (string, bool) {
 			a = strings.TrimSpace(a)
-			if a != "" {
-				out = append(out, a)
+			if a == "" {
+				return "", false
 			}
-		}
+			return a, true
+		}).Values()
 		if len(out) > 0 {
 			return out
 		}
@@ -154,34 +155,32 @@ func (c IngressConfig) PlainListenAddrs() []string {
 	if !c.TLS.Enabled {
 		return plain
 	}
-	skip := make(map[string]struct{})
-	for _, a := range c.TLSListenAddrs() {
-		skip[strings.TrimSpace(a)] = struct{}{}
-	}
-	var out []string
-	for _, a := range plain {
+	tlsAddrs := list.FilterMapList(list.NewList(c.TLSListenAddrs()...), func(_ int, a string) (string, bool) {
+		a = strings.TrimSpace(a)
+		return a, a != ""
+	}).Values()
+	skip := set.NewSet(tlsAddrs...)
+	return list.FilterMapList(list.NewList(plain...), func(_ int, a string) (string, bool) {
 		a = strings.TrimSpace(a)
 		if a == "" {
-			continue
+			return "", false
 		}
-		if _, ok := skip[a]; ok {
-			continue
+		if skip.Contains(a) {
+			return "", false
 		}
-		out = append(out, a)
-	}
-	return out
+		return a, true
+	}).Values()
 }
 
 // TLSAutocertDomains returns non-empty trimmed host names from ingress.tls.domains.
 func (c IngressConfig) TLSAutocertDomains() []string {
-	var out []string
-	for _, d := range c.TLS.Domains {
+	return list.FilterMapList(list.NewList(c.TLS.Domains...), func(_ int, d string) (string, bool) {
 		d = strings.TrimSpace(d)
-		if d != "" {
-			out = append(out, d)
+		if d == "" {
+			return "", false
 		}
-	}
-	return out
+		return d, true
+	}).Values()
 }
 
 // OrchVPNConfig enables the orch-vpn tunnel listener and bootstrap metadata (see GET /api/v1/orch-vpn/bootstrap).

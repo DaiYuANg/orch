@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	velaruntime "github.com/arcgolabs/vela/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
@@ -48,7 +49,8 @@ func (s *Service) refreshRoutes() {
 	if !s.cfg.Enabled || s.raft == nil || s.dns == nil {
 		return
 	}
-	routes := CompileIngressRoutesFromDeploy(s.raft.ListDesiredDeployApps(), s.dns, s.logger)
+	apps := list.NewList(s.raft.ListDesiredDeployApps()...)
+	routes := CompileIngressRoutesFromDeploy(apps, s.dns, s.logger)
 	snapshot, routeCount, err := buildVelaSnapshot(routes)
 	if err != nil {
 		s.logger.Warn("ingress routes compile failed", "error", err)

@@ -4,7 +4,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/samber/lo"
+	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/set"
 )
 
 // IngressReachabilityURLs builds http(s) URLs for logging: plain listeners, TLS bind addresses, and https://<domain>/ for each ingress.tls.domains entry when autocert is enabled.
@@ -20,7 +21,7 @@ func IngressReachabilityURLs(ing IngressConfig) []string {
 		}
 		urls = append(urls, IngressURLsFromAddrs(ing.TLSListenAddrs())...)
 	}
-	return lo.Uniq(urls)
+	return set.NewOrderedSet(urls...).Values()
 }
 
 // NormalizePrometheusPath returns a stable path attribute for prometheus.path.
@@ -41,7 +42,7 @@ func IngressURLsFromAddrs(addrs []string) []string {
 	if len(addrs) == 0 {
 		return nil
 	}
-	return lo.Uniq(lo.FilterMap(addrs, func(a string, _ int) (string, bool) {
+	urls := list.FilterMapList(list.NewList(addrs...), func(_ int, a string) (string, bool) {
 		d := FixLoopbackHost(strings.TrimSpace(a))
 		if d == "" {
 			return "", false
@@ -55,5 +56,6 @@ func IngressURLsFromAddrs(addrs []string) []string {
 			scheme = "https"
 		}
 		return scheme + "://" + d + "/", true
-	}))
+	}).Values()
+	return set.NewOrderedSet(urls...).Values()
 }

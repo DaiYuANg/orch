@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodecapacity"
-	"github.com/samber/lo"
 	"github.com/samber/mo"
 )
 
@@ -30,9 +30,9 @@ func chooseV1Alpha1(ctx context.Context, w deployv1.Workload, catalog *nodecapac
 		if want.IsEmpty() {
 			return "", fmt.Errorf("placement: scheduling.preferredNodes has no valid names")
 		}
-		candidates = lo.Filter(candidates, func(id string, _ int) bool {
+		candidates = list.FilterList(list.NewList(candidates...), func(_ int, id string) bool {
 			return want.Contains(strings.TrimSpace(id))
-		})
+		}).Values()
 		if len(candidates) == 0 {
 			return "", fmt.Errorf("placement: no catalog nodes match scheduling.preferredNodes")
 		}
@@ -88,14 +88,15 @@ func preferredNames(w deployv1.Workload) (*set.OrderedSet[string], bool) {
 	if w.Scheduling == nil || len(w.Scheduling.PreferredNodes) == 0 {
 		return nil, false
 	}
-	raw := w.Scheduling.PreferredNodes
-	s := set.NewOrderedSetWithCapacity[string](len(raw))
-	for _, n := range raw {
+	raw := w.PreferredNodeList()
+	s := set.NewOrderedSetWithCapacity[string](raw.Len())
+	raw.Range(func(_ int, n string) bool {
 		n = strings.TrimSpace(n)
 		if n != "" {
 			s.Add(n)
 		}
-	}
+		return true
+	})
 	return s, true
 }
 

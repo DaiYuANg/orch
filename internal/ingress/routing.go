@@ -14,7 +14,7 @@ type routeMeta struct {
 }
 
 func newRouteMeta(raw *config.IngressRoute) (routeMeta, error) {
-	if len(raw.UpstreamEndpoints()) == 0 {
+	if raw.UpstreamEndpoints().Len() == 0 {
 		return routeMeta{}, errors.New("no upstream endpoints")
 	}
 

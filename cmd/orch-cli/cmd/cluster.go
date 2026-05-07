@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/arcgolabs/collectionx/set"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
@@ -269,14 +270,14 @@ func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App
 		return nil, oopsx.B("cli").Errorf("--timeout must be greater than zero")
 	}
 	expectedKeys, expectedNames := expectedDeployWorkloads(app)
-	if len(expectedKeys) == 0 {
+	if expectedKeys.Len() == 0 {
 		return &deploySnapshot{}, nil
 	}
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	spinner := startWatchSpinner(progress, len(expectedKeys))
+	spinner := startWatchSpinner(progress, expectedKeys.Len())
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -286,10 +287,10 @@ func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App
 		snapshot, err := readDeploySnapshot(waitCtx, c, expectedKeys, expectedNames)
 		if err != nil {
 			lastErr = err
-			updateWatchSpinner(spinner, last, len(expectedKeys), err)
+			updateWatchSpinner(spinner, last, expectedKeys.Len(), err)
 		} else {
 			last = snapshot
-			updateWatchSpinner(spinner, snapshot, len(expectedKeys), nil)
+			updateWatchSpinner(spinner, snapshot, expectedKeys.Len(), nil)
 			switch {
 			case snapshot.FailedAssignment != nil:
 				failWatchSpinner(spinner, fmt.Sprintf("workload failed key=%s", snapshot.FailedAssignment.Key))
@@ -307,19 +308,19 @@ func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App
 
 		select {
 		case <-waitCtx.Done():
-			failWatchSpinner(spinner, watchStatusText(last, len(expectedKeys), "timed out"))
+			failWatchSpinner(spinner, watchStatusText(last, expectedKeys.Len(), "timed out"))
 			if lastErr != nil {
 				return last, oopsx.B("cli").Wrapf(lastErr, "wait for deploy status timed out after %s", timeout)
 			}
-			return last, oopsx.B("cli").Errorf("wait for deploy status timed out after %s: %s", timeout, watchStatusText(last, len(expectedKeys), ""))
+			return last, oopsx.B("cli").Errorf("wait for deploy status timed out after %s: %s", timeout, watchStatusText(last, expectedKeys.Len(), ""))
 		case <-ticker.C:
 		}
 	}
 }
 
-func expectedDeployWorkloads(app *deployv1.App) (map[string]struct{}, map[string]struct{}) {
-	keys := make(map[string]struct{})
-	names := make(map[string]struct{})
+func expectedDeployWorkloads(app *deployv1.App) (*set.Set[string], *set.Set[string]) {
+	keys := set.NewSet[string]()
+	names := set.NewSet[string]()
 	if app == nil {
 		return keys, names
 	}
@@ -328,13 +329,13 @@ func expectedDeployWorkloads(app *deployv1.App) (map[string]struct{}, map[string
 		if key == "" {
 			continue
 		}
-		keys[key] = struct{}{}
-		names[workload.Name] = struct{}{}
+		keys.Add(key)
+		names.Add(workload.Name)
 	}
 	return keys, names
 }
 
-func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, expectedNames map[string]struct{}) (*deploySnapshot, error) {
+func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, expectedNames *set.Set[string]) (*deploySnapshot, error) {
 	assignments, err := c.ListAssignments(ctx)
 	if err != nil {
 		return nil, oopsx.B("cli").Wrapf(err, "list assignments")
@@ -344,9 +345,9 @@ func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, 
 		return nil, oopsx.B("cli").Wrapf(err, "list workloads")
 	}
 
-	snapshot := &deploySnapshot{Total: len(expectedKeys)}
+	snapshot := &deploySnapshot{Total: expectedKeys.Len()}
 	for _, assignment := range assignments.Body.Items {
-		if _, ok := expectedKeys[assignment.Key]; !ok {
+		if !expectedKeys.Contains(assignment.Key) {
 			continue
 		}
 		snapshot.Assignments = append(snapshot.Assignments, assignment)
@@ -359,7 +360,7 @@ func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, 
 		}
 	}
 	for _, workload := range workloads.Body.Items {
-		if _, ok := expectedNames[workload.Name]; !ok {
+		if !expectedNames.Contains(workload.Name) {
 			continue
 		}
 		snapshot.Workloads = append(snapshot.Workloads, workload)

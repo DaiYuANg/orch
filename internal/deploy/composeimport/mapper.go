@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/mapping"
 	"github.com/arcgolabs/collectionx/set"
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 
@@ -85,16 +86,11 @@ func mapComposeVolumes(proj *composetypes.Project) []deployv1.Volume {
 	if proj.Volumes == nil {
 		return nil
 	}
-	names := make([]string, 0, len(proj.Volumes))
-	for k := range proj.Volumes {
-		names = append(names, k)
-	}
+	names := mapping.NewMapFrom(proj.Volumes).Keys()
 	sort.Strings(names)
-	out := list.NewListWithCapacity[deployv1.Volume](len(names))
-	for _, name := range names {
-		out.Add(deployv1.Volume{Name: name, Persistent: true})
-	}
-	return out.Values()
+	return list.MapList(list.NewList(names...), func(_ int, name string) deployv1.Volume {
+		return deployv1.Volume{Name: name, Persistent: true}
+	}).Values()
 }
 
 func mergeVolumesDedup(existing []deployv1.Volume, add []deployv1.Volume) []deployv1.Volume {
@@ -162,16 +158,11 @@ func envFromCompose(m composetypes.MappingWithEquals) []deployv1.EnvVar {
 		return nil
 	}
 	flat := m.ToMapping()
-	keys := make([]string, 0, len(flat))
-	for k := range flat {
-		keys = append(keys, k)
-	}
+	keys := mapping.NewMapFrom(flat).Keys()
 	sort.Strings(keys)
-	out := make([]deployv1.EnvVar, 0, len(keys))
-	for _, k := range keys {
-		out = append(out, deployv1.EnvVar{Name: k, Value: flat[k]})
-	}
-	return out
+	return list.MapList(list.NewList(keys...), func(_ int, k string) deployv1.EnvVar {
+		return deployv1.EnvVar{Name: k, Value: flat[k]}
+	}).Values()
 }
 
 func replicasFromCompose(s *composetypes.ServiceConfig) int {
@@ -185,13 +176,12 @@ func replicasFromCompose(s *composetypes.ServiceConfig) int {
 }
 
 func dockerOptionsFromCompose(svcName string, s *composetypes.ServiceConfig, rep *Report) *deployv1.DockerOptions {
+	labels := mapping.NewMapWithCapacity[string, string](len(s.Labels))
+	labels.SetAll(s.Labels)
 	opts := &deployv1.DockerOptions{
 		NetworkMode: strings.TrimSpace(s.NetworkMode),
 		Privileged:  s.Privileged,
-		Labels:      map[string]string{},
-	}
-	for k, v := range s.Labels {
-		opts.Labels[k] = v
+		Labels:      labels.All(),
 	}
 	if s.Deploy != nil {
 		for k, v := range s.Deploy.Labels {
@@ -219,10 +209,7 @@ func dockerOptionsFromCompose(svcName string, s *composetypes.ServiceConfig, rep
 }
 
 func networkNamesSorted(nets map[string]*composetypes.ServiceNetworkConfig) []string {
-	out := make([]string, 0, len(nets))
-	for k := range nets {
-		out = append(out, k)
-	}
+	out := mapping.NewMapFrom(nets).Keys()
 	sort.Strings(out)
 	return out
 }
@@ -265,26 +252,23 @@ func dependsFromCompose(d composetypes.DependsOnConfig, rep *Report) []deployv1.
 	if len(d) == 0 {
 		return nil
 	}
-	names := make([]string, 0, len(d))
-	for k := range d {
-		names = append(names, k)
-	}
+	names := mapping.NewMapFrom(d).Keys()
 	sort.Strings(names)
-	out := make([]deployv1.WorkloadRef, 0, len(names))
+	out := list.NewListWithCapacity[deployv1.WorkloadRef](len(names))
 	for _, name := range names {
 		dep := d[name]
 		switch strings.TrimSpace(dep.Condition) {
 		case "", composetypes.ServiceConditionStarted, composetypes.ServiceConditionHealthy:
-			out = append(out, deployv1.WorkloadRef{Name: name})
+			out.Add(deployv1.WorkloadRef{Name: name})
 		case composetypes.ServiceConditionCompletedSuccessfully:
 			rep.warnf("depends_on service %q uses condition %q (not modeled); treating as dependency edge only", name, dep.Condition)
-			out = append(out, deployv1.WorkloadRef{Name: name})
+			out.Add(deployv1.WorkloadRef{Name: name})
 		default:
 			rep.warnf("depends_on service %q uses condition %q; treating as ordered dependency", name, dep.Condition)
-			out = append(out, deployv1.WorkloadRef{Name: name})
+			out.Add(deployv1.WorkloadRef{Name: name})
 		}
 	}
-	return out
+	return out.Values()
 }
 
 func resourcesFromCompose(d *composetypes.DeployConfig) *deployv1.Resources {

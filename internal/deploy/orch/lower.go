@@ -6,7 +6,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/mapping"
+	"github.com/arcgolabs/collectionx/set"
 	"github.com/arcgolabs/plano/compiler"
 	"github.com/arcgolabs/plano/schema"
 
@@ -120,32 +122,29 @@ func childFormsByKind(parent *compiler.HIRForm, kind string) []compiler.HIRForm 
 	if parent == nil {
 		return nil
 	}
-	var out []compiler.HIRForm
+	out := list.NewList[compiler.HIRForm]()
 	for i := range parent.Forms.Len() {
 		ch, _ := parent.Forms.Get(i)
 		if ch.Kind == kind {
-			out = append(out, ch)
+			out.Add(ch)
 		}
 	}
-	return out
+	return out.Values()
 }
 
 func childFormsByKinds(parent *compiler.HIRForm, kinds ...string) []compiler.HIRForm {
 	if parent == nil {
 		return nil
 	}
-	allowed := make(map[string]struct{}, len(kinds))
-	for _, kind := range kinds {
-		allowed[kind] = struct{}{}
-	}
-	var out []compiler.HIRForm
+	allowed := set.NewSetWithCapacity[string](len(kinds), kinds...)
+	out := list.NewList[compiler.HIRForm]()
 	for i := range parent.Forms.Len() {
 		ch, _ := parent.Forms.Get(i)
-		if _, ok := allowed[ch.Kind]; ok {
-			out = append(out, ch)
+		if allowed.Contains(ch.Kind) {
+			out.Add(ch)
 		}
 	}
-	return out
+	return out.Values()
 }
 
 func lowerMetadata(f *compiler.HIRForm) (v1.Metadata, error) {
@@ -1084,55 +1083,46 @@ func mapStringString(v any) (map[string]string, bool) {
 	case map[string]string:
 		return m, true
 	case *mapping.OrderedMap[string, any]:
-		out := make(map[string]string, m.Len())
+		out := mapping.NewMapWithCapacity[string, string](m.Len())
 		m.Range(func(k string, val any) bool {
 			switch t := val.(type) {
 			case string:
-				out[k] = t
+				out.Set(k, t)
 			default:
-				out[k] = fmt.Sprint(val)
+				out.Set(k, fmt.Sprint(val))
 			}
 			return true
 		})
-		return out, true
+		return out.All(), true
 	case map[string]any:
-		out := make(map[string]string, len(m))
+		out := mapping.NewMapWithCapacity[string, string](len(m))
 		for k, val := range m {
 			switch t := val.(type) {
 			case string:
-				out[k] = t
+				out.Set(k, t)
 			default:
-				out[k] = fmt.Sprint(val)
+				out.Set(k, fmt.Sprint(val))
 			}
 		}
-		return out, true
+		return out.All(), true
 	default:
 		return nil, false
 	}
 }
 
 func envVarsFromMap(m map[string]string) []v1.EnvVar {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
+	keys := mapping.NewMapFrom(m).Keys()
 	sort.Strings(keys)
-	out := make([]v1.EnvVar, 0, len(keys))
-	for _, k := range keys {
-		out = append(out, v1.EnvVar{Name: k, Value: m[k]})
-	}
-	return out
+	return list.MapList(list.NewList(keys...), func(_ int, k string) v1.EnvVar {
+		return v1.EnvVar{Name: k, Value: m[k]}
+	}).Values()
 }
 
 func cloneStringMap(m map[string]string) map[string]string {
 	if m == nil {
 		return nil
 	}
-	out := make(map[string]string, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
+	return mapping.NewMapFrom(m).All()
 }
 
 func intFromAny(v any) (int, bool) {
@@ -1155,13 +1145,12 @@ func stringList(v any) []string {
 	if !ok {
 		return nil
 	}
-	out := make([]string, 0, len(items))
-	for _, it := range items {
+	return list.FilterMapList(list.NewList(items...), func(_ int, it any) (string, bool) {
 		if s, ok := it.(string); ok {
-			out = append(out, s)
+			return s, true
 		}
-	}
-	return out
+		return "", false
+	}).Values()
 }
 
 func callIntArg(call compiler.HIRCall, idx int) (int, bool) {
@@ -1186,11 +1175,10 @@ func workloadRefList(v any) []v1.WorkloadRef {
 	if !ok {
 		return nil
 	}
-	var out []v1.WorkloadRef
-	for _, it := range items {
+	return list.FilterMapList(list.NewList(items...), func(_ int, it any) (v1.WorkloadRef, bool) {
 		if r, ok := it.(schema.Ref); ok && r.Kind == "workload" {
-			out = append(out, v1.WorkloadRef{Name: r.Name})
+			return v1.WorkloadRef{Name: r.Name}, true
 		}
-	}
-	return out
+		return v1.WorkloadRef{}, false
+	}).Values()
 }

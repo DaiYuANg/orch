@@ -20,11 +20,17 @@ func (a *App) Validate() error {
 	}
 
 	seenWorkloads := set.NewSet[string]()
-	for i := range a.Workloads {
-		w := &a.Workloads[i]
-		if err := w.validate(seenWorkloads); err != nil {
-			return oopsx.B("deploy").Wrapf(err, "workloads[%d]", i)
+	var validateErr error
+	a.WorkloadList().Range(func(i int, workload Workload) bool {
+		w := workload
+		if err := (&w).validate(seenWorkloads); err != nil {
+			validateErr = oopsx.B("deploy").Wrapf(err, "workloads[%d]", i)
+			return false
 		}
+		return true
+	})
+	if validateErr != nil {
+		return validateErr
 	}
 
 	if err := a.validateWorkloadCrossRefs(seenWorkloads); err != nil {
@@ -50,7 +56,7 @@ func (a *App) validateMetadata() error {
 }
 
 func (a *App) validateWorkloadCrossRefs(seenWorkloads *set.Set[string]) error {
-	if err := a.validateWorkloadDepends(seenWorkloads); err != nil {
+	if err := a.validateWorkloadDepends(); err != nil {
 		return err
 	}
 	if err := a.validateWorkloadMounts(); err != nil {
@@ -59,67 +65,81 @@ func (a *App) validateWorkloadCrossRefs(seenWorkloads *set.Set[string]) error {
 	return a.validateWorkloadEndpointsAll()
 }
 
-func (a *App) validateWorkloadDepends(seenWorkloads *set.Set[string]) error {
-	for i := range a.Workloads {
-		w := &a.Workloads[i]
-		for j := range w.DependsOn {
-			if !seenWorkloads.Contains(w.DependsOn[j].Name) {
-				return oopsx.B("deploy").Errorf("workloads[%d].dependsOn[%d]: unknown workload %q", i, j, w.DependsOn[j].Name)
-			}
-		}
-	}
-	return nil
+func (a *App) validateWorkloadDepends() error {
+	_, err := a.WorkloadsInDependencyOrder()
+	return err
 }
 
 func (a *App) validateWorkloadMounts() error {
-	for i := range a.Workloads {
-		w := &a.Workloads[i]
-		for j := range w.Mounts {
-			if strings.TrimSpace(w.Mounts[j].Volume.Name) == "" {
-				return oopsx.B("deploy").Errorf("workloads[%d].mounts[%d].volume: name is required", i, j)
+	var validateErr error
+	a.WorkloadList().Range(func(i int, workload Workload) bool {
+		workload.MountList().Range(func(j int, mount Mount) bool {
+			if strings.TrimSpace(mount.Volume.Name) == "" {
+				validateErr = oopsx.B("deploy").Errorf("workloads[%d].mounts[%d].volume: name is required", i, j)
+				return false
 			}
-		}
+			return true
+		})
+		return validateErr == nil
+	})
+	if validateErr != nil {
+		return validateErr
 	}
 	return nil
 }
 
 func (a *App) validateWorkloadEndpointsAll() error {
-	for i := range a.Workloads {
-		w := &a.Workloads[i]
-		for j := range w.Endpoints {
-			if err := w.Endpoints[j].validate(); err != nil {
-				return oopsx.B("deploy").Wrapf(err, "workloads[%d].endpoints[%d]", i, j)
+	var validateErr error
+	a.WorkloadList().Range(func(i int, workload Workload) bool {
+		workload.EndpointList().Range(func(j int, endpoint Endpoint) bool {
+			if err := endpoint.validate(); err != nil {
+				validateErr = oopsx.B("deploy").Wrapf(err, "workloads[%d].endpoints[%d]", i, j)
+				return false
 			}
-		}
+			return true
+		})
+		return validateErr == nil
+	})
+	if validateErr != nil {
+		return validateErr
 	}
 	return nil
 }
 
 func (a *App) validateIngresses(seenWorkloads *set.Set[string]) error {
-	for i := range a.Ingresses {
-		if err := a.validateIngressOne(i, seenWorkloads); err != nil {
-			return err
+	var validateErr error
+	a.IngressList().Range(func(i int, ing Ingress) bool {
+		if err := a.validateIngressOne(i, ing, seenWorkloads); err != nil {
+			validateErr = err
+			return false
 		}
-	}
-	return nil
+		return true
+	})
+	return validateErr
 }
 
-func (a *App) validateIngressOne(ingIndex int, seenWorkloads *set.Set[string]) error {
-	ing := &a.Ingresses[ingIndex]
+func (a *App) validateIngressOne(ingIndex int, ing Ingress, seenWorkloads *set.Set[string]) error {
 	if strings.TrimSpace(ing.Name) == "" {
 		return oopsx.B("deploy").Errorf("ingresses[%d].name is required", ingIndex)
 	}
-	for j := range ing.Routes {
-		r := &ing.Routes[j]
+	var validateErr error
+	ing.RouteList().Range(func(j int, r IngressRoute) bool {
 		if strings.TrimSpace(r.Path) == "" {
-			return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].path is required", ingIndex, j)
+			validateErr = oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].path is required", ingIndex, j)
+			return false
 		}
 		if strings.TrimSpace(r.Backend.Workload) == "" || strings.TrimSpace(r.Backend.Endpoint) == "" {
-			return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend must specify workload + endpoint", ingIndex, j)
+			validateErr = oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend must specify workload + endpoint", ingIndex, j)
+			return false
 		}
 		if !seenWorkloads.Contains(r.Backend.Workload) {
-			return oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend: unknown workload %q", ingIndex, j, r.Backend.Workload)
+			validateErr = oopsx.B("deploy").Errorf("ingresses[%d].routes[%d].backend: unknown workload %q", ingIndex, j, r.Backend.Workload)
+			return false
 		}
+		return true
+	})
+	if validateErr != nil {
+		return validateErr
 	}
 	return nil
 }
@@ -149,10 +169,16 @@ func (w *Workload) validate(seen *set.Set[string]) error {
 	if err := w.validateRunForRuntime(); err != nil {
 		return err
 	}
-	for i := range w.Run.Env {
-		if strings.TrimSpace(w.Run.Env[i].Name) == "" {
-			return oopsx.B("deploy").Errorf("run.env[%d].name is required", i)
+	var validateErr error
+	w.EnvList().Range(func(i int, env EnvVar) bool {
+		if strings.TrimSpace(env.Name) == "" {
+			validateErr = oopsx.B("deploy").Errorf("run.env[%d].name is required", i)
+			return false
 		}
+		return true
+	})
+	if validateErr != nil {
+		return validateErr
 	}
 	if w.Replicas < 0 {
 		return oopsx.B("deploy").Errorf("replicas must be >= 0")

@@ -5,6 +5,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/set"
+	"github.com/arcgolabs/dnsx/dnsserver"
 	"github.com/miekg/dns"
 )
 
@@ -15,27 +18,21 @@ func (s *Service) ListWorkloadIPv4HostRoutes() []string {
 		return nil
 	}
 	recs := s.workloadRecords.Values()
-	seen := make(map[string]struct{})
-	out := make([]string, 0)
-	for _, rec := range recs {
+	routes := list.FilterMapList(list.NewList(recs...), func(_ int, rec dnsserver.Record) (string, bool) {
 		if rec.Type != dns.TypeA {
-			continue
+			return "", false
 		}
 		raw := strings.TrimSpace(rec.Data)
 		if raw == "" {
-			continue
+			return "", false
 		}
 		pip := net.ParseIP(raw)
 		if pip == nil || pip.To4() == nil {
-			continue
+			return "", false
 		}
-		cidr := pip.String() + "/32"
-		if _, dup := seen[cidr]; dup {
-			continue
-		}
-		seen[cidr] = struct{}{}
-		out = append(out, cidr)
-	}
+		return pip.String() + "/32", true
+	}).Values()
+	out := set.NewSet(routes...).Values()
 	slices.Sort(out)
 	return out
 }

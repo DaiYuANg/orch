@@ -8,13 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arcgolabs/collectionx/list"
 	velaruntime "github.com/arcgolabs/vela/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
-func testHTTPHandler(t *testing.T, routes []config.IngressRoute) http.Handler {
+func testHTTPHandler(t *testing.T, routes *list.List[config.IngressRoute]) http.Handler {
 	t.Helper()
 	snapshot, routeCount, err := buildVelaSnapshot(routes)
 	if err != nil {
@@ -33,9 +34,9 @@ func TestNewIngressHTTPHandler_proxyPathRewrite(t *testing.T) {
 	}))
 	t.Cleanup(upstream.Close)
 
-	handler := testHTTPHandler(t, []config.IngressRoute{
-		{PathPrefix: "/api", Upstream: upstream.URL},
-	})
+	handler := testHTTPHandler(t, list.NewList(
+		config.IngressRoute{PathPrefix: "/api", Upstream: upstream.URL},
+	))
 
 	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/hello", nil)
 	if err != nil {
@@ -59,9 +60,9 @@ func TestNewIngressHTTPHandler_proxyPathRewrite(t *testing.T) {
 func TestNewIngressHTTPHandler_noRouteNotFound(t *testing.T) {
 	t.Parallel()
 
-	handler := testHTTPHandler(t, []config.IngressRoute{
-		{PathPrefix: "/api", Upstream: "http://127.0.0.1:1"},
-	})
+	handler := testHTTPHandler(t, list.NewList(
+		config.IngressRoute{PathPrefix: "/api", Upstream: "http://127.0.0.1:1"},
+	))
 	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/other", nil)
 	req.Host = "127.0.0.1"
 	rec := httptest.NewRecorder()
@@ -81,9 +82,9 @@ func TestNewIngressHTTPHandler_pathPrefixBoundary(t *testing.T) {
 	}))
 	t.Cleanup(upstream.Close)
 
-	handler := testHTTPHandler(t, []config.IngressRoute{
-		{PathPrefix: "/api", Upstream: upstream.URL},
-	})
+	handler := testHTTPHandler(t, list.NewList(
+		config.IngressRoute{PathPrefix: "/api", Upstream: upstream.URL},
+	))
 	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/api2", nil)
 	req.Host = "127.0.0.1"
 	rec := httptest.NewRecorder()
@@ -124,13 +125,13 @@ func TestNewIngressHTTPHandler_roundRobinDistributes(t *testing.T) {
 	t.Cleanup(srvA.Close)
 	t.Cleanup(srvB.Close)
 
-	handler := testHTTPHandler(t, []config.IngressRoute{
-		{
+	handler := testHTTPHandler(t, list.NewList(
+		config.IngressRoute{
 			PathPrefix: "/p",
 			Upstreams:  []string{srvA.URL, srvB.URL},
 			LB:         "round_robin",
 		},
-	})
+	))
 
 	for range 8 {
 		req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/p/x", nil)
@@ -155,13 +156,15 @@ func TestNewIngressHTTPHandler_roundRobinDistributes(t *testing.T) {
 func TestIngressRouteUpstreamEndpoints(t *testing.T) {
 	t.Parallel()
 	r := config.IngressRoute{Upstream: "http://a"}
-	if got := r.UpstreamEndpoints(); len(got) != 1 || got[0] != "http://a" {
+	if got := r.UpstreamEndpoints(); got.Len() != 1 {
 		t.Fatalf("got %#v", got)
+	} else if first, _ := got.Get(0); first != "http://a" {
+		t.Fatalf("got %#v", got.Values())
 	}
 	r2 := config.IngressRoute{Upstreams: []string{"http://a", "http://b"}, Upstream: "http://ignored"}
 	got := r2.UpstreamEndpoints()
-	if len(got) != 2 {
-		t.Fatalf("got %#v", got)
+	if got.Len() != 2 {
+		t.Fatalf("got %#v", got.Values())
 	}
 }
 
@@ -193,7 +196,7 @@ func (m mapDNS) LookupWorkloadIPv4(namespace, workloadName string) (string, bool
 
 func TestCompileIngressRoutesFromDeploy(t *testing.T) {
 	t.Parallel()
-	apps := []deployv1.App{{
+	apps := list.NewList(deployv1.App{
 		Metadata: deployv1.Metadata{Name: "a", Namespace: "ns"},
 		Workloads: []deployv1.Workload{{
 			Name: "web",
@@ -207,10 +210,11 @@ func TestCompileIngressRoutesFromDeploy(t *testing.T) {
 				Backend: deployv1.EndpointRef{Workload: "web", Endpoint: "http"},
 			}},
 		}},
-	}}
+	})
 	dns := mapDNS{"ns/web": "10.0.0.2"}
 	got := CompileIngressRoutesFromDeploy(apps, dns, nil)
-	if len(got) != 1 || got[0].PathPrefix != "/api" || got[0].Upstream != "http://10.0.0.2:8080" {
-		t.Fatalf("got %#v", got)
+	route, ok := got.Get(0)
+	if got.Len() != 1 || !ok || route.PathPrefix != "/api" || route.Upstream != "http://10.0.0.2:8080" {
+		t.Fatalf("got %#v", got.Values())
 	}
 }

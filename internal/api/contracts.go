@@ -1,10 +1,10 @@
 package api
 
 import (
+	"time"
+
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/hostinfo"
-	"github.com/daiyuang/orch/internal/services/registry"
-	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
 // EmptyInput is the request shape for handlers with no parameters or body.
@@ -23,17 +23,40 @@ type HostinfoOutput struct {
 	Body hostinfo.Report `json:"body"`
 }
 
+// WorkloadItem is the public API representation of a runtime registry record.
+type WorkloadItem struct {
+	Name      string    `json:"name"`
+	Node      string    `json:"node,omitempty"`
+	Runtime   string    `json:"runtime"`
+	Image     string    `json:"image"`
+	Status    string    `json:"status"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // ListWorkloadsOutput is the response body envelope for GET PathV1Workloads.
 type ListWorkloadsOutput struct {
 	Body struct {
-		Items []registry.WorkloadRecord `json:"items"`
+		Items []WorkloadItem `json:"items"`
 	} `json:"body"`
+}
+
+// AssignmentItem is the public API representation of a scheduler assignment.
+type AssignmentItem struct {
+	Key       string               `json:"key"`
+	Metadata  deployv1.Metadata    `json:"metadata"`
+	Workload  string               `json:"workload"`
+	Node      string               `json:"node"`
+	Runtime   deployv1.RuntimeKind `json:"runtime"`
+	Image     string               `json:"image"`
+	Status    string               `json:"status"`
+	Error     string               `json:"error,omitempty"`
+	UpdatedAt time.Time            `json:"updatedAt"`
 }
 
 // ListAssignmentsOutput is the response body envelope for GET PathV1Assignments.
 type ListAssignmentsOutput struct {
 	Body struct {
-		Items []workloadmeta.Assignment `json:"items"`
+		Items []AssignmentItem `json:"items"`
 	} `json:"body"`
 }
 

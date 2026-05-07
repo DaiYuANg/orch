@@ -17,7 +17,6 @@ import (
 	"github.com/daiyuang/orch/internal/apiclient"
 	"github.com/daiyuang/orch/internal/deploy/loader"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -249,20 +248,20 @@ func runListAssignments(ctx context.Context, jsonOut bool) error {
 }
 
 type applyWatchOutput struct {
-	Accepted    bool                      `json:"accepted"`
-	App         string                    `json:"app"`
-	Workloads   int                       `json:"workloads"`
-	Assignments []workloadmeta.Assignment `json:"assignments"`
-	Registry    []registry.WorkloadRecord `json:"registry"`
+	Accepted    bool                 `json:"accepted"`
+	App         string               `json:"app"`
+	Workloads   int                  `json:"workloads"`
+	Assignments []api.AssignmentItem `json:"assignments"`
+	Registry    []api.WorkloadItem   `json:"registry"`
 }
 
 type deploySnapshot struct {
-	Assignments        []workloadmeta.Assignment
-	Workloads          []registry.WorkloadRecord
+	Assignments        []api.AssignmentItem
+	Workloads          []api.WorkloadItem
 	Total              int
 	RunningAssignments int
 	RunningWorkloads   int
-	FailedAssignment   *workloadmeta.Assignment
+	FailedAssignment   *api.AssignmentItem
 }
 
 func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App, timeout time.Duration, progress bool) (*deploySnapshot, error) {
@@ -458,7 +457,7 @@ func writeHostinfoHuman(out *api.HostinfoOutput) error {
 	return writeKVTable(rows)
 }
 
-func writeWorkloadsHuman(items []registry.WorkloadRecord) error {
+func writeWorkloadsHuman(items []api.WorkloadItem) error {
 	rows := make([][]string, 0, len(items))
 	for _, w := range items {
 		node := w.Node
@@ -470,7 +469,7 @@ func writeWorkloadsHuman(items []registry.WorkloadRecord) error {
 	return writeTable([]string{"NAME", "NODE", "RUNTIME", "STATUS", "IMAGE"}, rows)
 }
 
-func writeAssignmentsHuman(items []workloadmeta.Assignment) error {
+func writeAssignmentsHuman(items []api.AssignmentItem) error {
 	rows := make([][]string, 0, len(items))
 	for _, a := range items {
 		node := nonEmpty(a.Node)

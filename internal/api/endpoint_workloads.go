@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/arcgolabs/httpx"
+	"github.com/arcgolabs/mapper"
 
 	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // WorkloadsEndpoint serves GET /api/v1/workloads.
@@ -32,6 +34,10 @@ func (e *WorkloadsEndpoint) Register(r httpx.Registrar) {
 
 func (e *WorkloadsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListWorkloadsOutput, error) {
 	out := &ListWorkloadsOutput{}
-	out.Body.Items = e.registry.List()
+	items, err := mapper.MapSlice[WorkloadItem](e.registry.List())
+	if err != nil {
+		return nil, oopsx.B("api").Wrapf(err, "map workload records")
+	}
+	out.Body.Items = items
 	return out, nil
 }

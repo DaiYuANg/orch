@@ -242,7 +242,7 @@ func startTestFiberServer(t *testing.T, app *fiber.App) string {
 	return "http://" + ln.Addr().String()
 }
 
-func waitHTTPAssignment(t *testing.T, ctx context.Context, client *apiclient.Client, key, node, status string) workloadmeta.Assignment {
+func waitHTTPAssignment(t *testing.T, ctx context.Context, client *apiclient.Client, key, node, status string) api.AssignmentItem {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -261,7 +261,7 @@ func waitHTTPAssignment(t *testing.T, ctx context.Context, client *apiclient.Cli
 	}
 }
 
-func waitHTTPWorkload(t *testing.T, ctx context.Context, client *apiclient.Client, name string) registry.WorkloadRecord {
+func waitHTTPWorkload(t *testing.T, ctx context.Context, client *apiclient.Client, name string) api.WorkloadItem {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

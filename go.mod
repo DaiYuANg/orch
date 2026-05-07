@@ -21,6 +21,7 @@ require (
 	github.com/arcgolabs/httpx v0.1.4
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.4
 	github.com/arcgolabs/logx v0.1.2
+	github.com/arcgolabs/mapper v0.1.2
 	github.com/arcgolabs/observabilityx v0.4.0
 	github.com/arcgolabs/plano v0.7.1
 	github.com/arcgolabs/plano/lsp v0.0.0-20260507041422-0364f76c1fa6

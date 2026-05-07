@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/arcgolabs/httpx"
+	"github.com/arcgolabs/mapper"
 
 	"github.com/daiyuang/orch/internal/services/task"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // AssignmentsEndpoint serves GET /api/v1/assignments.
@@ -33,7 +35,11 @@ func (e *AssignmentsEndpoint) Register(r httpx.Registrar) {
 func (e *AssignmentsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListAssignmentsOutput, error) {
 	out := &ListAssignmentsOutput{}
 	if e != nil && e.tasks != nil {
-		out.Body.Items = e.tasks.ListWorkloadAssignments()
+		items, err := mapper.MapSlice[AssignmentItem](e.tasks.ListWorkloadAssignments())
+		if err != nil {
+			return nil, oopsx.B("api").Wrapf(err, "map workload assignments")
+		}
+		out.Body.Items = items
 	}
 	return out, nil
 }

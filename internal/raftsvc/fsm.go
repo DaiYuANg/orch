@@ -10,12 +10,14 @@ import (
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodecapacity"
+	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 const (
-	cmdUpsertNodeCapacity = "upsert_node_capacity"
-	cmdUpsertDeployApp    = "upsert_deploy_app"
+	cmdUpsertNodeCapacity       = "upsert_node_capacity"
+	cmdUpsertDeployApp          = "upsert_deploy_app"
+	cmdUpsertWorkloadAssignment = "upsert_workload_assignment"
 )
 
 // schedulingFSM holds replicated control-plane state (node capacity snapshots, etc.).
@@ -26,9 +28,10 @@ type schedulingFSM struct {
 }
 
 type fsmSnapshotState struct {
-	AppliedCommands uint64                           `json:"appliedCommands"`
-	NodeCapacity    map[string]nodecapacity.Snapshot `json:"nodeCapacity,omitempty"`
-	DeployApps      map[string]deployv1.App          `json:"deployApps,omitempty"`
+	AppliedCommands uint64                             `json:"appliedCommands"`
+	NodeCapacity    map[string]nodecapacity.Snapshot   `json:"nodeCapacity,omitempty"`
+	DeployApps      map[string]deployv1.App            `json:"deployApps,omitempty"`
+	Assignments     map[string]workloadmeta.Assignment `json:"assignments,omitempty"`
 }
 
 func (f *schedulingFSM) setNotifyDeploy(fn func()) {
@@ -102,6 +105,34 @@ func (f *schedulingFSM) applyPayloadLocked(data []byte) {
 		if f.notifyDeploy != nil {
 			f.notifyDeploy()
 		}
+	case cmdUpsertWorkloadAssignment:
+		var env struct {
+			Type       string                  `json:"type"`
+			Assignment workloadmeta.Assignment `json:"assignment"`
+		}
+		if err := json.Unmarshal(data, &env); err != nil {
+			return
+		}
+		assignment := env.Assignment
+		assignment.Key = strings.TrimSpace(assignment.Key)
+		assignment.Metadata.Name = strings.TrimSpace(assignment.Metadata.Name)
+		assignment.Metadata.Namespace = strings.TrimSpace(assignment.Metadata.Namespace)
+		assignment.Workload = strings.TrimSpace(assignment.Workload)
+		assignment.Node = strings.TrimSpace(assignment.Node)
+		assignment.Status = strings.TrimSpace(assignment.Status)
+		if assignment.Metadata.Name == "" || assignment.Workload == "" {
+			return
+		}
+		if assignment.Key == "" {
+			assignment.Key = workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload)
+		}
+		if assignment.Key == "" {
+			return
+		}
+		if f.state.Assignments == nil {
+			f.state.Assignments = make(map[string]workloadmeta.Assignment)
+		}
+		f.state.Assignments[assignment.Key] = assignment
 	default:
 		return
 	}
@@ -122,6 +153,29 @@ func (f *schedulingFSM) listDeployApps() []deployv1.App {
 		out = append(out, app)
 	}
 	return out
+}
+
+func (f *schedulingFSM) listAssignments() []workloadmeta.Assignment {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.state.Assignments) == 0 {
+		return nil
+	}
+	out := make([]workloadmeta.Assignment, 0, len(f.state.Assignments))
+	for _, a := range f.state.Assignments {
+		out = append(out, a)
+	}
+	return out
+}
+
+func (f *schedulingFSM) getAssignment(key string) (workloadmeta.Assignment, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.state.Assignments == nil {
+		return workloadmeta.Assignment{}, false
+	}
+	a, ok := f.state.Assignments[strings.TrimSpace(key)]
+	return a, ok
 }
 
 func (f *schedulingFSM) Snapshot() (hraft.FSMSnapshot, error) {

@@ -1,0 +1,82 @@
+package raftsvc
+
+import (
+	"encoding/json"
+	"slices"
+	"strings"
+	"time"
+
+	hraft "github.com/hashicorp/raft"
+
+	"github.com/daiyuang/orch/internal/workloadmeta"
+	"github.com/daiyuang/orch/pkg/oopsx"
+)
+
+// ApplyWorkloadAssignment records the latest scheduler decision/result for one workload.
+// Callers must target the Raft leader when Raft is enabled.
+func (s *Service) ApplyWorkloadAssignment(assignment workloadmeta.Assignment) error {
+	if s == nil {
+		return oopsx.B("raft").Errorf("nil service")
+	}
+	assignment.Key = strings.TrimSpace(assignment.Key)
+	assignment.Metadata.Name = strings.TrimSpace(assignment.Metadata.Name)
+	assignment.Metadata.Namespace = strings.TrimSpace(assignment.Metadata.Namespace)
+	assignment.Workload = strings.TrimSpace(assignment.Workload)
+	assignment.Node = strings.TrimSpace(assignment.Node)
+	assignment.Status = strings.TrimSpace(assignment.Status)
+	if assignment.Metadata.Name == "" {
+		return oopsx.B("raft").Errorf("assignment metadata.name is required")
+	}
+	if assignment.Workload == "" {
+		return oopsx.B("raft").Errorf("assignment workload is required")
+	}
+	if assignment.Key == "" {
+		assignment.Key = workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload)
+	}
+	if assignment.Key == "" {
+		return oopsx.B("raft").Errorf("assignment key is required")
+	}
+	if assignment.UpdatedAt.IsZero() {
+		assignment.UpdatedAt = time.Now().UTC()
+	}
+
+	b, err := json.Marshal(struct {
+		Type       string                  `json:"type"`
+		Assignment workloadmeta.Assignment `json:"assignment"`
+	}{
+		Type:       cmdUpsertWorkloadAssignment,
+		Assignment: assignment,
+	})
+	if err != nil {
+		return oopsx.B("raft").Wrapf(err, "marshal workload assignment command")
+	}
+
+	if !s.cfg.Raft.Enabled || s.r == nil {
+		s.fsm.applyCommandPayload(b)
+		return nil
+	}
+	if s.r.State() != hraft.Leader {
+		return oopsx.B("raft").Errorf("not leader: send workload assignment to the raft leader node")
+	}
+	return s.r.Apply(b, 5*time.Second).Error()
+}
+
+// ListWorkloadAssignments returns a stable snapshot of scheduler assignment records.
+func (s *Service) ListWorkloadAssignments() []workloadmeta.Assignment {
+	if s == nil || s.fsm == nil {
+		return nil
+	}
+	out := s.fsm.listAssignments()
+	slices.SortFunc(out, func(a, b workloadmeta.Assignment) int {
+		return strings.Compare(a.Key, b.Key)
+	})
+	return out
+}
+
+// GetWorkloadAssignment returns the latest scheduler assignment record for key.
+func (s *Service) GetWorkloadAssignment(key string) (workloadmeta.Assignment, bool) {
+	if s == nil || s.fsm == nil {
+		return workloadmeta.Assignment{}, false
+	}
+	return s.fsm.getAssignment(key)
+}

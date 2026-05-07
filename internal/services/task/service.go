@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -14,6 +15,7 @@ import (
 	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/runtime"
 	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -119,13 +121,16 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 		w := &app.Workloads[i]
 		chosen, err := s.placement.Choose(ctx, *w, s.catalog, self)
 		if err != nil {
+			s.applyWorkloadAssignment(app.Metadata, *w, "", workloadmeta.AssignmentStatusFailed, err.Error())
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
 			return oopsx.B("task").Wrapf(err, "placement workload %s", w.Name)
 		}
+		s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusAssigned, "")
 		if chosen != self {
 			status, err := s.dispatchWorkload(ctx, app.Metadata, *w, chosen)
 			if err != nil {
+				s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
 				s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 				s.metrics.IncDeployApp(ctx, "failed")
 				return err
@@ -141,19 +146,52 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 				Image:   w.Run.Image,
 				Status:  status,
 			})
+			s.applyWorkloadAssignment(app.Metadata, *w, chosen, status, "")
 			continue
 		}
 
 		if err := s.deployLocalWorkload(ctx, app.Metadata, *w, chosen); err != nil {
+			s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
 			return err
 		}
+		s.applyWorkloadAssignment(app.Metadata, *w, chosen, workloadmeta.AssignmentStatusRunning, "")
 		s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "success")
 	}
 	s.metrics.IncDeployApp(ctx, "success")
 	s.logger.Info("application deployed", "app", app.Metadata.Name, "workloads", len(app.Workloads))
 	return nil
+}
+
+func (s *Service) applyWorkloadAssignment(meta deployv1.Metadata, workload deployv1.Workload, nodeID, status, errMsg string) {
+	if s == nil || s.raft == nil {
+		return
+	}
+	status = strings.TrimSpace(status)
+	if status == "" {
+		status = workloadmeta.AssignmentStatusAssigned
+	}
+	assignment := workloadmeta.Assignment{
+		Key:       workloadmeta.AssignmentKey(meta, workload.Name),
+		Metadata:  meta,
+		Workload:  workload.Name,
+		Node:      strings.TrimSpace(nodeID),
+		Runtime:   workload.Runtime,
+		Image:     workload.Run.Image,
+		Status:    status,
+		Error:     strings.TrimSpace(errMsg),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := s.raft.ApplyWorkloadAssignment(assignment); err != nil {
+		s.logger.Warn("workload assignment apply",
+			"error", err,
+			"app", meta.Name,
+			"workload", workload.Name,
+			"node", nodeID,
+			"status", status,
+		)
+	}
 }
 
 func (s *Service) dispatchWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, nodeID string) (string, error) {

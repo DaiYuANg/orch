@@ -22,6 +22,7 @@ import (
 	orchruntime "github.com/daiyuang/orch/internal/runtime"
 	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/internal/workerapi"
+	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
 type fakeRuntimeProvider struct {
@@ -59,6 +60,22 @@ func newTestMetrics(t *testing.T, cfg config.Config, logger *slog.Logger) *metri
 		t.Fatal(err)
 	}
 	return metrics.New(obs)
+}
+
+func waitAssignment(t *testing.T, raft *raftsvc.Service, key, wantNode, wantStatus string) workloadmeta.Assignment {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got, ok := raft.GetWorkloadAssignment(key)
+		if ok && got.Node == wantNode && got.Status == wantStatus {
+			return got
+		}
+		if time.Now().After(deadline) {
+			items := raft.ListWorkloadAssignments()
+			t.Fatalf("assignment %q did not converge to node=%q status=%q, got %#v", key, wantNode, wantStatus, items)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
@@ -133,6 +150,11 @@ func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 
 	if catalog.Len() == 0 {
 		t.Fatal("expected local capacity snapshot to be recorded for placement")
+	}
+
+	assignment := waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "web"), "node-a", workloadmeta.AssignmentStatusRunning)
+	if assignment.Runtime != deployv1.RuntimeDocker || assignment.Image != "nginx" {
+		t.Fatalf("assignment payload = %#v", assignment)
 	}
 }
 
@@ -240,5 +262,92 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 			t.Fatalf("registry did not record remote running status, got %#v", items)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+
+	assignment := waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-b", workloadmeta.AssignmentStatusRunning)
+	if assignment.Runtime != deployv1.RuntimeDocker || assignment.Image != "busybox" {
+		t.Fatalf("assignment payload = %#v", assignment)
+	}
+}
+
+func TestSubmitDeployRecordsFailedAssignmentOnRemoteDispatchError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dispatchCh := make(chan struct{}, 4)
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != workerapi.PathV1WorkerDeploy {
+			t.Fatalf("worker path = %q, want %q", r.URL.Path, workerapi.PathV1WorkerDeploy)
+		}
+		select {
+		case dispatchCh <- struct{}{}:
+		default:
+		}
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	t.Cleanup(worker.Close)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := config.Default()
+	cfg.Raft.Enabled = false
+	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
+	local := nodeid.Local{Value: "node-a"}
+	raft := raftsvc.New(cfg, logger, local)
+	store := raftsvc.NewRaftCapacityStore(raft)
+	catalog := nodecapacity.NewCatalog(store)
+	if err := store.Upsert(ctx, nodecapacity.Snapshot{
+		NodeID:           "node-b",
+		UpdatedAt:        time.Now(),
+		LogicalCPUCores:  8,
+		CPUUsagePercent:  5,
+		MemoryAvailBytes: 16 << 30,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fakeRuntime := newFakeRuntimeProvider()
+	runtimeManager := orchruntime.NewManager(logger, fakeRuntime)
+	registrySvc := registry.NewService(logger)
+	svc := NewService(logger, newTestMetrics(t, cfg, logger), runtimeManager, registrySvc, cfg, Bundle{
+		LocalNode:  local,
+		Catalog:    catalog,
+		Placement:  placement.NewEngine(),
+		Raft:       raft,
+		Dispatcher: NewHTTPWorkerDispatcher(cfg),
+	})
+
+	svc.StartDeployReconcile(ctx)
+
+	app := &deployv1.App{
+		Metadata: deployv1.Metadata{Name: "remote-fail", Namespace: "default"},
+		Workloads: []deployv1.Workload{
+			{
+				Name:    "worker",
+				Kind:    deployv1.WorkloadKindWorker,
+				Runtime: deployv1.RuntimeDocker,
+				Run: deployv1.RunSpec{
+					Image: "busybox",
+				},
+				Scheduling: &deployv1.Scheduling{
+					PreferredNodes: []string{"node-b"},
+				},
+			},
+		},
+	}
+
+	if err := svc.SubmitDeploy(ctx, app); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-dispatchCh:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for worker dispatch")
+	}
+
+	assignment := waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-b", workloadmeta.AssignmentStatusFailed)
+	if assignment.Error == "" {
+		t.Fatalf("expected assignment error, got %#v", assignment)
 	}
 }

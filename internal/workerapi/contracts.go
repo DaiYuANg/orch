@@ -18,6 +18,7 @@ type DeployWorkloadOutput struct {
 	Body struct {
 		Accepted bool   `json:"accepted"`
 		Node     string `json:"node"`
+		Status   string `json:"status"`
 		Workload string `json:"workload"`
 	} `json:"body"`
 }

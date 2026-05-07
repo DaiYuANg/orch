@@ -124,18 +124,22 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 			return oopsx.B("task").Wrapf(err, "placement workload %s", w.Name)
 		}
 		if chosen != self {
-			if err := s.dispatchWorkload(ctx, app.Metadata, *w, chosen); err != nil {
+			status, err := s.dispatchWorkload(ctx, app.Metadata, *w, chosen)
+			if err != nil {
 				s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 				s.metrics.IncDeployApp(ctx, "failed")
 				return err
 			}
-			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "dispatched")
+			if status == "" {
+				status = "dispatched"
+			}
+			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), status)
 			s.registry.Upsert(registry.WorkloadRecord{
 				Name:    w.Name,
 				Node:    chosen,
 				Runtime: string(w.Runtime),
 				Image:   w.Run.Image,
-				Status:  "dispatched",
+				Status:  status,
 			})
 			continue
 		}
@@ -152,15 +156,20 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 	return nil
 }
 
-func (s *Service) dispatchWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, nodeID string) error {
+func (s *Service) dispatchWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, nodeID string) (string, error) {
 	if s.dispatcher == nil {
-		return oopsx.B("task").Errorf("placement selected node %q for workload %q but worker dispatcher is unavailable", nodeID, workload.Name)
+		return "", oopsx.B("task").Errorf("placement selected node %q for workload %q but worker dispatcher is unavailable", nodeID, workload.Name)
 	}
-	if err := s.dispatcher.DispatchWorkload(ctx, nodeID, meta, workload); err != nil {
-		return oopsx.B("task").Wrapf(err, "dispatch workload %s to node %s", workload.Name, nodeID)
+	result, err := s.dispatcher.DispatchWorkload(ctx, nodeID, meta, workload)
+	if err != nil {
+		return "", oopsx.B("task").Wrapf(err, "dispatch workload %s to node %s", workload.Name, nodeID)
 	}
-	s.logger.Info("workload dispatched", "workload", workload.Name, "node", nodeID, "runtime", workload.Runtime)
-	return nil
+	status := strings.TrimSpace(result.Status)
+	if status == "" {
+		status = "dispatched"
+	}
+	s.logger.Info("workload dispatched", "workload", workload.Name, "node", nodeID, "runtime", workload.Runtime, "status", status)
+	return status, nil
 }
 
 func (s *Service) deployLocalWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, nodeID string) error {

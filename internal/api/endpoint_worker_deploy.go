@@ -45,6 +45,7 @@ func (e *WorkerDeployEndpoint) handle(ctx context.Context, in *workerapi.DeployW
 	out := &workerapi.DeployWorkloadOutput{}
 	out.Body.Accepted = true
 	out.Body.Node = in.Body.Node
+	out.Body.Status = "running"
 	out.Body.Workload = in.Body.Workload.Name
 	return out, nil
 }

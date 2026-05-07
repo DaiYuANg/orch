@@ -17,15 +17,15 @@ require (
 	github.com/arcgolabs/collectionx/set v0.7.0
 	github.com/arcgolabs/configx v0.3.2
 	github.com/arcgolabs/dix v0.8.0
-	github.com/arcgolabs/dnsx/dnsserver v0.1.2
+	github.com/arcgolabs/dnsx/dnsserver v0.1.3
 	github.com/arcgolabs/httpx v0.1.4
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.4
 	github.com/arcgolabs/logx v0.1.2
 	github.com/arcgolabs/observabilityx v0.4.0
 	github.com/arcgolabs/plano v0.7.1
 	github.com/arcgolabs/plano/lsp v0.0.0-20260507041422-0364f76c1fa6
-	github.com/arcgolabs/storx/badgerx v0.4.0
-	github.com/arcgolabs/storx/bboltx v0.4.0
+	github.com/arcgolabs/storx/badgerx v0.5.0
+	github.com/arcgolabs/storx/bboltx v0.5.0
 	github.com/arcgolabs/storx/codec v0.1.0
 	github.com/arcgolabs/storx/keycodec v0.2.0
 	github.com/arcgolabs/vela v0.0.0-20260507030921-8ec8a0760923
@@ -81,7 +81,7 @@ require (
 	github.com/arcgolabs/collectionx/graph v0.7.0 // indirect
 	github.com/arcgolabs/collectionx/interval v0.7.0 // indirect
 	github.com/arcgolabs/collectionx/prefix v0.7.0 // indirect
-	github.com/arcgolabs/dnsx/dnsclient v0.1.2 // indirect
+	github.com/arcgolabs/dnsx/dnsclient v0.1.3 // indirect
 	github.com/arcgolabs/httpx/adapter/echo v0.1.4 // indirect
 	github.com/arcgolabs/httpx/adapter/gin v0.1.4 // indirect
 	github.com/arcgolabs/httpx/adapter/std v0.1.4 // indirect

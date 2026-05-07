@@ -155,6 +155,7 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 		out := workerapi.DeployWorkloadOutput{}
 		out.Body.Accepted = true
 		out.Body.Node = in.Body.Node
+		out.Body.Status = "running"
 		out.Body.Workload = in.Body.Workload.Name
 		_ = json.NewEncoder(w).Encode(out)
 	}))
@@ -227,5 +228,17 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 	case got := <-fakeRuntime.ch:
 		t.Fatalf("local runtime should not deploy remote workload, got %q", got.Name)
 	default:
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		items := registrySvc.List()
+		if len(items) == 1 && items[0].Name == "worker" && items[0].Node == "node-b" && items[0].Status == "running" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("registry did not record remote running status, got %#v", items)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

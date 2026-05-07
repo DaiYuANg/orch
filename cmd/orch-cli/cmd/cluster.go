@@ -15,6 +15,7 @@ import (
 	"github.com/daiyuang/orch/internal/apiclient"
 	"github.com/daiyuang/orch/internal/deploy/loader"
 	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -93,6 +94,33 @@ func newWorkloadsCmd() *cobra.Command {
 					return enc.Encode(out.Body.Items)
 				}
 				return writeWorkloadsHuman(out.Body.Items)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON array")
+	return cmd
+}
+
+func newAssignmentsCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "assignments",
+		Short: "List scheduler workload assignments",
+		Long:  `Shows persisted scheduler decisions and deploy results from the current control plane context (--server).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.ListAssignments(ctx)
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "list assignments")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body.Items)
+				}
+				return writeAssignmentsHuman(out.Body.Items)
 			})
 		},
 	}
@@ -182,6 +210,27 @@ func writeWorkloadsHuman(items []registry.WorkloadRecord) error {
 		return oopsx.B("cli").Wrapf(err, "render workloads table")
 	}
 	return nil
+}
+
+func writeAssignmentsHuman(items []workloadmeta.Assignment) error {
+	rows := pterm.TableData{{"KEY", "NODE", "RUNTIME", "STATUS", "IMAGE", "ERROR"}}
+	for _, a := range items {
+		node := nonEmpty(a.Node)
+		image := nonEmpty(a.Image)
+		errMsg := nonEmpty(a.Error)
+		rows = append(rows, []string{a.Key, node, string(a.Runtime), a.Status, image, errMsg})
+	}
+	if err := pterm.DefaultTable.WithHasHeader().WithData(rows).Render(); err != nil {
+		return oopsx.B("cli").Wrapf(err, "render assignments table")
+	}
+	return nil
+}
+
+func nonEmpty(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
 
 func contextFromCmd(cmd *cobra.Command) context.Context {

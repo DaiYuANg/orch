@@ -92,6 +92,15 @@ func (c *Client) ListWorkloads(ctx context.Context) (*api.ListWorkloadsOutput, e
 	return &out, nil
 }
 
+// ListAssignments calls GET /api/v1/assignments.
+func (c *Client) ListAssignments(ctx context.Context) (*api.ListAssignmentsOutput, error) {
+	var out api.ListAssignmentsOutput
+	if err := c.get(ctx, api.PathV1Assignments, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Deploy calls POST /api/v1/deploy with a deploy DSL document.
 func (c *Client) Deploy(ctx context.Context, app *deployv1.App) (*api.DeployOutput, error) {
 	if app == nil {

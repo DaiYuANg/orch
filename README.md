@@ -70,6 +70,7 @@ cluster:
 ```
 
 The worker endpoint executes the assigned workload locally and does not mutate Raft desired state.
+The scheduler records workload assignment results in Raft; inspect them with `orch assignments --json` or `GET /api/v1/assignments`.
 
 ## Documentation (mdBook)
 

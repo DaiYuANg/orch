@@ -22,7 +22,7 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	Version:       buildmeta.Version(),
 	Long: `Validate and inspect deploy YAML locally (validate, parse), submit manifests to the cluster (apply),
-and talk to the running control plane (--server / ORCH_SERVER): health, workloads, hostinfo.
+and talk to the running control plane (--server / ORCH_SERVER): health, workloads, assignments, hostinfo.
 
 Use a single base URL per process; in clusters you can point at a load balancer or any peer node.`,
 }
@@ -50,5 +50,6 @@ func init() {
 	// Cluster inspection (requires reachable control plane).
 	rootCmd.AddCommand(newHealthCmd())
 	rootCmd.AddCommand(newWorkloadsCmd())
+	rootCmd.AddCommand(newAssignmentsCmd())
 	rootCmd.AddCommand(newHostinfoCmd())
 }

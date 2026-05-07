@@ -19,6 +19,13 @@ go test ./...
 go run ./cmd/orch-cli parse --file path/to/app.yaml --json
 ```
 
+## Inspect cluster state
+
+```bash
+go run ./cmd/orch-cli workloads
+go run ./cmd/orch-cli assignments
+```
+
 ## Run server
 
 ```bash

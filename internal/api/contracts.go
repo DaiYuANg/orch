@@ -4,6 +4,7 @@ import (
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/hostinfo"
 	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
 // EmptyInput is the request shape for handlers with no parameters or body.
@@ -26,6 +27,13 @@ type HostinfoOutput struct {
 type ListWorkloadsOutput struct {
 	Body struct {
 		Items []registry.WorkloadRecord `json:"items"`
+	} `json:"body"`
+}
+
+// ListAssignmentsOutput is the response body envelope for GET PathV1Assignments.
+type ListAssignmentsOutput struct {
+	Body struct {
+		Items []workloadmeta.Assignment `json:"items"`
 	} `json:"body"`
 }
 

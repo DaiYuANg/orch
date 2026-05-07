@@ -2,10 +2,10 @@ package registry
 
 import (
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/mapping"
 )
 
@@ -36,9 +36,13 @@ func (s *Service) Upsert(record WorkloadRecord) {
 	s.logger.Debug("registry upsert", "workload", record.Name, "status", record.Status)
 }
 
-func (s *Service) List() []WorkloadRecord {
-	out := s.items.Values()
-	slices.SortFunc(out, func(a, b WorkloadRecord) int {
+func (s *Service) List() *list.List[WorkloadRecord] {
+	out := list.NewListWithCapacity[WorkloadRecord](s.items.Len())
+	s.items.Range(func(_ string, record WorkloadRecord) bool {
+		out.Add(record)
+		return true
+	})
+	out.Sort(func(a, b WorkloadRecord) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 	return out

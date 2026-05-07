@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	hraft "github.com/hashicorp/raft"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -19,9 +20,9 @@ func (s *Service) DeployReconcileSignals() <-chan struct{} {
 }
 
 // ListDesiredDeployApps returns a snapshot of replicated desired App documents (latest per metadata key).
-func (s *Service) ListDesiredDeployApps() []deployv1.App {
+func (s *Service) ListDesiredDeployApps() *list.List[deployv1.App] {
 	if s == nil || s.fsm == nil {
-		return nil
+		return list.NewList[deployv1.App]()
 	}
 	return s.fsm.listDeployApps()
 }

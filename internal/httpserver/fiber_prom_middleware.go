@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
@@ -154,11 +155,14 @@ func (ps *fiberPromMetrics) registerAt(app fiber.Router, url string, handlers ..
 	app.Get(ps.defaultURL, h...)
 }
 
-func (ps *fiberPromMetrics) setSkipPaths(paths []string) {
+func (ps *fiberPromMetrics) setSkipPaths(paths *list.List[string]) {
 	if ps.skipPaths == nil {
 		ps.skipPaths = set.NewSet[string]()
 	}
-	ps.skipPaths.Add(paths...)
+	paths.Range(func(_ int, path string) bool {
+		ps.skipPaths.Add(path)
+		return true
+	})
 }
 
 func (ps *fiberPromMetrics) Middleware(ctx *fiber.Ctx) error {

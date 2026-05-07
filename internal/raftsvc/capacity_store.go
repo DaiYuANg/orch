@@ -3,10 +3,10 @@ package raftsvc
 import (
 	"context"
 	"encoding/json"
-	"sort"
 	"strings"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	hraft "github.com/hashicorp/raft"
 
 	"github.com/daiyuang/orch/internal/nodecapacity"
@@ -65,11 +65,11 @@ func (r *raftCapacityStore) Len() int {
 	return r.s.fsm.lenNodeCapacity()
 }
 
-func (r *raftCapacityStore) NodeIDs() []string {
+func (r *raftCapacityStore) NodeIDs() *list.List[string] {
 	if r == nil || r.s == nil || r.s.fsm == nil {
-		return nil
+		return list.NewList[string]()
 	}
 	ids := r.s.fsm.nodeCapacityIDs()
-	sort.Strings(ids)
+	ids.Sort(strings.Compare)
 	return ids
 }

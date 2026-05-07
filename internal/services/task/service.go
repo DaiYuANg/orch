@@ -72,12 +72,13 @@ func (s *Service) StartDeployReconcile(ctx context.Context) {
 }
 
 func (s *Service) reconcileAll(ctx context.Context) {
-	for _, app := range s.raft.ListDesiredDeployApps() {
-		app := app
-		if err := s.deployAppWorkloads(ctx, &app); err != nil {
-			s.logger.Warn("deploy reconcile", "error", err, "app", app.Metadata.Name)
+	s.raft.ListDesiredDeployApps().Range(func(_ int, app deployv1.App) bool {
+		current := app
+		if err := s.deployAppWorkloads(ctx, &current); err != nil {
+			s.logger.Warn("deploy reconcile", "error", err, "app", current.Metadata.Name)
 		}
-	}
+		return true
+	})
 }
 
 // SubmitDeploy validates the app and appends it to the replicated desired state (Raft when enabled).

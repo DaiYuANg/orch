@@ -30,10 +30,10 @@ func chooseV1Alpha1(ctx context.Context, w deployv1.Workload, catalog *nodecapac
 		if want.IsEmpty() {
 			return "", fmt.Errorf("placement: scheduling.preferredNodes has no valid names")
 		}
-		candidates = list.FilterList(list.NewList(candidates...), func(_ int, id string) bool {
+		candidates = list.FilterList(candidates, func(_ int, id string) bool {
 			return want.Contains(strings.TrimSpace(id))
-		}).Values()
-		if len(candidates) == 0 {
+		})
+		if candidates.Len() == 0 {
 			return "", fmt.Errorf("placement: no catalog nodes match scheduling.preferredNodes")
 		}
 	}
@@ -45,30 +45,31 @@ func chooseV1Alpha1(ctx context.Context, w deployv1.Workload, catalog *nodecapac
 	}
 
 	var best mo.Option[scoredNode]
-	for _, id := range candidates {
+	candidates.Range(func(_ int, id string) bool {
 		snap, ok := catalog.Get(id)
 		if !ok {
-			continue
+			return true
 		}
 		if !feasible(reqCPU, reqMem, snap) {
-			continue
+			return true
 		}
 		cur := scoredNode{id: id, snap: snap}
 		if best.IsAbsent() {
 			best = mo.Some(cur)
-			continue
+			return true
 		}
 		prev, _ := best.Get()
 		if better(cur.snap, prev.snap) {
 			best = mo.Some(cur)
-			continue
+			return true
 		}
 		if restrictPreferred && snapEqual(cur.snap, prev.snap) {
 			if preferredRank(want, cur.id) < preferredRank(want, prev.id) {
 				best = mo.Some(cur)
 			}
 		}
-	}
+		return true
+	})
 
 	v, ok := best.Get()
 	if !ok {
@@ -109,13 +110,17 @@ func preferredRank(want *set.OrderedSet[string], nodeID string) int {
 	if want == nil {
 		return 0
 	}
-	vals := want.Values()
-	for i, id := range vals {
+	found := want.Len() + 1
+	index := 0
+	want.Range(func(id string) bool {
 		if id == nodeID {
-			return i
+			found = index
+			return false
 		}
-	}
-	return len(vals) + 1
+		index++
+		return true
+	})
+	return found
 }
 
 func feasible(reqCPUmillis, reqMemBytes int64, s nodecapacity.Snapshot) bool {

@@ -2,10 +2,11 @@ package placement
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/arcgolabs/collectionx/list"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodecapacity"
@@ -34,12 +35,12 @@ func (t *testSnapshotStore) Len() int {
 	return len(t.m)
 }
 
-func (t *testSnapshotStore) NodeIDs() []string {
-	out := make([]string, 0, len(t.m))
+func (t *testSnapshotStore) NodeIDs() *list.List[string] {
+	out := list.NewListWithCapacity[string](len(t.m))
 	for k := range t.m {
-		out = append(out, k)
+		out.Add(k)
 	}
-	sort.Strings(out)
+	out.Sort(strings.Compare)
 	return out
 }
 

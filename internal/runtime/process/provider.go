@@ -64,8 +64,8 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		return err
 	}
 
-	cmd := exec.Command(exe, args...)
-	cmd.Env = append(os.Environ(), runconfig.Env(w.Run.Env)...)
+	cmd := exec.Command(exe, args.Values()...)
+	cmd.Env = append(os.Environ(), runconfig.Env(w.EnvList()).Values()...)
 	cmd.Dir = strings.TrimSpace(w.Run.Cwd)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

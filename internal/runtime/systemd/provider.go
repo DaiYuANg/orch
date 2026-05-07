@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
+
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
@@ -109,13 +111,10 @@ func renderUnit(meta deployv1.Metadata, w deployv1.Workload, unitName string) (s
 	if group := systemdGroup(w); group != "" {
 		fmt.Fprintf(&b, "Group=%s\n", group)
 	}
-	for _, env := range w.Run.Env {
-		name := strings.TrimSpace(env.Name)
-		if name == "" {
-			continue
-		}
-		fmt.Fprintf(&b, "Environment=%s\n", systemdQuote(name+"="+env.Value))
-	}
+	runconfig.Env(w.EnvList()).Range(func(_ int, env string) bool {
+		fmt.Fprintf(&b, "Environment=%s\n", systemdQuote(env))
+		return true
+	})
 	fmt.Fprintf(&b, "ExecStart=%s\n", systemdCommandLine(exe, args))
 	if restart := systemdRestart(w); restart != "" {
 		fmt.Fprintf(&b, "Restart=%s\n", restart)
@@ -176,13 +175,14 @@ func systemdWantedBy(w deployv1.Workload) string {
 	return defaultWantedBy
 }
 
-func systemdCommandLine(exe string, args []string) string {
-	parts := make([]string, 0, len(args)+1)
-	parts = append(parts, systemdQuote(exe))
-	for _, arg := range args {
-		parts = append(parts, systemdQuote(arg))
-	}
-	return strings.Join(parts, " ")
+func systemdCommandLine(exe string, args *list.List[string]) string {
+	parts := list.NewListWithCapacity[string](args.Len() + 1)
+	parts.Add(systemdQuote(exe))
+	args.Range(func(_ int, arg string) bool {
+		parts.Add(systemdQuote(arg))
+		return true
+	})
+	return parts.Join(" ")
 }
 
 func systemdQuote(s string) string {

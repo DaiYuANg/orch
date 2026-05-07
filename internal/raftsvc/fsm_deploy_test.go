@@ -28,7 +28,8 @@ func TestFSMApplyDeployApp(t *testing.T) {
 	}
 	f.applyCommandPayload(b)
 	apps := f.listDeployApps()
-	if len(apps) != 1 || apps[0].Metadata.Name != "demo" {
+	got, ok := apps.Get(0)
+	if apps.Len() != 1 || !ok || got.Metadata.Name != "demo" {
 		t.Fatalf("list = %#v", apps)
 	}
 }
@@ -61,7 +62,8 @@ func TestFSMDeploySnapshotRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	apps := f2.listDeployApps()
-	if len(apps) != 1 || apps[0].Metadata.Name != "demo" {
+	got, ok := apps.Get(0)
+	if apps.Len() != 1 || !ok || got.Metadata.Name != "demo" {
 		t.Fatalf("after restore = %#v", apps)
 	}
 }

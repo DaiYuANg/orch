@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/arcgolabs/collectionx/list"
 	hraft "github.com/hashicorp/raft"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -142,28 +143,28 @@ func deployAppMapKey(m deployv1.Metadata) string {
 	return strings.TrimSpace(m.Namespace) + "/" + strings.TrimSpace(m.Name)
 }
 
-func (f *schedulingFSM) listDeployApps() []deployv1.App {
+func (f *schedulingFSM) listDeployApps() *list.List[deployv1.App] {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(f.state.DeployApps) == 0 {
-		return nil
+		return list.NewList[deployv1.App]()
 	}
-	out := make([]deployv1.App, 0, len(f.state.DeployApps))
+	out := list.NewListWithCapacity[deployv1.App](len(f.state.DeployApps))
 	for _, app := range f.state.DeployApps {
-		out = append(out, app)
+		out.Add(app)
 	}
 	return out
 }
 
-func (f *schedulingFSM) listAssignments() []workloadmeta.Assignment {
+func (f *schedulingFSM) listAssignments() *list.List[workloadmeta.Assignment] {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if len(f.state.Assignments) == 0 {
-		return nil
+		return list.NewList[workloadmeta.Assignment]()
 	}
-	out := make([]workloadmeta.Assignment, 0, len(f.state.Assignments))
+	out := list.NewListWithCapacity[workloadmeta.Assignment](len(f.state.Assignments))
 	for _, a := range f.state.Assignments {
-		out = append(out, a)
+		out.Add(a)
 	}
 	return out
 }
@@ -225,15 +226,15 @@ func (f *schedulingFSM) lenNodeCapacity() int {
 	return len(f.state.NodeCapacity)
 }
 
-func (f *schedulingFSM) nodeCapacityIDs() []string {
+func (f *schedulingFSM) nodeCapacityIDs() *list.List[string] {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.state.NodeCapacity == nil {
-		return nil
+		return list.NewList[string]()
 	}
-	out := make([]string, 0, len(f.state.NodeCapacity))
+	out := list.NewListWithCapacity[string](len(f.state.NodeCapacity))
 	for id := range f.state.NodeCapacity {
-		out = append(out, id)
+		out.Add(id)
 	}
 	return out
 }

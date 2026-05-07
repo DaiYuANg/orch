@@ -47,7 +47,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		StartType:    startType,
 		ErrorControl: mgr.ErrorNormal,
 		Description:  "orch managed workload",
-	}, args...)
+	}, args.Values()...)
 	if err != nil {
 		return oopsx.B("runtime", "windows-service").Wrapf(err, "create service %s", serviceName)
 	}

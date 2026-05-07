@@ -63,11 +63,11 @@ func LogIngressReachablePaths(logger *slog.Logger, cfg Config) {
 		return
 	}
 
-	urls := IngressReachabilityURLs(cfg.Ingress)
-	if len(urls) == 0 {
+	urls := IngressReachabilityURLList(cfg.Ingress)
+	if urls.Len() == 0 {
 		return
 	}
-	logger.Info("lifecycle reachable paths", "component", "ingress", "urls", urls)
+	logger.Info("lifecycle reachable paths", "component", "ingress", "urls", urls.Values())
 }
 
 // LogDNSReachablePaths logs where the DNS server listens after it has started.
@@ -108,11 +108,11 @@ func LogSchedulerReachableContext(logger *slog.Logger, cfg Config) {
 		"note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used")
 }
 
-func ingressReachabilityURLs(cfg Config) []string {
+func ingressReachabilityURLList(cfg Config) *list.List[string] {
 	if !cfg.Ingress.Enabled {
-		return nil
+		return list.NewList[string]()
 	}
-	return IngressReachabilityURLs(cfg.Ingress)
+	return IngressReachabilityURLList(cfg.Ingress)
 }
 func prometheusMetricsAttr(apiBase string, cfg Config) (slog.Attr, bool) {
 	if !cfg.Observability.Prometheus.Enabled {
@@ -166,8 +166,8 @@ func LogReachableEndpoints(logger *slog.Logger, cfg Config) {
 		attrs.Add(attr)
 	}
 
-	if ingressURLs := ingressReachabilityURLs(cfg); len(ingressURLs) > 0 {
-		attrs.Add(slog.Any("ingress", ingressURLs))
+	if ingressURLs := ingressReachabilityURLList(cfg); ingressURLs.Len() > 0 {
+		attrs.Add(slog.Any("ingress", ingressURLs.Values()))
 	}
 
 	appendReachabilityDNS(attrs, cfg)

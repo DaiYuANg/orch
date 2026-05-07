@@ -2,7 +2,6 @@ package hostinfo
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"time"
 
@@ -126,6 +125,10 @@ func collectDiskSection(ctx context.Context, out *Report) {
 }
 
 func buildDiskEntries(ctx context.Context, parts []disk.PartitionStat) []DiskEntry {
+	return buildDiskEntryList(ctx, parts).Values()
+}
+
+func buildDiskEntryList(ctx context.Context, parts []disk.PartitionStat) *list.List[DiskEntry] {
 	seen := set.NewSet[string]()
 	disks := list.NewListWithCapacity[DiskEntry](maxDiskPartitions)
 	for _, p := range parts {
@@ -151,11 +154,10 @@ func buildDiskEntries(ctx context.Context, parts []disk.PartitionStat) []DiskEnt
 			UsedPercent: usage.UsedPercent,
 		})
 	}
-	out := disks.Values()
-	slices.SortFunc(out, func(a, b DiskEntry) int {
+	disks.Sort(func(a, b DiskEntry) int {
 		return strings.Compare(a.Mountpoint, b.Mountpoint)
 	})
-	return out
+	return disks
 }
 
 // Collect gathers host statistics. CPU usage uses a short blocking sample (~cpuSampleWait).

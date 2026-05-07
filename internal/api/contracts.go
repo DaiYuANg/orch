@@ -3,6 +3,8 @@ package api
 import (
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
+
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/hostinfo"
 )
@@ -36,7 +38,7 @@ type WorkloadItem struct {
 // ListWorkloadsOutput is the response body envelope for GET PathV1Workloads.
 type ListWorkloadsOutput struct {
 	Body struct {
-		Items []WorkloadItem `json:"items"`
+		Items *list.List[WorkloadItem] `json:"items"`
 	} `json:"body"`
 }
 
@@ -56,7 +58,7 @@ type AssignmentItem struct {
 // ListAssignmentsOutput is the response body envelope for GET PathV1Assignments.
 type ListAssignmentsOutput struct {
 	Body struct {
-		Items []AssignmentItem `json:"items"`
+		Items *list.List[AssignmentItem] `json:"items"`
 	} `json:"body"`
 }
 
@@ -86,12 +88,12 @@ type DeployOutput struct {
 // OrchVPNBootstrapOutput is the response body for GET PathV1OrchVPNBootstrap.
 type OrchVPNBootstrapOutput struct {
 	Body struct {
-		Enabled         bool     `json:"enabled"`
-		APIVersion      string   `json:"api_version"`
-		Encap           string   `json:"encap"`
-		MTU             int      `json:"mtu"`
-		TunnelUDPPort   int      `json:"tunnel_udp_port"`
-		DNSZone         string   `json:"dns_zone"`
-		ContainerRoutes []string `json:"container_routes,omitempty"`
+		Enabled         bool               `json:"enabled"`
+		APIVersion      string             `json:"api_version"`
+		Encap           string             `json:"encap"`
+		MTU             int                `json:"mtu"`
+		TunnelUDPPort   int                `json:"tunnel_udp_port"`
+		DNSZone         string             `json:"dns_zone"`
+		ContainerRoutes *list.List[string] `json:"container_routes,omitempty"`
 	} `json:"body"`
 }

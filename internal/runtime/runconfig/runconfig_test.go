@@ -2,21 +2,23 @@ package runconfig
 
 import (
 	"math"
-	"reflect"
+	"slices"
 	"testing"
+
+	"github.com/arcgolabs/collectionx/list"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
 func TestEnv(t *testing.T) {
-	got := Env([]deployv1.EnvVar{
-		{Name: " PORT ", Value: "8080"},
-		{Name: "", Value: "skip"},
-		{Name: "EMPTY"},
-	})
+	got := Env(list.NewList(
+		deployv1.EnvVar{Name: " PORT ", Value: "8080"},
+		deployv1.EnvVar{Name: "", Value: "skip"},
+		deployv1.EnvVar{Name: "EMPTY"},
+	))
 	want := []string{"PORT=8080", "EMPTY="}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("Env() = %#v, want %#v", got, want)
+	if !slices.Equal(got.Values(), want) {
+		t.Fatalf("Env() = %#v, want %#v", got.Values(), want)
 	}
 }
 
@@ -28,8 +30,8 @@ func TestCommandArgs(t *testing.T) {
 		},
 	})
 	want := []string{"/bin/server", "--port", "8080"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("CommandArgs() = %#v, want %#v", got, want)
+	if !slices.Equal(got.Values(), want) {
+		t.Fatalf("CommandArgs() = %#v, want %#v", got.Values(), want)
 	}
 }
 
@@ -40,16 +42,16 @@ func TestProcessCommand(t *testing.T) {
 			Args:    []string{"--port", "8080"},
 		},
 	})
-	if !ok || exe != "/bin/server" || !reflect.DeepEqual(args, []string{"serve", "--port", "8080"}) {
-		t.Fatalf("ProcessCommand() = %q %#v %v", exe, args, ok)
+	if !ok || exe != "/bin/server" || !slices.Equal(args.Values(), []string{"serve", "--port", "8080"}) {
+		t.Fatalf("ProcessCommand() = %q %#v %v", exe, args.Values(), ok)
 	}
 
 	exe, args, ok = ProcessCommand(deployv1.RunSpec{
 		Artifact: deployv1.ArtifactSpec{Path: "/opt/app/api"},
 		Exec:     deployv1.ExecSpec{Args: []string{"--port", "8080"}},
 	})
-	if !ok || exe != "/opt/app/api" || !reflect.DeepEqual(args, []string{"--port", "8080"}) {
-		t.Fatalf("ProcessCommand(path) = %q %#v %v", exe, args, ok)
+	if !ok || exe != "/opt/app/api" || !slices.Equal(args.Values(), []string{"--port", "8080"}) {
+		t.Fatalf("ProcessCommand(path) = %q %#v %v", exe, args.Values(), ok)
 	}
 }
 

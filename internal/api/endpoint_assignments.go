@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/httpx"
-	"github.com/arcgolabs/mapper"
 
 	"github.com/daiyuang/orch/internal/services/task"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
 // AssignmentsEndpoint serves GET /api/v1/assignments.
@@ -34,12 +34,21 @@ func (e *AssignmentsEndpoint) Register(r httpx.Registrar) {
 
 func (e *AssignmentsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListAssignmentsOutput, error) {
 	out := &ListAssignmentsOutput{}
+	out.Body.Items = list.NewList[AssignmentItem]()
 	if e != nil && e.tasks != nil {
-		items, err := mapper.MapSlice[AssignmentItem](e.tasks.ListWorkloadAssignments())
-		if err != nil {
-			return nil, oopsx.B("api").Wrapf(err, "map workload assignments")
-		}
-		out.Body.Items = items
+		out.Body.Items = list.MapList(e.tasks.ListWorkloadAssignments(), func(_ int, assignment workloadmeta.Assignment) AssignmentItem {
+			return AssignmentItem{
+				Key:       assignment.Key,
+				Metadata:  assignment.Metadata,
+				Workload:  assignment.Workload,
+				Node:      assignment.Node,
+				Runtime:   assignment.Runtime,
+				Artifact:  assignment.Artifact,
+				Status:    assignment.Status,
+				Error:     assignment.Error,
+				UpdatedAt: assignment.UpdatedAt,
+			}
+		})
 	}
 	return out, nil
 }

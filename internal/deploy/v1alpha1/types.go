@@ -1,6 +1,7 @@
 // Package v1alpha1 defines the canonical orch deploy document for YAML/JSON.
-// Fields use plain slices and maps for standard encoding; code that constructs or analyzes
-// apps may use collectionx accessors from collections.go internally.
+// Fields remain plain slices and maps at the YAML manifest boundary. collectionx
+// containers provide JSON/Binary/Gob serialization and are used through
+// collections.go and JSON-only views where that does not weaken YAML decoding.
 package v1alpha1
 
 // App is the YAML-friendly canonical deploy model for the first Go rewrite

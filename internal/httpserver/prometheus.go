@@ -36,7 +36,7 @@ func attachFiberPrometheus(app *fiber.App, cfg config.Config, obs *observability
 	}
 
 	fp := newFiberPromMetrics(reg, serviceName, "http", "fiber", nil, cfg.Observability.Prometheus.NativeHistogram)
-	fp.setSkipPaths(list.NewList(path).Values())
+	fp.setSkipPaths(list.NewList(path))
 	fp.registerAt(app, path)
 	app.Use(fp.Middleware)
 }

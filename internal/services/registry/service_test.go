@@ -13,10 +13,13 @@ func TestService_List_sortedByName(t *testing.T) {
 	s.Upsert(WorkloadRecord{Name: "mule", Runtime: "docker", Artifact: "m", Status: "up"})
 
 	got := s.List()
-	if len(got) != 3 {
-		t.Fatalf("len=%d want 3", len(got))
+	if got.Len() != 3 {
+		t.Fatalf("len=%d want 3", got.Len())
 	}
-	if got[0].Name != "alpha" || got[1].Name != "mule" || got[2].Name != "zebra" {
-		t.Fatalf("order=%v want alpha,mule,zebra", []string{got[0].Name, got[1].Name, got[2].Name})
+	first, _ := got.Get(0)
+	second, _ := got.Get(1)
+	third, _ := got.Get(2)
+	if first.Name != "alpha" || second.Name != "mule" || third.Name != "zebra" {
+		t.Fatalf("order=%v want alpha,mule,zebra", []string{first.Name, second.Name, third.Name})
 	}
 }

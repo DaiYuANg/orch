@@ -26,10 +26,13 @@ func TestWorkloadsEndpointHandleMapsPublicItems(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Body.Items) != 1 {
+	if out.Body.Items.Len() != 1 {
 		t.Fatalf("items = %#v", out.Body.Items)
 	}
-	got := out.Body.Items[0]
+	got, ok := out.Body.Items.Get(0)
+	if !ok {
+		t.Fatal("missing workload item")
+	}
 	if got.Name != "web" || got.Node != "node-a" || got.Runtime != "docker" || got.Artifact != "nginx:alpine" || got.Status != "running" {
 		t.Fatalf("workload item = %#v", got)
 	}

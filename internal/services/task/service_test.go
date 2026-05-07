@@ -141,7 +141,7 @@ func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 	deadline := time.Now().Add(deployReconcileTimeout)
 	for {
 		items := registrySvc.List()
-		if len(items) == 1 && items[0].Name == "web" && items[0].Node == "node-a" && items[0].Status == "running" {
+		if got, ok := items.Get(0); items.Len() == 1 && ok && got.Name == "web" && got.Node == "node-a" && got.Status == "running" {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -313,7 +313,7 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		items := registrySvc.List()
-		if len(items) == 1 && items[0].Name == "worker" && items[0].Node == "node-b" && items[0].Status == "running" {
+		if got, ok := items.Get(0); items.Len() == 1 && ok && got.Name == "worker" && got.Node == "node-b" && got.Status == "running" {
 			break
 		}
 		if time.Now().After(deadline) {

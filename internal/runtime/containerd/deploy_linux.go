@@ -101,11 +101,11 @@ func specOptsForWorkload(img containerd.Image, w deployv1.Workload) []oci.SpecOp
 	} else {
 		opts = append(opts, oci.WithImageConfig(img))
 	}
-	if args := runconfig.CommandArgs(w.Run); len(args) > 0 {
-		opts = append(opts, oci.WithProcessArgs(args...))
+	if args := runconfig.CommandArgs(w.Run); args.Len() > 0 {
+		opts = append(opts, oci.WithProcessArgs(args.Values()...))
 	}
-	if env := runconfig.Env(w.Run.Env); len(env) > 0 {
-		opts = append(opts, oci.WithEnv(env))
+	if env := runconfig.Env(w.EnvList()); env.Len() > 0 {
+		opts = append(opts, oci.WithEnv(env.Values()))
 	}
 	if cwd := strings.TrimSpace(w.Run.Cwd); cwd != "" {
 		opts = append(opts, oci.WithProcessCwd(cwd))

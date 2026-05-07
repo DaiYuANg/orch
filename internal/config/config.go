@@ -119,19 +119,29 @@ func (r *IngressRoute) LBPolicy() string {
 // ListenAddrs returns configured plain bind addresses: explicit Listen, else single Addr, else defaults ":80" and ":443".
 // When TLS is enabled, use PlainListenAddrs() for HTTP-only binds and TLSListenAddrs() for HTTPS.
 func (c IngressConfig) ListenAddrs() []string {
+	return c.ListenAddrList().Values()
+}
+
+// ListenAddrList returns configured plain bind addresses as a collectionx list.
+func (c IngressConfig) ListenAddrList() *list.List[string] {
 	if len(c.Listen) > 0 {
-		return c.Listen
+		return list.NewList(c.Listen...)
 	}
 	if strings.TrimSpace(c.Addr) != "" {
-		return list.NewList(c.Addr).Values()
+		return list.NewList(c.Addr)
 	}
-	return list.NewList(":80", ":443").Values()
+	return list.NewList(":80", ":443")
 }
 
 // TLSListenAddrs returns TLS bind addresses when ingress.tls.enabled; default [":443"] if tls.listen is empty.
 func (c IngressConfig) TLSListenAddrs() []string {
+	return c.TLSListenAddrList().Values()
+}
+
+// TLSListenAddrList returns TLS bind addresses when ingress.tls.enabled as a collectionx list.
+func (c IngressConfig) TLSListenAddrList() *list.List[string] {
 	if !c.TLS.Enabled {
-		return nil
+		return list.NewList[string]()
 	}
 	if len(c.TLS.Listen) > 0 {
 		out := list.FilterMapList(list.NewList(c.TLS.Listen...), func(_ int, a string) (string, bool) {
@@ -140,27 +150,34 @@ func (c IngressConfig) TLSListenAddrs() []string {
 				return "", false
 			}
 			return a, true
-		}).Values()
-		if len(out) > 0 {
+		})
+		if out.Len() > 0 {
 			return out
 		}
 	}
-	return []string{":443"}
+	return list.NewList(":443")
 }
 
 // PlainListenAddrs returns addresses for plaintext HTTP. When autocert is enabled, addresses also listed in
 // TLSListenAddrs() (exact string match after trim) are skipped.
 func (c IngressConfig) PlainListenAddrs() []string {
-	plain := c.ListenAddrs()
+	return c.PlainListenAddrList().Values()
+}
+
+// PlainListenAddrList returns addresses for plaintext HTTP as a collectionx list.
+func (c IngressConfig) PlainListenAddrList() *list.List[string] {
+	plain := c.ListenAddrList()
 	if !c.TLS.Enabled {
 		return plain
 	}
-	tlsAddrs := list.FilterMapList(list.NewList(c.TLSListenAddrs()...), func(_ int, a string) (string, bool) {
-		a = strings.TrimSpace(a)
-		return a, a != ""
-	}).Values()
-	skip := set.NewSet(tlsAddrs...)
-	return list.FilterMapList(list.NewList(plain...), func(_ int, a string) (string, bool) {
+	skip := set.NewSet[string]()
+	c.TLSListenAddrList().Range(func(_ int, a string) bool {
+		if a = strings.TrimSpace(a); a != "" {
+			skip.Add(a)
+		}
+		return true
+	})
+	return list.FilterMapList(plain, func(_ int, a string) (string, bool) {
 		a = strings.TrimSpace(a)
 		if a == "" {
 			return "", false
@@ -169,18 +186,23 @@ func (c IngressConfig) PlainListenAddrs() []string {
 			return "", false
 		}
 		return a, true
-	}).Values()
+	})
 }
 
 // TLSAutocertDomains returns non-empty trimmed host names from ingress.tls.domains.
 func (c IngressConfig) TLSAutocertDomains() []string {
+	return c.TLSAutocertDomainList().Values()
+}
+
+// TLSAutocertDomainList returns non-empty trimmed host names from ingress.tls.domains as a collectionx list.
+func (c IngressConfig) TLSAutocertDomainList() *list.List[string] {
 	return list.FilterMapList(list.NewList(c.TLS.Domains...), func(_ int, d string) (string, bool) {
 		d = strings.TrimSpace(d)
 		if d == "" {
 			return "", false
 		}
 		return d, true
-	}).Values()
+	})
 }
 
 // OrchVPNConfig enables the orch-vpn tunnel listener and bootstrap metadata (see GET /api/v1/orch-vpn/bootstrap).
@@ -339,7 +361,7 @@ func Default() Config {
 		Observability: obs,
 		Ingress: IngressConfig{
 			Enabled: true,
-			Listen:  list.NewList(":80", ":443").Values(),
+			Listen:  []string{":80", ":443"},
 		},
 		DNS: dns,
 		OrchVPN: OrchVPNConfig{

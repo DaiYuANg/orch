@@ -4,6 +4,8 @@ import (
 	"math"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
+
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
@@ -13,46 +15,47 @@ const (
 )
 
 // Env returns Docker/OCI-style environment entries.
-func Env(vars []deployv1.EnvVar) []string {
-	out := make([]string, 0, len(vars))
-	for _, v := range vars {
+func Env(vars *list.List[deployv1.EnvVar]) *list.List[string] {
+	out := list.NewListWithCapacity[string](vars.Len())
+	vars.Range(func(_ int, v deployv1.EnvVar) bool {
 		name := strings.TrimSpace(v.Name)
 		if name == "" {
-			continue
+			return true
 		}
-		out = append(out, name+"="+v.Value)
-	}
+		out.Add(name + "=" + v.Value)
+		return true
+	})
 	return out
 }
 
 // CommandArgs returns an explicit OCI process argv when run.exec.command is set.
-func CommandArgs(run deployv1.RunSpec) []string {
+func CommandArgs(run deployv1.RunSpec) *list.List[string] {
 	if len(run.Exec.Command) == 0 {
-		return nil
+		return list.NewList[string]()
 	}
-	out := make([]string, 0, len(run.Exec.Command)+len(run.Exec.Args))
-	out = append(out, run.Exec.Command...)
-	out = append(out, run.Exec.Args...)
+	out := list.NewListWithCapacity[string](len(run.Exec.Command) + len(run.Exec.Args))
+	out.Add(run.Exec.Command...)
+	out.Add(run.Exec.Args...)
 	return out
 }
 
 // ProcessCommand returns the executable path and argv for local process-style runtimes.
-func ProcessCommand(run deployv1.RunSpec) (string, []string, bool) {
+func ProcessCommand(run deployv1.RunSpec) (string, *list.List[string], bool) {
 	if len(run.Exec.Command) > 0 {
 		exe := strings.TrimSpace(run.Exec.Command[0])
 		if exe == "" {
-			return "", nil, false
+			return "", list.NewList[string](), false
 		}
-		args := make([]string, 0, len(run.Exec.Command)-1+len(run.Exec.Args))
-		args = append(args, run.Exec.Command[1:]...)
-		args = append(args, run.Exec.Args...)
+		args := list.NewListWithCapacity[string](len(run.Exec.Command) - 1 + len(run.Exec.Args))
+		args.Add(run.Exec.Command[1:]...)
+		args.Add(run.Exec.Args...)
 		return exe, args, true
 	}
 	exe := strings.TrimSpace(run.Artifact.Path)
 	if exe == "" {
-		return "", nil, false
+		return "", list.NewList[string](), false
 	}
-	return exe, append([]string(nil), run.Exec.Args...), true
+	return exe, list.NewList(run.Exec.Args...), true
 }
 
 // ArtifactSummary returns a compact human-facing identifier for a workload artifact.

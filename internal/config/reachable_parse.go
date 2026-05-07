@@ -10,18 +10,24 @@ import (
 
 // IngressReachabilityURLs builds http(s) URLs for logging: plain listeners, TLS bind addresses, and https://<domain>/ for each ingress.tls.domains entry when autocert is enabled.
 func IngressReachabilityURLs(ing IngressConfig) []string {
+	return IngressReachabilityURLList(ing).Values()
+}
+
+// IngressReachabilityURLList builds http(s) URLs for logging as a collectionx list.
+func IngressReachabilityURLList(ing IngressConfig) *list.List[string] {
 	if !ing.Enabled {
-		return nil
+		return list.NewList[string]()
 	}
-	var urls []string
-	urls = append(urls, IngressURLsFromAddrs(ing.PlainListenAddrs())...)
+	urls := list.NewList[string]()
+	urls.Merge(IngressURLListFromAddrList(ing.PlainListenAddrList()))
 	if ing.TLS.Enabled {
-		for _, d := range ing.TLSAutocertDomains() {
-			urls = append(urls, "https://"+strings.TrimSuffix(d, "/")+"/")
-		}
-		urls = append(urls, IngressURLsFromAddrs(ing.TLSListenAddrs())...)
+		ing.TLSAutocertDomainList().Range(func(_ int, d string) bool {
+			urls.Add("https://" + strings.TrimSuffix(d, "/") + "/")
+			return true
+		})
+		urls.Merge(IngressURLListFromAddrList(ing.TLSListenAddrList()))
 	}
-	return set.NewOrderedSet(urls...).Values()
+	return uniqueStringList(urls)
 }
 
 // NormalizePrometheusPath returns a stable path attribute for prometheus.path.
@@ -39,10 +45,15 @@ func NormalizePrometheusPath(path string) string {
 
 // IngressURLsFromAddrs builds URLs for ingress reachability logging (same rules as ingressReachabilityURLs).
 func IngressURLsFromAddrs(addrs []string) []string {
-	if len(addrs) == 0 {
-		return nil
+	return IngressURLListFromAddrList(list.NewList(addrs...)).Values()
+}
+
+// IngressURLListFromAddrList builds URLs for ingress reachability logging from a collectionx address list.
+func IngressURLListFromAddrList(addrs *list.List[string]) *list.List[string] {
+	if addrs.Len() == 0 {
+		return list.NewList[string]()
 	}
-	urls := list.FilterMapList(list.NewList(addrs...), func(_ int, a string) (string, bool) {
+	urls := list.FilterMapList(addrs, func(_ int, a string) (string, bool) {
 		d := FixLoopbackHost(strings.TrimSpace(a))
 		if d == "" {
 			return "", false
@@ -56,6 +67,20 @@ func IngressURLsFromAddrs(addrs []string) []string {
 			scheme = "https"
 		}
 		return scheme + "://" + d + "/", true
-	}).Values()
-	return set.NewOrderedSet(urls...).Values()
+	})
+	return uniqueStringList(urls)
+}
+
+func uniqueStringList(values *list.List[string]) *list.List[string] {
+	seen := set.NewOrderedSetWithCapacity[string](values.Len())
+	values.Range(func(_ int, value string) bool {
+		seen.Add(value)
+		return true
+	})
+	out := list.NewListWithCapacity[string](seen.Len())
+	seen.Range(func(value string) bool {
+		out.Add(value)
+		return true
+	})
+	return out
 }

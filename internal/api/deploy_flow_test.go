@@ -249,10 +249,18 @@ func waitHTTPAssignment(t *testing.T, ctx context.Context, client *apiclient.Cli
 	for {
 		out, err := client.ListAssignments(ctx)
 		if err == nil {
-			for _, item := range out.Body.Items {
+			var found api.AssignmentItem
+			ok := false
+			out.Body.Items.Range(func(_ int, item api.AssignmentItem) bool {
 				if item.Key == key && item.Node == node && item.Status == status {
-					return item
+					found = item
+					ok = true
+					return false
 				}
+				return true
+			})
+			if ok {
+				return found
 			}
 		}
 		if time.Now().After(deadline) {
@@ -268,10 +276,18 @@ func waitHTTPWorkload(t *testing.T, ctx context.Context, client *apiclient.Clien
 	for {
 		out, err := client.ListWorkloads(ctx)
 		if err == nil {
-			for _, item := range out.Body.Items {
+			var found api.WorkloadItem
+			ok := false
+			out.Body.Items.Range(func(_ int, item api.WorkloadItem) bool {
 				if item.Name == name {
-					return item
+					found = item
+					ok = true
+					return false
 				}
+				return true
+			})
+			if ok {
+				return found
 			}
 		}
 		if time.Now().After(deadline) {

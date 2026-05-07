@@ -52,9 +52,10 @@ func (e *OrchVPNBootstrapEndpoint) handle(_ context.Context, _ *EmptyInput) (*Or
 	}
 	out.Body.DNSZone = z
 	if e.dns != nil {
-		out.Body.ContainerRoutes = e.dns.ListWorkloadIPv4HostRoutes()
-	} else {
-		out.Body.ContainerRoutes = nil
+		routes := e.dns.WorkloadIPv4HostRouteList()
+		if routes.Len() > 0 {
+			out.Body.ContainerRoutes = routes
+		}
 	}
 	return out, nil
 }

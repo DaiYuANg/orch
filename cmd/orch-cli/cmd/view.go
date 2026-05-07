@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	lgtable "github.com/charmbracelet/lipgloss/table"
 
+	"github.com/arcgolabs/collectionx/list"
+
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -31,37 +33,37 @@ var (
 )
 
 func writeInfoLine(label string, fields ...string) error {
-	parts := []string{viewInfoStyle.Render(strings.ToUpper(strings.TrimSpace(label)))}
-	parts = append(parts, fields...)
-	return writeLine(strings.Join(parts, " "))
+	parts := list.NewList(viewInfoStyle.Render(strings.ToUpper(strings.TrimSpace(label))))
+	parts.Add(fields...)
+	return writeLine(parts.Join(" "))
 }
 
 func viewField(key, value string) string {
 	return viewMutedStyle.Render(strings.TrimSpace(key)+"=") + strings.TrimSpace(value)
 }
 
-func writeTable(headers []string, rows [][]string) error {
-	if len(rows) == 0 {
+func writeTable(headers *list.List[string], rows *list.Grid[string]) error {
+	if rows.RowCount() == 0 {
 		return writeLine(viewMutedStyle.Render("No resources found."))
 	}
 	t := lgtable.New().
 		Border(lipgloss.NormalBorder()).
 		BorderStyle(viewBorderStyle).
 		BorderRow(false).
-		Headers(headers...).
-		Rows(rows...).
+		Headers(headers.Values()...).
+		Rows(rows.Values()...).
 		StyleFunc(tableStyle)
 	return writeLine(t.Render())
 }
 
-func writeKVTable(rows [][]string) error {
+func writeKVTable(rows *list.Grid[string]) error {
 	t := lgtable.New().
 		Border(lipgloss.NormalBorder()).
 		BorderStyle(viewBorderStyle).
 		BorderColumn(true).
 		BorderRow(false).
 		Headers("PROPERTY", "VALUE").
-		Rows(rows...).
+		Rows(rows.Values()...).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == lgtable.HeaderRow {
 				return viewHeaderStyle
@@ -113,9 +115,10 @@ func formatBytes(v uint64) string {
 		div *= unit
 		exp++
 	}
-	units := []string{"KiB", "MiB", "GiB", "TiB", "PiB", "EiB"}
+	units := list.NewList("KiB", "MiB", "GiB", "TiB", "PiB", "EiB")
 	value := float64(v) / float64(div)
-	return strconv.FormatFloat(value, 'f', 1, 64) + " " + units[exp]
+	unitLabel, _ := units.Get(exp)
+	return strconv.FormatFloat(value, 'f', 1, 64) + " " + unitLabel
 }
 
 func writeLine(s string) error {

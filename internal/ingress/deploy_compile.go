@@ -3,7 +3,6 @@ package ingress
 import (
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
@@ -41,11 +40,10 @@ func CompileIngressRoutesFromDeploy(apps *list.List[deployv1.App], dns workloadI
 		byKey.Set(k, app)
 		return true
 	})
-	keyValues := keys.Values()
-	sort.Strings(keyValues)
+	keys.Sort(strings.Compare)
 
 	out := list.NewList[config.IngressRoute]()
-	for _, k := range keyValues {
+	keys.Range(func(_ int, k string) bool {
 		app, _ := byKey.Get(k)
 		ns := strings.TrimSpace(app.Metadata.Namespace)
 		workloads := app.WorkloadList()
@@ -97,7 +95,8 @@ func CompileIngressRoutesFromDeploy(apps *list.List[deployv1.App], dns workloadI
 			})
 			return true
 		})
-	}
+		return true
+	})
 	return out
 }
 

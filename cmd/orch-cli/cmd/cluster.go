@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -249,20 +250,28 @@ func runListAssignments(ctx context.Context, jsonOut bool) error {
 }
 
 type applyWatchOutput struct {
-	Accepted    bool                 `json:"accepted"`
-	App         string               `json:"app"`
-	Workloads   int                  `json:"workloads"`
-	Assignments []api.AssignmentItem `json:"assignments"`
-	Registry    []api.WorkloadItem   `json:"registry"`
+	Accepted    bool                           `json:"accepted"`
+	App         string                         `json:"app"`
+	Workloads   int                            `json:"workloads"`
+	Assignments *list.List[api.AssignmentItem] `json:"assignments"`
+	Registry    *list.List[api.WorkloadItem]   `json:"registry"`
 }
 
 type deploySnapshot struct {
-	Assignments        []api.AssignmentItem
-	Workloads          []api.WorkloadItem
+	Assignments        *list.List[api.AssignmentItem]
+	Workloads          *list.List[api.WorkloadItem]
 	Total              int
 	RunningAssignments int
 	RunningWorkloads   int
 	FailedAssignment   *api.AssignmentItem
+}
+
+func newDeploySnapshot(total int) *deploySnapshot {
+	return &deploySnapshot{
+		Assignments: list.NewList[api.AssignmentItem](),
+		Workloads:   list.NewList[api.WorkloadItem](),
+		Total:       total,
+	}
 }
 
 func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App, timeout time.Duration, progress bool) (*deploySnapshot, error) {
@@ -271,7 +280,7 @@ func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App
 	}
 	expectedKeys, expectedNames := expectedDeployWorkloads(app)
 	if expectedKeys.Len() == 0 {
-		return &deploySnapshot{}, nil
+		return newDeploySnapshot(0), nil
 	}
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -345,12 +354,12 @@ func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, 
 		return nil, oopsx.B("cli").Wrapf(err, "list workloads")
 	}
 
-	snapshot := &deploySnapshot{Total: expectedKeys.Len()}
-	for _, assignment := range assignments.Body.Items {
+	snapshot := newDeploySnapshot(expectedKeys.Len())
+	assignments.Body.Items.Range(func(_ int, assignment api.AssignmentItem) bool {
 		if !expectedKeys.Contains(assignment.Key) {
-			continue
+			return true
 		}
-		snapshot.Assignments = append(snapshot.Assignments, assignment)
+		snapshot.Assignments.Add(assignment)
 		if assignment.Status == workloadmeta.AssignmentStatusRunning {
 			snapshot.RunningAssignments++
 		}
@@ -358,16 +367,18 @@ func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, 
 			failed := assignment
 			snapshot.FailedAssignment = &failed
 		}
-	}
-	for _, workload := range workloads.Body.Items {
+		return true
+	})
+	workloads.Body.Items.Range(func(_ int, workload api.WorkloadItem) bool {
 		if !expectedNames.Contains(workload.Name) {
-			continue
+			return true
 		}
-		snapshot.Workloads = append(snapshot.Workloads, workload)
+		snapshot.Workloads.Add(workload)
 		if workload.Status == "running" {
 			snapshot.RunningWorkloads++
 		}
-	}
+		return true
+	})
 	return snapshot, nil
 }
 
@@ -437,48 +448,50 @@ func writeHostinfoHuman(out *api.HostinfoOutput) error {
 	h := body.Host
 	cpu := body.CPU
 	mem := body.Memory
-	rows := [][]string{
-		{"hostname", h.Hostname},
-		{"os", h.OS},
-		{"platform", h.Platform},
-		{"kernel", h.KernelVersion},
-		{"arch", h.KernelArch},
-		{"cpu_cores", strconv.Itoa(cpu.LogicalCores)},
-		{"cpu_model", cpu.ModelName},
-		{"cpu_usage", formatPercent(cpu.UsagePercent)},
-		{"memory_total", formatBytes(mem.TotalBytes)},
-		{"memory_used", formatPercent(mem.UsedPercent)},
-	}
+	rows := list.NewGrid[string](
+		[]string{"hostname", h.Hostname},
+		[]string{"os", h.OS},
+		[]string{"platform", h.Platform},
+		[]string{"kernel", h.KernelVersion},
+		[]string{"arch", h.KernelArch},
+		[]string{"cpu_cores", strconv.Itoa(cpu.LogicalCores)},
+		[]string{"cpu_model", cpu.ModelName},
+		[]string{"cpu_usage", formatPercent(cpu.UsagePercent)},
+		[]string{"memory_total", formatBytes(mem.TotalBytes)},
+		[]string{"memory_used", formatPercent(mem.UsedPercent)},
+	)
 	if body.Load != nil {
 		l := body.Load
-		rows = append(rows, []string{"load_1", strconv.FormatFloat(l.Load1, 'f', 2, 64)})
-		rows = append(rows, []string{"load_5", strconv.FormatFloat(l.Load5, 'f', 2, 64)})
-		rows = append(rows, []string{"load_15", strconv.FormatFloat(l.Load15, 'f', 2, 64)})
+		rows.AddRow("load_1", strconv.FormatFloat(l.Load1, 'f', 2, 64))
+		rows.AddRow("load_5", strconv.FormatFloat(l.Load5, 'f', 2, 64))
+		rows.AddRow("load_15", strconv.FormatFloat(l.Load15, 'f', 2, 64))
 	}
 	return writeKVTable(rows)
 }
 
-func writeWorkloadsHuman(items []api.WorkloadItem) error {
-	rows := make([][]string, 0, len(items))
-	for _, w := range items {
+func writeWorkloadsHuman(items *list.List[api.WorkloadItem]) error {
+	rows := list.NewGridWithCapacity[string](items.Len())
+	items.Range(func(_ int, w api.WorkloadItem) bool {
 		node := w.Node
 		if node == "" {
 			node = "-"
 		}
-		rows = append(rows, []string{w.Name, node, w.Runtime, statusBadge(w.Status), w.Artifact})
-	}
-	return writeTable([]string{"NAME", "NODE", "RUNTIME", "STATUS", "ARTIFACT"}, rows)
+		rows.AddRow(w.Name, node, w.Runtime, statusBadge(w.Status), w.Artifact)
+		return true
+	})
+	return writeTable(list.NewList("NAME", "NODE", "RUNTIME", "STATUS", "ARTIFACT"), rows)
 }
 
-func writeAssignmentsHuman(items []api.AssignmentItem) error {
-	rows := make([][]string, 0, len(items))
-	for _, a := range items {
+func writeAssignmentsHuman(items *list.List[api.AssignmentItem]) error {
+	rows := list.NewGridWithCapacity[string](items.Len())
+	items.Range(func(_ int, a api.AssignmentItem) bool {
 		node := nonEmpty(a.Node)
 		artifact := nonEmpty(a.Artifact)
 		errMsg := nonEmpty(a.Error)
-		rows = append(rows, []string{a.Key, node, string(a.Runtime), statusBadge(a.Status), artifact, errMsg})
-	}
-	return writeTable([]string{"KEY", "NODE", "RUNTIME", "STATUS", "ARTIFACT", "ERROR"}, rows)
+		rows.AddRow(a.Key, node, string(a.Runtime), statusBadge(a.Status), artifact, errMsg)
+		return true
+	})
+	return writeTable(list.NewList("KEY", "NODE", "RUNTIME", "STATUS", "ARTIFACT", "ERROR"), rows)
 }
 
 func nonEmpty(s string) string {

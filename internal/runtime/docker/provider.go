@@ -66,7 +66,7 @@ func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Clie
 		Image:      ref,
 		Entrypoint: w.Run.Exec.Command,
 		Cmd:        w.Run.Exec.Args,
-		Env:        runconfig.Env(w.Run.Env),
+		Env:        runconfig.Env(w.EnvList()).Values(),
 		WorkingDir: strings.TrimSpace(w.Run.Cwd),
 		Labels:     containerLabels(meta, w),
 	}

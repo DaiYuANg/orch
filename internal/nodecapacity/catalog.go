@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
+
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/hostinfo"
 	"github.com/daiyuang/orch/internal/nodeid"
@@ -39,9 +41,9 @@ func (c *Catalog) Len() int {
 }
 
 // NodeIDs returns sorted node ids for deterministic iteration.
-func (c *Catalog) NodeIDs() []string {
+func (c *Catalog) NodeIDs() *list.List[string] {
 	if c == nil || c.store == nil {
-		return nil
+		return list.NewList[string]()
 	}
 	return c.store.NodeIDs()
 }

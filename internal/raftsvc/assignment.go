@@ -2,10 +2,10 @@ package raftsvc
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"time"
 
+	"github.com/arcgolabs/collectionx/list"
 	hraft "github.com/hashicorp/raft"
 
 	"github.com/daiyuang/orch/internal/workloadmeta"
@@ -62,12 +62,12 @@ func (s *Service) ApplyWorkloadAssignment(assignment workloadmeta.Assignment) er
 }
 
 // ListWorkloadAssignments returns a stable snapshot of scheduler assignment records.
-func (s *Service) ListWorkloadAssignments() []workloadmeta.Assignment {
+func (s *Service) ListWorkloadAssignments() *list.List[workloadmeta.Assignment] {
 	if s == nil || s.fsm == nil {
-		return nil
+		return list.NewList[workloadmeta.Assignment]()
 	}
 	out := s.fsm.listAssignments()
-	slices.SortFunc(out, func(a, b workloadmeta.Assignment) int {
+	out.Sort(func(a, b workloadmeta.Assignment) int {
 		return strings.Compare(a.Key, b.Key)
 	})
 	return out

@@ -177,6 +177,6 @@ func (d *WorkstationDaemon) logBootstrap(boot *api.OrchVPNBootstrapOutput) {
 		"tunnel_udp_port", boot.Body.TunnelUDPPort,
 		"tunnel_udp_peer", peer,
 		"dns_zone", boot.Body.DNSZone,
-		"container_routes", len(boot.Body.ContainerRoutes),
+		"container_routes", boot.Body.ContainerRoutes.Len(),
 	)
 }

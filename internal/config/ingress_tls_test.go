@@ -3,8 +3,6 @@ package config
 import (
 	"slices"
 	"testing"
-
-	"github.com/arcgolabs/collectionx/list"
 )
 
 func TestIngressPlainAndTLSListenAddrs(t *testing.T) {
@@ -12,7 +10,7 @@ func TestIngressPlainAndTLSListenAddrs(t *testing.T) {
 
 	c := IngressConfig{
 		Enabled: true,
-		Listen:  list.NewList(":80", ":443").Values(),
+		Listen:  []string{":80", ":443"},
 		TLS: IngressTLSAuto{
 			Enabled: true,
 			Domains: []string{"example.com"},

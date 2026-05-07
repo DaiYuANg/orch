@@ -301,6 +301,66 @@ func TestOrchProcessShortForm(t *testing.T) {
 	}
 }
 
+func TestOrchFirecrackerOptions(t *testing.T) {
+	c, err := NewCompiler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orch, err := NewOrch(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := `app {
+  name = "vm-demo"
+
+  service vm {
+    runtime = "firecracker"
+
+    firecracker {
+      kernel_image_path = "/var/lib/orch/vmlinux"
+      rootfs_path = "/var/lib/orch/rootfs.ext4"
+      boot_args = "console=ttyS0 root=/dev/vda rw"
+      binary_path = "/usr/local/bin/firecracker"
+      socket_path = "/run/orch/firecracker-vm.sock"
+      rootfs_read_only = true
+      network_interface_id = "eth0"
+      tap_device_name = "tap-orch0"
+      guest_mac = "AA:FC:00:00:00:01"
+      allow_mmds_requests = true
+      vcpu_count = 2
+      mem_size_mib = 256
+    }
+  }
+}`
+	app, err := orch.LoadAppString(context.Background(), "firecracker.orch", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := workloadByName(t, app, "vm")
+	if w.Runtime != v1.RuntimeFirecracker {
+		t.Fatalf("runtime = %q", w.Runtime)
+	}
+	fc := w.Run.Options.Firecracker
+	if fc == nil {
+		t.Fatal("firecracker options are nil")
+	}
+	if fc.KernelImagePath != "/var/lib/orch/vmlinux" || fc.RootfsPath != "/var/lib/orch/rootfs.ext4" {
+		t.Fatalf("paths = %+v", fc)
+	}
+	if fc.BootArgs != "console=ttyS0 root=/dev/vda rw" || fc.BinaryPath != "/usr/local/bin/firecracker" || fc.SocketPath != "/run/orch/firecracker-vm.sock" {
+		t.Fatalf("advanced options = %+v", fc)
+	}
+	if fc.NetworkInterfaceID != "eth0" || fc.TapDeviceName != "tap-orch0" || fc.GuestMAC != "AA:FC:00:00:00:01" || !fc.AllowMMDSRequests {
+		t.Fatalf("network options = %+v", fc)
+	}
+	if !fc.RootfsReadOnly || fc.VCPUCount != 2 || fc.MemSizeMiB != 256 {
+		t.Fatalf("machine options = %+v", fc)
+	}
+	if err := app.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func workloadByName(t *testing.T, app *v1.App, name string) v1.Workload {
 	t.Helper()
 	for _, w := range app.Workloads {

@@ -52,6 +52,40 @@ func TestValidateFirecrackerRequiresRuntimeOptions(t *testing.T) {
 	if err := app.Validate(); err != nil {
 		t.Fatalf("Validate() with firecracker options = %v", err)
 	}
+
+	app.Workloads[0].Run.Options.Firecracker.MemSizeMiB = -1
+	err = app.Validate()
+	if err == nil || !strings.Contains(err.Error(), `run.runtimeOptions.firecracker.memSizeMiB must be >= 0`) {
+		t.Fatalf("Validate() error = %v, want firecracker mem error", err)
+	}
+}
+
+func TestValidateFirecrackerNetwork(t *testing.T) {
+	app := validApp()
+	app.Workloads[0].Runtime = RuntimeFirecracker
+	app.Workloads[0].Run.Artifact = ArtifactSpec{}
+	app.Workloads[0].Run.Options.Firecracker = &FirecrackerOptions{
+		KernelImagePath:    "/var/lib/orch/vmlinux",
+		RootfsPath:         "/var/lib/orch/rootfs.ext4",
+		NetworkInterfaceID: "eth0",
+	}
+
+	err := app.Validate()
+	if err == nil || !strings.Contains(err.Error(), `tapDeviceName is required`) {
+		t.Fatalf("Validate() error = %v, want tap device error", err)
+	}
+
+	app.Workloads[0].Run.Options.Firecracker.TapDeviceName = "tap-orch0"
+	app.Workloads[0].Run.Options.Firecracker.GuestMAC = "not-a-mac"
+	err = app.Validate()
+	if err == nil || !strings.Contains(err.Error(), `guestMAC is invalid`) {
+		t.Fatalf("Validate() error = %v, want mac error", err)
+	}
+
+	app.Workloads[0].Run.Options.Firecracker.GuestMAC = "AA:FC:00:00:00:01"
+	if err := app.Validate(); err != nil {
+		t.Fatalf("Validate() with firecracker network = %v", err)
+	}
 }
 
 func TestValidateRejectsEmptyEnvName(t *testing.T) {

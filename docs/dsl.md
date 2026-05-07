@@ -214,11 +214,13 @@ This keeps the main DSL stable even when individual runtime adapters evolve.
 Current provider coverage:
 
 - `docker`, `containerd`, and `process` are deployable runtime providers.
+- `firecracker` starts Linux microVMs by launching the local `firecracker`
+  binary and configuring its API socket with kernel/rootfs/machine settings.
+  Optional TAP networking is supported when the host tap/bridge already exists.
 - `systemd` deploys Linux system units from `run.exec` / `run.artifact.path`.
 - `windows-service` registers Windows services from `run.exec` / `run.artifact.path`;
   the target executable must currently be service-aware.
-- `firecracker` has a reserved spec branch but is not wired as a deployable
-  provider yet.
+- Firecracker jailer support and automatic tap/bridge management are not wired yet.
 
 ## Syntax Style
 

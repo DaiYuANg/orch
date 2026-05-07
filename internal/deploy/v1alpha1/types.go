@@ -114,10 +114,18 @@ type ContainerdOptions struct {
 }
 
 type FirecrackerOptions struct {
-	KernelImagePath string `json:"kernelImagePath,omitempty" yaml:"kernelImagePath,omitempty"`
-	RootfsPath      string `json:"rootfsPath,omitempty"      yaml:"rootfsPath,omitempty"`
-	VCPUCount       int    `json:"vcpuCount,omitempty"       yaml:"vcpuCount,omitempty"`
-	MemSizeMiB      int    `json:"memSizeMiB,omitempty"      yaml:"memSizeMiB,omitempty"`
+	KernelImagePath    string `json:"kernelImagePath,omitempty"    yaml:"kernelImagePath,omitempty"`
+	RootfsPath         string `json:"rootfsPath,omitempty"         yaml:"rootfsPath,omitempty"`
+	BootArgs           string `json:"bootArgs,omitempty"           yaml:"bootArgs,omitempty"`
+	BinaryPath         string `json:"binaryPath,omitempty"         yaml:"binaryPath,omitempty"`
+	SocketPath         string `json:"socketPath,omitempty"         yaml:"socketPath,omitempty"`
+	RootfsReadOnly     bool   `json:"rootfsReadOnly,omitempty"     yaml:"rootfsReadOnly,omitempty"`
+	NetworkInterfaceID string `json:"networkInterfaceID,omitempty" yaml:"networkInterfaceID,omitempty"`
+	TapDeviceName      string `json:"tapDeviceName,omitempty"      yaml:"tapDeviceName,omitempty"`
+	GuestMAC           string `json:"guestMAC,omitempty"           yaml:"guestMAC,omitempty"`
+	AllowMMDSRequests  bool   `json:"allowMMDSRequests,omitempty"  yaml:"allowMMDSRequests,omitempty"`
+	VCPUCount          int    `json:"vcpuCount,omitempty"          yaml:"vcpuCount,omitempty"`
+	MemSizeMiB         int    `json:"memSizeMiB,omitempty"         yaml:"memSizeMiB,omitempty"`
 }
 
 type ProcessOptions struct {

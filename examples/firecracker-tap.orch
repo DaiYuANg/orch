@@ -1,0 +1,35 @@
+// Firecracker provider example using a pre-created TAP device.
+//
+// Linux host prerequisites:
+// - KVM access for the orch-server process.
+// - A firecracker binary in PATH, or set binary_path below.
+// - A bootable Linux kernel image and rootfs image.
+// - A TAP device already attached to the desired bridge or host network path.
+//
+// Example host-side setup is intentionally not automated here because it is
+// environment-specific and usually requires root privileges.
+
+app {
+  name = "microvm"
+  namespace = "demo"
+
+  service vm {
+    runtime = "firecracker"
+
+    firecracker {
+      kernel_image_path = "/var/lib/orch/firecracker/vmlinux"
+      rootfs_path = "/var/lib/orch/firecracker/rootfs.ext4"
+      boot_args = "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw"
+      binary_path = "firecracker"
+      socket_path = "/run/orch/firecracker/microvm.sock"
+      rootfs_read_only = false
+
+      network_interface_id = "eth0"
+      tap_device_name = "tap-orch0"
+      guest_mac = "AA:FC:00:00:00:01"
+
+      vcpu_count = 1
+      mem_size_mib = 128
+    }
+  }
+}

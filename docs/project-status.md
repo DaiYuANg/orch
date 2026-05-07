@@ -4,8 +4,9 @@ Snapshot date: May 7, 2026
 
 Implemented:
 
-- Runtime abstraction with providers for `docker`, `containerd`, local
-  `process`, Linux `systemd`, and Windows `windows-service`.
+- Runtime abstraction with providers for `docker`, `containerd`, Linux
+  `firecracker`, local `process`, Linux `systemd`, and Windows
+  `windows-service`.
 - Runtime-neutral deploy spec: `run.artifact` for images/paths/URLs,
   `run.exec` for command/args, and typed `runtimeOptions` for `docker`,
   `containerd`, `firecracker`, `process`, `systemd`, and `windows-service`.
@@ -36,6 +37,7 @@ In progress:
 - Runtime parity hardening (especially deeper containerd semantics).
 - Provider parity hardening for `systemd` and `windows-service` (status,
   recovery, and service wrapper ergonomics).
-- Firecracker provider implementation on top of the reserved spec branch.
+- Firecracker provider parity hardening (automatic TAP/bridge management,
+  jailer integration, recovery, and image/rootfs preparation workflow).
 - Stateful placement/migration policy refinement.
 - More production-grade failure handling and recovery behavior.

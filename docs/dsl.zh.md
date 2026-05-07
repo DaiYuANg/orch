@@ -206,10 +206,13 @@ runtime_options.windowsService
 当前 provider 覆盖：
 
 - `docker`、`containerd`、`process` 已经是可 deploy 的 runtime provider。
+- `firecracker` 会启动本机 `firecracker` 二进制，并通过 API socket 配置
+  kernel/rootfs/machine settings 来运行 Linux microVM；当宿主机已经准备好
+  tap/bridge 时，也可以配置 TAP 网络。
 - `systemd` 会基于 `run.exec` / `run.artifact.path` 生成并启动 Linux system unit。
 - `windows-service` 会基于 `run.exec` / `run.artifact.path` 注册 Windows Service；
   目前目标可执行文件需要自身支持 Windows Service 模式。
-- `firecracker` 目前保留 spec 分支，但尚未接入可 deploy 的 provider。
+- Firecracker 的 jailer 和自动创建 tap/bridge 还没有接入。
 
 ## 语法风格
 

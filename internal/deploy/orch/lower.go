@@ -457,13 +457,37 @@ func lowerFirecrackerOptions(f *compiler.HIRForm) *v1.FirecrackerOptions {
 	if rootfs, ok := stringField(f, "rootfs_path"); ok {
 		fc.RootfsPath = strings.TrimSpace(rootfs)
 	}
+	if bootArgs, ok := stringField(f, "boot_args"); ok {
+		fc.BootArgs = strings.TrimSpace(bootArgs)
+	}
+	if binaryPath, ok := stringField(f, "binary_path"); ok {
+		fc.BinaryPath = strings.TrimSpace(binaryPath)
+	}
+	if socketPath, ok := stringField(f, "socket_path"); ok {
+		fc.SocketPath = strings.TrimSpace(socketPath)
+	}
+	if rootfsReadOnly, ok := boolField(f, "rootfs_read_only"); ok {
+		fc.RootfsReadOnly = rootfsReadOnly
+	}
+	if ifaceID, ok := stringField(f, "network_interface_id"); ok {
+		fc.NetworkInterfaceID = strings.TrimSpace(ifaceID)
+	}
+	if tapDevice, ok := stringField(f, "tap_device_name"); ok {
+		fc.TapDeviceName = strings.TrimSpace(tapDevice)
+	}
+	if guestMAC, ok := stringField(f, "guest_mac"); ok {
+		fc.GuestMAC = strings.TrimSpace(guestMAC)
+	}
+	if allowMMDS, ok := boolField(f, "allow_mmds_requests"); ok {
+		fc.AllowMMDSRequests = allowMMDS
+	}
 	if vcpu, ok := intField(f, "vcpu_count"); ok {
 		fc.VCPUCount = vcpu
 	}
 	if mem, ok := intField(f, "mem_size_mib"); ok {
 		fc.MemSizeMiB = mem
 	}
-	if fc.KernelImagePath == "" && fc.RootfsPath == "" && fc.VCPUCount == 0 && fc.MemSizeMiB == 0 {
+	if fc.KernelImagePath == "" && fc.RootfsPath == "" && fc.BootArgs == "" && fc.BinaryPath == "" && fc.SocketPath == "" && !fc.RootfsReadOnly && fc.NetworkInterfaceID == "" && fc.TapDeviceName == "" && fc.GuestMAC == "" && !fc.AllowMMDSRequests && fc.VCPUCount == 0 && fc.MemSizeMiB == 0 {
 		return nil
 	}
 	return &fc

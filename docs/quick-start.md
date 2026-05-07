@@ -5,6 +5,7 @@
 - Go 1.22+
 - Docker (for docker runtime)
 - containerd (optional, Linux-only containerd runtime)
+- Firecracker binary, KVM, kernel image, rootfs image, and optional pre-created tap/bridge for firecracker runtime
 - Local executables on the host (for process runtime)
 - systemd on Linux or Windows Service Control Manager on Windows for native OS-service runtimes
 
@@ -52,6 +53,9 @@ checks the workload status with the CLI, and cleans up by default. See
 For a fuller short `.orch` DSL example with frontend, backend, Postgres, Redis, and
 ingress routing, see `examples/fullstack-docker.orch` and
 `docs/fullstack-docker.md`.
+
+For a Firecracker microVM example with a pre-created TAP device, see
+`examples/firecracker-tap.orch`.
 
 ## Run server
 

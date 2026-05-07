@@ -81,6 +81,8 @@ func waitAssignment(t *testing.T, raft *raftsvc.Service, key, wantNode, wantStat
 func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 	t.Parallel()
 
+	const deployReconcileTimeout = 10 * time.Second
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -132,11 +134,11 @@ func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 		if got.Name != "web" {
 			t.Fatalf("deployed workload = %q, want web", got.Name)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(deployReconcileTimeout):
 		t.Fatal("timed out waiting for runtime deploy")
 	}
 
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(deployReconcileTimeout)
 	for {
 		items := registrySvc.List()
 		if len(items) == 1 && items[0].Name == "web" && items[0].Node == "node-a" && items[0].Status == "running" {

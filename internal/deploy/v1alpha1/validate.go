@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"net"
 	"regexp"
 	"strings"
 
@@ -183,9 +184,40 @@ func (w *Workload) validateRunForRuntime() error {
 		if strings.TrimSpace(w.Run.Options.Firecracker.RootfsPath) == "" {
 			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.rootfsPath is required")
 		}
+		if err := validateFirecrackerNetwork(w.Run.Options.Firecracker); err != nil {
+			return err
+		}
+		if w.Run.Options.Firecracker.VCPUCount < 0 {
+			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.vcpuCount must be >= 0")
+		}
+		if w.Run.Options.Firecracker.MemSizeMiB < 0 {
+			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.memSizeMiB must be >= 0")
+		}
 	case RuntimeProcess, RuntimeSystemd, RuntimeWindowsService:
 		if len(w.Run.Exec.Command) == 0 && strings.TrimSpace(w.Run.Artifact.Path) == "" {
 			return oopsx.B("deploy").Errorf("run.exec.command or run.artifact.path is required for runtime %q", w.Runtime)
+		}
+	}
+	return nil
+}
+
+func validateFirecrackerNetwork(opts *FirecrackerOptions) error {
+	if opts == nil {
+		return nil
+	}
+	hasNetworkFields := strings.TrimSpace(opts.NetworkInterfaceID) != "" ||
+		strings.TrimSpace(opts.TapDeviceName) != "" ||
+		strings.TrimSpace(opts.GuestMAC) != "" ||
+		opts.AllowMMDSRequests
+	if !hasNetworkFields {
+		return nil
+	}
+	if strings.TrimSpace(opts.TapDeviceName) == "" {
+		return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.tapDeviceName is required when firecracker network is configured")
+	}
+	if mac := strings.TrimSpace(opts.GuestMAC); mac != "" {
+		if _, err := net.ParseMAC(mac); err != nil {
+			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.guestMAC is invalid: %q", mac)
 		}
 	}
 	return nil

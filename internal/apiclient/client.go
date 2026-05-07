@@ -68,7 +68,7 @@ func (c *Client) Close() error {
 // Health calls GET /api/health.
 func (c *Client) Health(ctx context.Context) (*api.HealthOutput, error) {
 	var out api.HealthOutput
-	if err := c.get(ctx, api.PathHealth, &out); err != nil {
+	if err := c.get(ctx, api.PathHealth, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -77,7 +77,7 @@ func (c *Client) Health(ctx context.Context) (*api.HealthOutput, error) {
 // Hostinfo calls GET /api/v1/hostinfo.
 func (c *Client) Hostinfo(ctx context.Context) (*api.HostinfoOutput, error) {
 	var out api.HostinfoOutput
-	if err := c.get(ctx, api.PathV1Hostinfo, &out); err != nil {
+	if err := c.get(ctx, api.PathV1Hostinfo, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -86,7 +86,7 @@ func (c *Client) Hostinfo(ctx context.Context) (*api.HostinfoOutput, error) {
 // ListWorkloads calls GET /api/v1/workloads.
 func (c *Client) ListWorkloads(ctx context.Context) (*api.ListWorkloadsOutput, error) {
 	var out api.ListWorkloadsOutput
-	if err := c.get(ctx, api.PathV1Workloads, &out); err != nil {
+	if err := c.get(ctx, api.PathV1Workloads, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -95,7 +95,7 @@ func (c *Client) ListWorkloads(ctx context.Context) (*api.ListWorkloadsOutput, e
 // ListAssignments calls GET /api/v1/assignments.
 func (c *Client) ListAssignments(ctx context.Context) (*api.ListAssignmentsOutput, error) {
 	var out api.ListAssignmentsOutput
-	if err := c.get(ctx, api.PathV1Assignments, &out); err != nil {
+	if err := c.get(ctx, api.PathV1Assignments, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -108,7 +108,7 @@ func (c *Client) Deploy(ctx context.Context, app *deployv1.App) (*api.DeployOutp
 	}
 	in := api.DeployInput{Body: *app}
 	var out api.DeployOutput
-	if err := c.post(ctx, api.PathV1Deploy, &in, &out); err != nil {
+	if err := c.post(ctx, api.PathV1Deploy, &in.Body, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -123,7 +123,7 @@ func (c *Client) DeploySource(ctx context.Context, virtualPath, source string) (
 	in.Body.VirtualPath = virtualPath
 	in.Body.Source = source
 	var out api.DeployOutput
-	if err := c.post(ctx, api.PathV1DeploySource, &in, &out); err != nil {
+	if err := c.post(ctx, api.PathV1DeploySource, &in.Body, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -132,7 +132,7 @@ func (c *Client) DeploySource(ctx context.Context, virtualPath, source string) (
 // OrchVPNBootstrap calls GET /api/v1/orch-vpn/bootstrap.
 func (c *Client) OrchVPNBootstrap(ctx context.Context) (*api.OrchVPNBootstrapOutput, error) {
 	var out api.OrchVPNBootstrapOutput
-	if err := c.get(ctx, api.PathV1OrchVPNBootstrap, &out); err != nil {
+	if err := c.get(ctx, api.PathV1OrchVPNBootstrap, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil

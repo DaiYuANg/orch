@@ -164,22 +164,22 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dispatchCh := make(chan workerapi.DeployWorkloadInput, 1)
+	dispatchCh := make(chan workerapi.DeployWorkloadBody, 1)
 	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != workerapi.PathV1WorkerDeploy {
 			t.Fatalf("worker path = %q, want %q", r.URL.Path, workerapi.PathV1WorkerDeploy)
 		}
-		var in workerapi.DeployWorkloadInput
+		var in workerapi.DeployWorkloadBody
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 			t.Fatalf("decode worker request: %v", err)
 		}
 		dispatchCh <- in
 		out := workerapi.DeployWorkloadOutput{}
 		out.Body.Accepted = true
-		out.Body.Node = in.Body.Node
+		out.Body.Node = in.Node
 		out.Body.Status = "running"
-		out.Body.Workload = in.Body.Workload.Name
-		_ = json.NewEncoder(w).Encode(out)
+		out.Body.Workload = in.Workload.Name
+		_ = json.NewEncoder(w).Encode(out.Body)
 	}))
 	t.Cleanup(worker.Close)
 
@@ -236,11 +236,11 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 
 	select {
 	case got := <-dispatchCh:
-		if got.Body.Node != "node-b" {
-			t.Fatalf("dispatch node = %q, want node-b", got.Body.Node)
+		if got.Node != "node-b" {
+			t.Fatalf("dispatch node = %q, want node-b", got.Node)
 		}
-		if got.Body.Workload.Name != "worker" {
-			t.Fatalf("dispatch workload = %q, want worker", got.Body.Workload.Name)
+		if got.Workload.Name != "worker" {
+			t.Fatalf("dispatch workload = %q, want worker", got.Workload.Name)
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for worker dispatch")

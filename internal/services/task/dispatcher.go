@@ -66,7 +66,7 @@ func (d *HTTPWorkerDispatcher) DispatchWorkload(ctx context.Context, nodeID stri
 			Node:     nodeID,
 		},
 	}
-	raw, err := clientcodec.JSON.Marshal(in)
+	raw, err := clientcodec.JSON.Marshal(in.Body)
 	if err != nil {
 		return DispatchResult{}, oopsx.B("task", "worker").Wrapf(err, "encode worker deploy")
 	}
@@ -82,7 +82,7 @@ func (d *HTTPWorkerDispatcher) DispatchWorkload(ctx context.Context, nodeID stri
 		return DispatchResult{}, oopsx.B("task", "worker").Errorf("dispatch workload %q to node %q: %s: %s", workload.Name, nodeID, resp.Status(), msg)
 	}
 	var out workerapi.DeployWorkloadOutput
-	if err := clientcodec.JSON.Unmarshal(resp.Bytes(), &out); err != nil {
+	if err := clientcodec.JSON.Unmarshal(resp.Bytes(), &out.Body); err != nil {
 		return DispatchResult{}, oopsx.B("task", "worker").Wrapf(err, "decode worker deploy response")
 	}
 	status := strings.TrimSpace(out.Body.Status)

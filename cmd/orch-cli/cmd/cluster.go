@@ -3,9 +3,11 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -14,6 +16,7 @@ import (
 	"github.com/daiyuang/orch/internal/api"
 	"github.com/daiyuang/orch/internal/apiclient"
 	"github.com/daiyuang/orch/internal/deploy/loader"
+	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
@@ -75,26 +78,20 @@ func newHostinfoCmd() *cobra.Command {
 }
 
 func newWorkloadsCmd() *cobra.Command {
+	return newWorkloadsListCmd("workloads", []string{"workload", "ps"})
+}
+
+func newWorkloadsListCmd(use string, aliases []string) *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
-		Use:   "workloads",
-		Short: "List workloads registered on the server",
-		Long:  `Shows workloads this control plane node knows about for the current cluster context (--server).`,
+		Use:     use,
+		Aliases: aliases,
+		Short:   "List workloads registered on the server",
+		Long:    `Shows workloads this control plane node knows about for the current cluster context (--server).`,
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
-			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
-				out, err := c.ListWorkloads(ctx)
-				if err != nil {
-					return oopsx.B("cli").Wrapf(err, "list workloads")
-				}
-				if jsonOut {
-					enc := json.NewEncoder(os.Stdout)
-					enc.SetIndent("", "  ")
-					return enc.Encode(out.Body.Items)
-				}
-				return writeWorkloadsHuman(out.Body.Items)
-			})
+			return runListWorkloads(ctx, jsonOut)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON array")
@@ -102,35 +99,43 @@ func newWorkloadsCmd() *cobra.Command {
 }
 
 func newAssignmentsCmd() *cobra.Command {
+	return newAssignmentsListCmd("assignments", []string{"assignment"})
+}
+
+func newAssignmentsListCmd(use string, aliases []string) *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
-		Use:   "assignments",
-		Short: "List scheduler workload assignments",
-		Long:  `Shows persisted scheduler decisions and deploy results from the current control plane context (--server).`,
+		Use:     use,
+		Aliases: aliases,
+		Short:   "List scheduler workload assignments",
+		Long:    `Shows persisted scheduler decisions and deploy results from the current control plane context (--server).`,
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
-			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
-				out, err := c.ListAssignments(ctx)
-				if err != nil {
-					return oopsx.B("cli").Wrapf(err, "list assignments")
-				}
-				if jsonOut {
-					enc := json.NewEncoder(os.Stdout)
-					enc.SetIndent("", "  ")
-					return enc.Encode(out.Body.Items)
-				}
-				return writeAssignmentsHuman(out.Body.Items)
-			})
+			return runListAssignments(ctx, jsonOut)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON array")
 	return cmd
 }
 
+func newGetCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get",
+		Short: "Display cluster resources",
+		Long:  `Display cluster resources from the current control plane context (--server), similar to kubectl get.`,
+		Args:  cobra.NoArgs,
+	}
+	cmd.AddCommand(newWorkloadsListCmd("workloads", []string{"workload", "wl", "ps"}))
+	cmd.AddCommand(newAssignmentsListCmd("assignments", []string{"assignment", "assign"}))
+	return cmd
+}
+
 func newApplyCmd() *cobra.Command {
 	var file string
 	var jsonOut bool
+	var watch bool
+	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Deploy a manifest to the cluster from a .orch or YAML file",
@@ -147,24 +152,268 @@ Requires a reachable control plane (--server / ORCH_SERVER); clustered Raft depl
 				return oopsx.B("cli").Wrapf(err, "read manifest file")
 			}
 			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, deploy *loader.Loader) error {
+				var app *deployv1.App
+				if watch {
+					var loadErr error
+					app, loadErr = deploy.LoadAppString(ctx, filepath.Base(file), string(src))
+					if loadErr != nil {
+						return oopsx.B("cli").Wrapf(loadErr, "parse manifest for watch")
+					}
+				}
 				out, err := c.DeploySource(ctx, filepath.Base(file), string(src))
 				if err != nil {
 					return oopsx.B("cli").Wrapf(err, "deploy")
 				}
-				if jsonOut {
+				if jsonOut && !watch {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					return enc.Encode(out)
 				}
-				pterm.Success.Printfln("accepted app=%s workloads=%d", out.Body.App, out.Body.Workloads)
+				if !jsonOut {
+					pterm.Success.Printfln("accepted app=%s workloads=%d", out.Body.App, out.Body.Workloads)
+				}
+				if !watch {
+					return nil
+				}
+				snapshot, err := watchDeployment(ctx, c, app, timeout, !jsonOut)
+				if err != nil {
+					return err
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(applyWatchOutput{
+						Accepted:    out.Body.Accepted,
+						App:         out.Body.App,
+						Workloads:   out.Body.Workloads,
+						Assignments: snapshot.Assignments,
+						Registry:    snapshot.Workloads,
+					})
+				}
+				if err := writeAssignmentsHuman(snapshot.Assignments); err != nil {
+					return err
+				}
+				if err := writeWorkloadsHuman(snapshot.Workloads); err != nil {
+					return err
+				}
 				return nil
 			})
 		},
 	}
 	cmd.Flags().StringVarP(&file, "file", "f", "", "Path to deploy file (.orch or YAML)")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON response")
+	cmd.Flags().BoolVar(&watch, "watch", false, "Wait until deployed workloads are running")
+	cmd.Flags().DurationVar(&timeout, "timeout", 2*time.Minute, "Maximum time to wait with --watch")
 	return cmd
+}
+
+func runListWorkloads(ctx context.Context, jsonOut bool) error {
+	conn := cliapp.ConnFromGlobals(serverURL, authToken)
+	return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+		out, err := c.ListWorkloads(ctx)
+		if err != nil {
+			return oopsx.B("cli").Wrapf(err, "list workloads")
+		}
+		if jsonOut {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(out.Body.Items)
+		}
+		return writeWorkloadsHuman(out.Body.Items)
+	})
+}
+
+func runListAssignments(ctx context.Context, jsonOut bool) error {
+	conn := cliapp.ConnFromGlobals(serverURL, authToken)
+	return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+		out, err := c.ListAssignments(ctx)
+		if err != nil {
+			return oopsx.B("cli").Wrapf(err, "list assignments")
+		}
+		if jsonOut {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(out.Body.Items)
+		}
+		return writeAssignmentsHuman(out.Body.Items)
+	})
+}
+
+type applyWatchOutput struct {
+	Accepted    bool                      `json:"accepted"`
+	App         string                    `json:"app"`
+	Workloads   int                       `json:"workloads"`
+	Assignments []workloadmeta.Assignment `json:"assignments"`
+	Registry    []registry.WorkloadRecord `json:"registry"`
+}
+
+type deploySnapshot struct {
+	Assignments        []workloadmeta.Assignment
+	Workloads          []registry.WorkloadRecord
+	Total              int
+	RunningAssignments int
+	RunningWorkloads   int
+	FailedAssignment   *workloadmeta.Assignment
+}
+
+func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App, timeout time.Duration, progress bool) (*deploySnapshot, error) {
+	if timeout <= 0 {
+		return nil, oopsx.B("cli").Errorf("--timeout must be greater than zero")
+	}
+	expectedKeys, expectedNames := expectedDeployWorkloads(app)
+	if len(expectedKeys) == 0 {
+		return &deploySnapshot{}, nil
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	spinner := startWatchSpinner(progress, len(expectedKeys))
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	var last *deploySnapshot
+	var lastErr error
+	for {
+		snapshot, err := readDeploySnapshot(waitCtx, c, expectedKeys, expectedNames)
+		if err != nil {
+			lastErr = err
+			updateWatchSpinner(spinner, last, len(expectedKeys), err)
+		} else {
+			last = snapshot
+			updateWatchSpinner(spinner, snapshot, len(expectedKeys), nil)
+			switch {
+			case snapshot.FailedAssignment != nil:
+				failWatchSpinner(spinner, fmt.Sprintf("workload failed key=%s", snapshot.FailedAssignment.Key))
+				return snapshot, oopsx.B("cli").Errorf("workload %s failed on node %s: %s",
+					snapshot.FailedAssignment.Key,
+					nonEmpty(snapshot.FailedAssignment.Node),
+					nonEmpty(snapshot.FailedAssignment.Error),
+				)
+			case snapshot.RunningAssignments == snapshot.Total && snapshot.RunningWorkloads == snapshot.Total:
+				successWatchSpinner(spinner, fmt.Sprintf("workloads running assignments=%d/%d runtime=%d/%d",
+					snapshot.RunningAssignments, snapshot.Total, snapshot.RunningWorkloads, snapshot.Total))
+				return snapshot, nil
+			}
+		}
+
+		select {
+		case <-waitCtx.Done():
+			failWatchSpinner(spinner, watchStatusText(last, len(expectedKeys), "timed out"))
+			if lastErr != nil {
+				return last, oopsx.B("cli").Wrapf(lastErr, "wait for deploy status timed out after %s", timeout)
+			}
+			return last, oopsx.B("cli").Errorf("wait for deploy status timed out after %s: %s", timeout, watchStatusText(last, len(expectedKeys), ""))
+		case <-ticker.C:
+		}
+	}
+}
+
+func expectedDeployWorkloads(app *deployv1.App) (map[string]struct{}, map[string]struct{}) {
+	keys := make(map[string]struct{})
+	names := make(map[string]struct{})
+	if app == nil {
+		return keys, names
+	}
+	for _, workload := range app.Workloads {
+		key := workloadmeta.AssignmentKey(app.Metadata, workload.Name)
+		if key == "" {
+			continue
+		}
+		keys[key] = struct{}{}
+		names[workload.Name] = struct{}{}
+	}
+	return keys, names
+}
+
+func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, expectedNames map[string]struct{}) (*deploySnapshot, error) {
+	assignments, err := c.ListAssignments(ctx)
+	if err != nil {
+		return nil, oopsx.B("cli").Wrapf(err, "list assignments")
+	}
+	workloads, err := c.ListWorkloads(ctx)
+	if err != nil {
+		return nil, oopsx.B("cli").Wrapf(err, "list workloads")
+	}
+
+	snapshot := &deploySnapshot{Total: len(expectedKeys)}
+	for _, assignment := range assignments.Body.Items {
+		if _, ok := expectedKeys[assignment.Key]; !ok {
+			continue
+		}
+		snapshot.Assignments = append(snapshot.Assignments, assignment)
+		if assignment.Status == workloadmeta.AssignmentStatusRunning {
+			snapshot.RunningAssignments++
+		}
+		if assignment.Status == workloadmeta.AssignmentStatusFailed && snapshot.FailedAssignment == nil {
+			failed := assignment
+			snapshot.FailedAssignment = &failed
+		}
+	}
+	for _, workload := range workloads.Body.Items {
+		if _, ok := expectedNames[workload.Name]; !ok {
+			continue
+		}
+		snapshot.Workloads = append(snapshot.Workloads, workload)
+		if workload.Status == "running" {
+			snapshot.RunningWorkloads++
+		}
+	}
+	return snapshot, nil
+}
+
+func startWatchSpinner(progress bool, total int) *pterm.SpinnerPrinter {
+	if !progress {
+		return nil
+	}
+	spinner, err := pterm.DefaultSpinner.WithRemoveWhenDone(false).Start(
+		fmt.Sprintf("waiting for workloads assignments=0/%d runtime=0/%d", total, total),
+	)
+	if err != nil {
+		return nil
+	}
+	return spinner
+}
+
+func updateWatchSpinner(spinner *pterm.SpinnerPrinter, snapshot *deploySnapshot, total int, err error) {
+	if spinner == nil {
+		return
+	}
+	if err != nil {
+		spinner.UpdateText(watchStatusText(snapshot, total, fmt.Sprintf("last_error=%v", err)))
+		return
+	}
+	spinner.UpdateText(watchStatusText(snapshot, total, ""))
+}
+
+func successWatchSpinner(spinner *pterm.SpinnerPrinter, msg string) {
+	if spinner != nil {
+		spinner.Success(msg)
+	}
+}
+
+func failWatchSpinner(spinner *pterm.SpinnerPrinter, msg string) {
+	if spinner != nil {
+		spinner.Fail(msg)
+	}
+}
+
+func watchStatusText(snapshot *deploySnapshot, total int, suffix string) string {
+	runningAssignments := 0
+	runningWorkloads := 0
+	if snapshot != nil {
+		runningAssignments = snapshot.RunningAssignments
+		runningWorkloads = snapshot.RunningWorkloads
+		if snapshot.Total > 0 {
+			total = snapshot.Total
+		}
+	}
+	text := fmt.Sprintf("waiting for workloads assignments=%d/%d runtime=%d/%d", runningAssignments, total, runningWorkloads, total)
+	if suffix != "" {
+		return text + " " + suffix
+	}
+	return text
 }
 
 func writeHostinfoHuman(out *api.HostinfoOutput) error {

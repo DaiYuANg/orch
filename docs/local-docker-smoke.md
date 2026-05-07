@@ -3,7 +3,7 @@
 This smoke test exercises the full local deploy path:
 
 ```text
-orch-server -> orch-cli apply -> Docker runtime -> orch-cli workloads / assignments
+orch-server -> orch-cli apply --watch -> Docker runtime -> orch-cli get workloads / get assignments
 ```
 
 ## Prerequisites
@@ -36,8 +36,8 @@ The script builds local binaries under `.orch-smoke/bin`, starts `orch-server` o
 until both views report the workload as running:
 
 ```powershell
-.orch-smoke/bin/orch --server http://127.0.0.1:17443 workloads
-.orch-smoke/bin/orch --server http://127.0.0.1:17443 assignments
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 get workloads
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 get assignments
 ```
 
 By default the script removes the smoke Docker container and stops the server
@@ -55,8 +55,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-smoke.ps1 -Ke
 Then run:
 
 ```powershell
-.orch-smoke/bin/orch --server http://127.0.0.1:17443 workloads
-.orch-smoke/bin/orch --server http://127.0.0.1:17443 assignments
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 get workloads
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 get assignments
 docker ps --filter name=orch-default-smoke
 ```
 

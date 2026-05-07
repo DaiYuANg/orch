@@ -19,11 +19,17 @@ go test ./...
 go run ./cmd/orch-cli parse --file path/to/app.yaml --json
 ```
 
+## Deploy and wait
+
+```bash
+go run ./cmd/orch-cli apply --file path/to/app.yaml --watch
+```
+
 ## Inspect cluster state
 
 ```bash
-go run ./cmd/orch-cli workloads
-go run ./cmd/orch-cli assignments
+go run ./cmd/orch-cli get workloads
+go run ./cmd/orch-cli get assignments
 ```
 
 ## Run local Docker smoke test

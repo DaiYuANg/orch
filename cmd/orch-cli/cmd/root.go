@@ -48,6 +48,7 @@ func init() {
 	rootCmd.AddCommand(newApplyCmd())
 	rootCmd.AddCommand(newComposeCmd())
 	// Cluster inspection (requires reachable control plane).
+	rootCmd.AddCommand(newGetCmd())
 	rootCmd.AddCommand(newHealthCmd())
 	rootCmd.AddCommand(newWorkloadsCmd())
 	rootCmd.AddCommand(newAssignmentsCmd())

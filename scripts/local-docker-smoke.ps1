@@ -91,8 +91,8 @@ function Wait-OrchHealth {
 function Wait-SmokeState {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        $workloads = Invoke-CLIJson @("--server", $serverURL, "workloads", "--json")
-        $assignments = Invoke-CLIJson @("--server", $serverURL, "assignments", "--json")
+        $workloads = Invoke-CLIJson @("--server", $serverURL, "get", "workloads", "--json")
+        $assignments = Invoke-CLIJson @("--server", $serverURL, "get", "assignments", "--json")
 
         $workload = $workloads | Where-Object { $_.name -eq $workloadName -and $_.node -eq $nodeID -and $_.status -eq "running" } | Select-Object -First 1
         $assignment = $assignments | Where-Object { $_.key -eq $assignmentKey -and $_.node -eq $nodeID -and $_.status -eq "running" } | Select-Object -First 1
@@ -183,18 +183,18 @@ try {
     $serverProcess = Start-Process @startArgs
     Wait-OrchHealth $serverProcess
 
-    Invoke-Checked $cliBin @("--server", $serverURL, "apply", "--file", $manifestPath)
+    Invoke-Checked $cliBin @("--server", $serverURL, "apply", "--file", $manifestPath, "--watch", "--timeout", "$($TimeoutSeconds)s")
     Wait-SmokeState
 
     Write-Host ""
     Write-Host "Smoke deploy is running."
     Write-Host "Server:      $serverURL"
     Write-Host "Container:   $containerName"
-    Write-Host "Workloads:   $cliBin --server $serverURL workloads"
-    Write-Host "Assignments: $cliBin --server $serverURL assignments"
+    Write-Host "Workloads:   $cliBin --server $serverURL get workloads"
+    Write-Host "Assignments: $cliBin --server $serverURL get assignments"
     Write-Host ""
-    Invoke-Checked $cliBin @("--server", $serverURL, "workloads")
-    Invoke-Checked $cliBin @("--server", $serverURL, "assignments")
+    Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
+    Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
 }
 finally {
     if (-not $KeepServer -and $null -ne $serverProcess -and -not $serverProcess.HasExited) {

@@ -2,6 +2,8 @@ package orch
 
 import (
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/mapping"
+	"github.com/arcgolabs/collectionx/set"
 	"github.com/arcgolabs/plano/compiler"
 	"github.com/arcgolabs/plano/schema"
 )
@@ -11,17 +13,27 @@ func Register(c *compiler.Compiler) error {
 	if c == nil {
 		return nil
 	}
-	return c.RegisterForms(orchFormSpecs())
+	if err := c.RegisterForms(orchFormSpecs()); err != nil {
+		return err
+	}
+	return c.RegisterActions(orchActionSpecs())
 }
 
 func orchFormSpecs() list.List[schema.FormSpec] {
 	return schema.FormSpecs(
 		schema.FormSpec{
-			Name:        "app",
-			LabelKind:   schema.LabelNone,
-			BodyMode:    schema.BodyFormOnly,
-			Docs:        "Root document: metadata plus workload/config/secret/volume/ingress blocks.",
-			NestedForms: schema.NestedForms("metadata", "workload", "config", "secret", "volume", "ingress"),
+			Name:      "app",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyMixed,
+			Docs:      "Root document: metadata plus workload/config/secret/volume/ingress blocks. Short form accepts name/namespace fields directly.",
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "name", Type: schema.TypeString, Docs: "App name. Short for metadata.name."},
+				schema.FieldSpec{Name: "namespace", Type: schema.TypeString, Docs: "App namespace. Short for metadata.namespace."},
+				schema.FieldSpec{Name: "labels", Type: schema.MapType{Elem: schema.TypeString}},
+				schema.FieldSpec{Name: "annotations", Type: schema.MapType{Elem: schema.TypeString}},
+				schema.FieldSpec{Name: "runtime", Type: schema.TypeString, Default: "docker", HasDefault: true, Docs: "Default runtime for shorthand workloads."},
+			),
+			NestedForms: schema.NestedForms("metadata", "docker", "workload", "service", "stateful", "worker", "config", "secret", "volume", "ingress"),
 		},
 		schema.FormSpec{
 			Name:      "metadata",
@@ -39,7 +51,7 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 			LabelKind:    schema.LabelSymbol,
 			LabelRefKind: "workload",
 			Declares:     "workload",
-			BodyMode:     schema.BodyMixed,
+			BodyMode:     schema.BodyScript,
 			Docs:         "Named workload (label is the workload name).",
 			Fields: schema.Fields(
 				schema.FieldSpec{Name: "kind", Type: schema.TypeString, Required: true},
@@ -53,8 +65,11 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 					Docs:       "Depends-on edges to other workloads.",
 				},
 			),
-			NestedForms: schema.NestedForms("run", "runtime_options", "endpoint", "mount", "env", "resources", "scheduling"),
+			NestedForms: workloadNestedForms(),
 		},
+		shorthandWorkloadForm("service", "Service workload. Short for workload kind=service."),
+		shorthandWorkloadForm("stateful", "Stateful workload. Short for workload kind=stateful and scheduling.stateful=true."),
+		shorthandWorkloadForm("worker", "Worker workload. Short for workload kind=worker."),
 		schema.FormSpec{
 			Name:      "run",
 			LabelKind: schema.LabelNone,
@@ -116,6 +131,7 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 			LabelKind: schema.LabelNone,
 			BodyMode:  schema.BodyFieldOnly,
 			Fields: schema.Fields(
+				schema.FieldSpec{Name: "network", Type: schema.TypeString, Docs: "Alias for network_mode."},
 				schema.FieldSpec{Name: "network_mode", Type: schema.TypeString},
 				schema.FieldSpec{Name: "privileged", Type: schema.TypeBool, Default: false, HasDefault: true},
 				schema.FieldSpec{Name: "labels", Type: schema.MapType{Elem: schema.TypeString}},
@@ -171,7 +187,7 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 			Fields: schema.Fields(
 				schema.FieldSpec{Name: "host", Type: schema.TypeString},
 			),
-			NestedForms: schema.NestedForms("route"),
+			NestedForms: schema.NestedForms("route", "path"),
 		},
 		schema.FormSpec{
 			Name:      "route",
@@ -182,6 +198,93 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 				schema.FieldSpec{Name: "backend_workload", Type: schema.TypeString, Required: true},
 				schema.FieldSpec{Name: "backend_endpoint", Type: schema.TypeString, Required: true},
 			),
+		},
+		schema.FormSpec{
+			Name:      "path",
+			LabelKind: schema.LabelString,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "workload", Type: schema.RefType{Kind: "workload"}, Required: true},
+				schema.FieldSpec{Name: "endpoint", Type: schema.TypeString},
+			),
+		},
+	)
+}
+
+func shorthandWorkloadForm(name string, docs string) schema.FormSpec {
+	return schema.FormSpec{
+		Name:         name,
+		LabelKind:    schema.LabelSymbol,
+		LabelRefKind: "workload",
+		Declares:     "workload",
+		BodyMode:     schema.BodyScript,
+		Docs:         docs,
+		Fields:       shorthandWorkloadFields(),
+		NestedForms:  workloadNestedForms(),
+	}
+}
+
+func shorthandWorkloadFields() *mapping.OrderedMap[string, schema.FieldSpec] {
+	return schema.Fields(
+		schema.FieldSpec{Name: "runtime", Type: schema.TypeString},
+		schema.FieldSpec{Name: "image", Type: schema.TypeString},
+		schema.FieldSpec{Name: "command", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
+		schema.FieldSpec{Name: "args", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
+		schema.FieldSpec{Name: "cwd", Type: schema.TypeString},
+		schema.FieldSpec{Name: "env", Type: schema.MapType{Elem: schema.TypeString}},
+		schema.FieldSpec{Name: "resources", Type: schema.TypeString, Docs: `Compact "cpu/memory", e.g. "500m/512Mi".`},
+		schema.FieldSpec{Name: "cpu_millis", Type: schema.TypeInt},
+		schema.FieldSpec{Name: "memory_bytes", Type: schema.TypeInt},
+		schema.FieldSpec{Name: "replicas", Type: schema.TypeInt, Default: 0, HasDefault: true},
+		schema.FieldSpec{
+			Name:       "depends_on",
+			Type:       schema.ListType{Elem: schema.RefType{Kind: "workload"}},
+			Default:    []any{},
+			HasDefault: true,
+			Docs:       "Depends-on edges to other workloads.",
+		},
+		schema.FieldSpec{Name: "network", Type: schema.TypeString, Docs: "Docker network_mode shorthand."},
+		schema.FieldSpec{Name: "network_mode", Type: schema.TypeString},
+		schema.FieldSpec{Name: "privileged", Type: schema.TypeBool, Default: false, HasDefault: true},
+		schema.FieldSpec{Name: "labels", Type: schema.MapType{Elem: schema.TypeString}},
+		schema.FieldSpec{Name: "allow_leader", Type: schema.TypeBool, Default: false, HasDefault: true},
+		schema.FieldSpec{Name: "preferred_nodes", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
+	)
+}
+
+func workloadNestedForms() *set.Set[string] {
+	return schema.NestedForms("run", "runtime_options", "docker", "endpoint", "mount", "env", "resources", "scheduling")
+}
+
+func orchActionSpecs() list.List[compiler.ActionSpec] {
+	return compiler.ActionSpecs(
+		compiler.ActionSpec{
+			Name:     "http",
+			MinArgs:  1,
+			MaxArgs:  2,
+			ArgTypes: schema.Types(schema.TypeInt, schema.TypeString),
+			Docs:     `Declare an HTTP endpoint: http(8080) or http(8080, "admin").`,
+		},
+		compiler.ActionSpec{
+			Name:     "tcp",
+			MinArgs:  1,
+			MaxArgs:  2,
+			ArgTypes: schema.Types(schema.TypeInt, schema.TypeString),
+			Docs:     `Declare a TCP endpoint: tcp(5432) or tcp(5432, "postgres").`,
+		},
+		compiler.ActionSpec{
+			Name:     "udp",
+			MinArgs:  1,
+			MaxArgs:  2,
+			ArgTypes: schema.Types(schema.TypeInt, schema.TypeString),
+			Docs:     `Declare a UDP endpoint: udp(8125) or udp(8125, "statsd").`,
+		},
+		compiler.ActionSpec{
+			Name:     "port",
+			MinArgs:  2,
+			MaxArgs:  3,
+			ArgTypes: schema.Types(schema.TypeInt, schema.TypeString, schema.TypeString),
+			Docs:     `Declare an endpoint with protocol: port(5432, "tcp") or port(5432, "tcp", "postgres").`,
 		},
 	)
 }

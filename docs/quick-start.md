@@ -47,7 +47,7 @@ checks the workload status with the CLI, and cleans up by default. See
 
 ## Full-stack application example
 
-For a fuller `.orch` DSL example with frontend, backend, Postgres, Redis, and
+For a fuller short `.orch` DSL example with frontend, backend, Postgres, Redis, and
 ingress routing, see `examples/fullstack-docker.orch` and
 `docs/fullstack-docker.md`.
 

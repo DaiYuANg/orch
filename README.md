@@ -82,7 +82,7 @@ task smoke:local-docker
 
 The smoke manifest is `examples/local-docker-smoke.yaml`; details are in [Local Docker Smoke Test](docs/local-docker-smoke.md).
 
-For a complete application shape in the native `.orch` DSL (frontend, backend,
+For a complete application shape in the short native `.orch` DSL (frontend, backend,
 Postgres, Redis, ingress), see `examples/fullstack-docker.orch` and
 [Full-Stack Docker Example](docs/fullstack-docker.md).
 

@@ -68,7 +68,7 @@ func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Clie
 		Cmd:        w.Run.Args,
 		Env:        runconfig.Env(w.Run.Env),
 		WorkingDir: strings.TrimSpace(w.Run.Cwd),
-		Labels:     workloadmeta.Labels(meta, w),
+		Labels:     containerLabels(meta, w),
 	}
 
 	hostCfg := &container.HostConfig{}
@@ -92,6 +92,21 @@ func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Clie
 	}
 
 	return p.dockerRunAfterCreate(ctx, cli, meta, w, name, createResp.ID)
+}
+
+func containerLabels(meta deployv1.Metadata, w deployv1.Workload) map[string]string {
+	labels := map[string]string{}
+	if w.Run.Options.Docker != nil {
+		for k, v := range w.Run.Options.Docker.Labels {
+			if key := strings.TrimSpace(k); key != "" {
+				labels[key] = v
+			}
+		}
+	}
+	for k, v := range workloadmeta.Labels(meta, w) {
+		labels[k] = v
+	}
+	return labels
 }
 
 func (p *Provider) dockerRunAfterCreate(ctx context.Context, cli *client.Client, meta deployv1.Metadata, w deployv1.Workload, name, containerID string) error {

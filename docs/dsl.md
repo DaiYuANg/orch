@@ -7,6 +7,50 @@ canonical workload DSL.
 
 Chinese version: `dsl.zh.md`
 
+## Current Go `.orch` Authoring Surface
+
+The Go implementation in this repository currently uses the Plano-backed
+`.orch` compiler under `internal/deploy/orch`. New examples should prefer the
+short form:
+
+```plano
+app {
+  name = "mall"
+  namespace = "demo"
+
+  docker {
+    network = "orch-demo"
+  }
+
+  stateful postgres {
+    image = "postgres:16-alpine"
+    env = {
+      POSTGRES_DB = "app",
+    }
+
+    tcp(5432)
+    resources = "500m/512Mi"
+  }
+
+  service api {
+    image = "ghcr.io/acme/api:latest"
+    depends_on = [postgres]
+    http(8080)
+  }
+
+  ingress public {
+    path "/" {
+      workload = api
+    }
+  }
+}
+```
+
+The verbose `workload { run { ... } endpoint { ... } }` shape remains supported
+as an escape hatch. The sections below are the longer-term DSL direction and
+historical design context; the full-stack example documents the current
+recommended Go `.orch` style.
+
 This document defines the intended v1 direction for the Warden workload DSL.
 It replaces the earlier open-ended design draft as the primary reference for
 future parser, planner, and apply work.

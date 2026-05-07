@@ -6,6 +6,48 @@
 
 对应英文版：`dsl.md`
 
+## 当前 Go `.orch` 作者界面
+
+当前仓库里的 Go 实现使用 `internal/deploy/orch` 下基于 Plano 的 `.orch`
+compiler。新示例优先使用短写法：
+
+```plano
+app {
+  name = "mall"
+  namespace = "demo"
+
+  docker {
+    network = "orch-demo"
+  }
+
+  stateful postgres {
+    image = "postgres:16-alpine"
+    env = {
+      POSTGRES_DB = "app",
+    }
+
+    tcp(5432)
+    resources = "500m/512Mi"
+  }
+
+  service api {
+    image = "ghcr.io/acme/api:latest"
+    depends_on = [postgres]
+    http(8080)
+  }
+
+  ingress public {
+    path "/" {
+      workload = api
+    }
+  }
+}
+```
+
+更完整的 `workload { run { ... } endpoint { ... } }` 写法仍然保留，作为
+短写法不够表达时的 escape hatch。下面的大部分内容是更长期的 DSL 方向和历史
+设计上下文；当前推荐的 Go `.orch` 写法以 full-stack 示例文档为准。
+
 本文档用于说明 Warden Workload DSL 的 v1 方向，同时记录当前仓库里
 已经真实实现的子集与限制，避免“设计稿”和“可用能力”混在一起。
 

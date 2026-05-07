@@ -29,6 +29,7 @@ func newFiberAppAndRuntime(cfg config.Config, logger *slog.Logger, guard *authht
 	})
 	if cfg.Auth.Enabled && guard != nil {
 		fiberApp.Use("/api/v1/deploy", authfiber.Require(guard))
+		fiberApp.Use("/api/v1/worker", authfiber.Require(guard))
 	}
 
 	opts := []httpx.ServerOption{

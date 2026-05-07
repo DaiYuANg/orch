@@ -50,6 +50,8 @@ func orchFlagToPath(name string) string {
 		"scheduler-raft-leader-only":                "scheduler.raft_leader_only",
 		"scheduler-max-concurrent-jobs":             "scheduler.max_concurrent_jobs",
 		"scheduler-concurrent-jobs-mode":            "scheduler.concurrent_jobs_mode",
+		"cluster-nodes":                             "cluster.nodes",
+		"cluster-worker-token":                      "cluster.worker_token",
 		"ingress-listen":                            "ingress.listen",
 		"observability-prometheus-enabled":          "observability.prometheus.enabled",
 		"observability-prometheus-path":             "observability.prometheus.path",

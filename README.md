@@ -56,6 +56,21 @@ go run ./cmd/orch-cli parse --file path/to/app.yaml --json
 go run ./cmd/orch-server
 ```
 
+### Worker dispatch (dev)
+
+When placement selects a node other than the local server, orch dispatches the workload to that node's worker API. Configure node IDs to API base URLs with `cluster.nodes`:
+
+```yaml
+cluster:
+  nodes:
+    node-a: http://10.0.0.11:17443
+    node-b: http://10.0.0.12:17443
+  # Optional when HTTP auth is enabled on worker nodes:
+  worker_token: "<bearer-token>"
+```
+
+The worker endpoint executes the assigned workload locally and does not mutate Raft desired state.
+
 ## Documentation (mdBook)
 
 Docs are now maintained with `mdBook`.

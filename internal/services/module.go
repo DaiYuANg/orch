@@ -20,7 +20,8 @@ func Module() dix.Module {
 			dix.Provider1(func(rs *raftsvc.Service) *nodecapacity.Catalog {
 				return nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(rs))
 			}),
-			dix.Provider4(task.NewBundle),
+			dix.Provider1(task.NewHTTPWorkerDispatcher),
+			dix.Provider5(task.NewBundle),
 			dix.Provider1(registry.NewService),
 			dix.Provider6(task.NewService),
 		),

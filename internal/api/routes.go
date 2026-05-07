@@ -20,5 +20,6 @@ func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.S
 		NewOrchVPNBootstrapEndpoint(cfg, dnsSvc),
 		NewDeployEndpoint(taskSvc, cfg.Auth.Enabled),
 		NewDeploySourceEndpoint(loaderSvc, taskSvc, cfg.Auth.Enabled),
+		NewWorkerDeployEndpoint(taskSvc, cfg.Auth.Enabled),
 	)
 }

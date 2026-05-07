@@ -46,6 +46,9 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.Uint("scheduler-max-concurrent-jobs", def.Scheduler.MaxConcurrentJobs, "config path scheduler.max_concurrent_jobs")
 	fs.String("scheduler-concurrent-jobs-mode", def.Scheduler.ConcurrentJobsMode, "config path scheduler.concurrent_jobs_mode")
 
+	fs.StringToString("cluster-nodes", def.Cluster.Nodes, "config path cluster.nodes (node_id=base_url, repeat or comma-separated)")
+	fs.String("cluster-worker-token", def.Cluster.WorkerToken, "config path cluster.worker_token (bearer token for worker dispatch)")
+
 	fs.Bool("auth-enabled", def.Auth.Enabled, "config path auth.enabled")
 	fs.String("auth-jwt-secret", def.Auth.JWT.Secret, "config path auth.jwt.secret")
 

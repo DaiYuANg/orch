@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -17,28 +18,30 @@ import (
 )
 
 type Service struct {
-	logger    *slog.Logger
-	cfg       config.Config
-	metrics   *metrics.Service
-	runtime   *runtime.Manager
-	registry  *registry.Service
-	catalog   *nodecapacity.Catalog
-	placement *placement.Engine
-	local     nodeid.Local
-	raft      *raftsvc.Service
+	logger     *slog.Logger
+	cfg        config.Config
+	metrics    *metrics.Service
+	runtime    *runtime.Manager
+	registry   *registry.Service
+	catalog    *nodecapacity.Catalog
+	placement  *placement.Engine
+	local      nodeid.Local
+	raft       *raftsvc.Service
+	dispatcher WorkerDispatcher
 }
 
 func NewService(logger *slog.Logger, metricService *metrics.Service, runtimeManager *runtime.Manager, registryService *registry.Service, cfg config.Config, bundle Bundle) *Service {
 	return &Service{
-		logger:    logger,
-		cfg:       cfg,
-		metrics:   metricService,
-		runtime:   runtimeManager,
-		registry:  registryService,
-		catalog:   bundle.Catalog,
-		placement: bundle.Placement,
-		local:     bundle.LocalNode,
-		raft:      bundle.Raft,
+		logger:     logger,
+		cfg:        cfg,
+		metrics:    metricService,
+		runtime:    runtimeManager,
+		registry:   registryService,
+		catalog:    bundle.Catalog,
+		placement:  bundle.Placement,
+		local:      bundle.LocalNode,
+		raft:       bundle.Raft,
+		dispatcher: bundle.Dispatcher,
 	}
 }
 
@@ -99,8 +102,8 @@ func (s *Service) DeployApp(ctx context.Context, app *deployv1.App) error {
 	return s.SubmitDeploy(ctx, app)
 }
 
-// deployAppWorkloads runs placement against the node resource catalog, then deploys each workload on the local
-// runtime when placement selects this node (remote execution is not implemented yet).
+// deployAppWorkloads runs placement against the node resource catalog, then deploys locally or dispatches to a
+// configured worker API when placement selects a remote node.
 func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) error {
 	if err := app.Validate(); err != nil {
 		s.metrics.IncDeployApp(ctx, "invalid")
@@ -121,29 +124,76 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 			return oopsx.B("task").Wrapf(err, "placement workload %s", w.Name)
 		}
 		if chosen != self {
-			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
-			s.metrics.IncDeployApp(ctx, "failed")
-			return oopsx.B("task").Errorf(
-				"placement selected node %q for workload %q but remote execution is not implemented; add that node to the cluster catalog with live resource snapshots and run a worker orch-server there, or tighten resources / preferredNodes",
-				chosen, w.Name,
-			)
+			if err := s.dispatchWorkload(ctx, app.Metadata, *w, chosen); err != nil {
+				s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
+				s.metrics.IncDeployApp(ctx, "failed")
+				return err
+			}
+			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "dispatched")
+			s.registry.Upsert(registry.WorkloadRecord{
+				Name:    w.Name,
+				Node:    chosen,
+				Runtime: string(w.Runtime),
+				Image:   w.Run.Image,
+				Status:  "dispatched",
+			})
+			continue
 		}
 
-		if err := s.runtime.Deploy(ctx, app.Metadata, *w); err != nil {
+		if err := s.deployLocalWorkload(ctx, app.Metadata, *w, chosen); err != nil {
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
-			return oopsx.B("task").Wrapf(err, "deploy workload %s", w.Name)
+			return err
 		}
 		s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "success")
-		s.registry.Upsert(registry.WorkloadRecord{
-			Name:    w.Name,
-			Node:    chosen,
-			Runtime: string(w.Runtime),
-			Image:   w.Run.Image,
-			Status:  "running",
-		})
 	}
 	s.metrics.IncDeployApp(ctx, "success")
 	s.logger.Info("application deployed", "app", app.Metadata.Name, "workloads", len(app.Workloads))
+	return nil
+}
+
+func (s *Service) dispatchWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, nodeID string) error {
+	if s.dispatcher == nil {
+		return oopsx.B("task").Errorf("placement selected node %q for workload %q but worker dispatcher is unavailable", nodeID, workload.Name)
+	}
+	if err := s.dispatcher.DispatchWorkload(ctx, nodeID, meta, workload); err != nil {
+		return oopsx.B("task").Wrapf(err, "dispatch workload %s to node %s", workload.Name, nodeID)
+	}
+	s.logger.Info("workload dispatched", "workload", workload.Name, "node", nodeID, "runtime", workload.Runtime)
+	return nil
+}
+
+func (s *Service) deployLocalWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, nodeID string) error {
+	if err := s.runtime.Deploy(ctx, meta, workload); err != nil {
+		return oopsx.B("task").Wrapf(err, "deploy workload %s", workload.Name)
+	}
+	s.registry.Upsert(registry.WorkloadRecord{
+		Name:    workload.Name,
+		Node:    nodeID,
+		Runtime: string(workload.Runtime),
+		Image:   workload.Run.Image,
+		Status:  "running",
+	})
+	return nil
+}
+
+// DeployWorkerWorkload executes a workload assigned by another node. It intentionally bypasses Raft desired-state
+// mutation; callers must already have gone through SubmitDeploy on the scheduling node.
+func (s *Service) DeployWorkerWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, assignedNode string) error {
+	if strings.TrimSpace(meta.Name) == "" {
+		return oopsx.B("task", "worker").Errorf("metadata.name is required")
+	}
+	if strings.TrimSpace(workload.Name) == "" {
+		return oopsx.B("task", "worker").Errorf("workload.name is required")
+	}
+	self := s.local.String()
+	if n := strings.TrimSpace(assignedNode); n != "" && self != "" && n != self {
+		return oopsx.B("task", "worker").Errorf("workload %q assigned to node %q, local node is %q", workload.Name, n, self)
+	}
+	if err := s.deployLocalWorkload(ctx, meta, workload, self); err != nil {
+		s.metrics.IncDeployWorkload(ctx, string(workload.Runtime), "failed")
+		return err
+	}
+	s.metrics.IncDeployWorkload(ctx, string(workload.Runtime), "success")
 	return nil
 }

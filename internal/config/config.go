@@ -20,6 +20,7 @@ type Config struct {
 	DNS           DNSConfig           `json:"dns"`
 	OrchVPN       OrchVPNConfig       `json:"orch_vpn"`
 	Scheduler     SchedulerConfig     `json:"scheduler"`
+	Cluster       ClusterConfig       `json:"cluster"`
 	Auth          AuthConfig          `json:"auth"`
 	Raft          RaftConfig          `json:"raft"`
 }
@@ -230,6 +231,31 @@ type SchedulerConfig struct {
 	ConcurrentJobsMode      string `json:"concurrent_jobs_mode,omitempty"`
 }
 
+type ClusterConfig struct {
+	// Nodes maps node ids to worker API base URLs, for example {"node-a": "http://10.0.0.11:17443"}.
+	Nodes map[string]string `json:"nodes,omitempty"`
+	// WorkerToken is sent as a bearer token for worker dispatch when remote nodes require HTTP auth.
+	WorkerToken string `json:"worker_token,omitempty"`
+}
+
+func (c ClusterConfig) NodeURL(nodeID string) (string, bool) {
+	id := strings.TrimSpace(nodeID)
+	if id == "" || len(c.Nodes) == 0 {
+		return "", false
+	}
+	for k, v := range c.Nodes {
+		if strings.TrimSpace(k) != id {
+			continue
+		}
+		url := strings.TrimRight(strings.TrimSpace(v), "/")
+		if url == "" {
+			return "", false
+		}
+		return url, true
+	}
+	return "", false
+}
+
 // AuthConfig matches paths auth.enabled and auth.jwt.secret.
 type AuthConfig struct {
 	Enabled bool `json:"enabled"`
@@ -327,6 +353,9 @@ func Default() Config {
 			RaftLeaderOnly:          false,
 			MaxConcurrentJobs:       0,
 			ConcurrentJobsMode:      "reschedule",
+		},
+		Cluster: ClusterConfig{
+			Nodes: map[string]string{},
 		},
 		Auth: auth,
 		Raft: raft,

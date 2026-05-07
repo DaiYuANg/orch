@@ -41,8 +41,10 @@ func newHealthCmd() *cobra.Command {
 					enc.SetIndent("", "  ")
 					return enc.Encode(out)
 				}
-				pterm.Info.Printfln("status=%s time=%s", out.Body.Status, out.Body.Timestamp)
-				return nil
+				return writeInfoLine("health",
+					viewField("status", statusBadge(out.Body.Status)),
+					viewField("time", out.Body.Timestamp),
+				)
 			})
 		},
 	}
@@ -171,7 +173,13 @@ Requires a reachable control plane (--server / ORCH_SERVER); clustered Raft depl
 					return enc.Encode(out)
 				}
 				if !jsonOut {
-					pterm.Success.Printfln("accepted app=%s workloads=%d", out.Body.App, out.Body.Workloads)
+					if err := writeInfoLine("deploy",
+						viewField("status", statusBadge("accepted")),
+						viewField("app", out.Body.App),
+						viewField("workloads", strconv.Itoa(out.Body.Workloads)),
+					); err != nil {
+						return err
+					}
 				}
 				if !watch {
 					return nil
@@ -364,7 +372,7 @@ func readDeploySnapshot(ctx context.Context, c *apiclient.Client, expectedKeys, 
 }
 
 func startWatchSpinner(progress bool, total int) *pterm.SpinnerPrinter {
-	if !progress {
+	if !progress || !stderrIsTerminal() {
 		return nil
 	}
 	spinner, err := pterm.DefaultSpinner.WithRemoveWhenDone(false).Start(
@@ -416,13 +424,20 @@ func watchStatusText(snapshot *deploySnapshot, total int, suffix string) string 
 	return text
 }
 
+func stderrIsTerminal() bool {
+	info, err := os.Stderr.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
 func writeHostinfoHuman(out *api.HostinfoOutput) error {
 	body := out.Body
 	h := body.Host
 	cpu := body.CPU
 	mem := body.Memory
-	rows := pterm.TableData{
-		{"Property", "Value"},
+	rows := [][]string{
 		{"hostname", h.Hostname},
 		{"os", h.OS},
 		{"platform", h.Platform},
@@ -430,9 +445,9 @@ func writeHostinfoHuman(out *api.HostinfoOutput) error {
 		{"arch", h.KernelArch},
 		{"cpu_cores", strconv.Itoa(cpu.LogicalCores)},
 		{"cpu_model", cpu.ModelName},
-		{"cpu_usage_pct", strconv.FormatFloat(cpu.UsagePercent, 'f', 1, 64)},
-		{"memory_total_bytes", strconv.FormatUint(mem.TotalBytes, 10)},
-		{"memory_used_pct", strconv.FormatFloat(mem.UsedPercent, 'f', 1, 64)},
+		{"cpu_usage", formatPercent(cpu.UsagePercent)},
+		{"memory_total", formatBytes(mem.TotalBytes)},
+		{"memory_used", formatPercent(mem.UsedPercent)},
 	}
 	if body.Load != nil {
 		l := body.Load
@@ -440,39 +455,30 @@ func writeHostinfoHuman(out *api.HostinfoOutput) error {
 		rows = append(rows, []string{"load_5", strconv.FormatFloat(l.Load5, 'f', 2, 64)})
 		rows = append(rows, []string{"load_15", strconv.FormatFloat(l.Load15, 'f', 2, 64)})
 	}
-	if err := pterm.DefaultTable.WithHasHeader().WithData(rows).Render(); err != nil {
-		return oopsx.B("cli").Wrapf(err, "render hostinfo table")
-	}
-	return nil
+	return writeKVTable(rows)
 }
 
 func writeWorkloadsHuman(items []registry.WorkloadRecord) error {
-	rows := pterm.TableData{{"NAME", "NODE", "RUNTIME", "STATUS", "IMAGE"}}
+	rows := make([][]string, 0, len(items))
 	for _, w := range items {
 		node := w.Node
 		if node == "" {
 			node = "-"
 		}
-		rows = append(rows, []string{w.Name, node, w.Runtime, w.Status, w.Image})
+		rows = append(rows, []string{w.Name, node, w.Runtime, statusBadge(w.Status), w.Image})
 	}
-	if err := pterm.DefaultTable.WithHasHeader().WithData(rows).Render(); err != nil {
-		return oopsx.B("cli").Wrapf(err, "render workloads table")
-	}
-	return nil
+	return writeTable([]string{"NAME", "NODE", "RUNTIME", "STATUS", "IMAGE"}, rows)
 }
 
 func writeAssignmentsHuman(items []workloadmeta.Assignment) error {
-	rows := pterm.TableData{{"KEY", "NODE", "RUNTIME", "STATUS", "IMAGE", "ERROR"}}
+	rows := make([][]string, 0, len(items))
 	for _, a := range items {
 		node := nonEmpty(a.Node)
 		image := nonEmpty(a.Image)
 		errMsg := nonEmpty(a.Error)
-		rows = append(rows, []string{a.Key, node, string(a.Runtime), a.Status, image, errMsg})
+		rows = append(rows, []string{a.Key, node, string(a.Runtime), statusBadge(a.Status), image, errMsg})
 	}
-	if err := pterm.DefaultTable.WithHasHeader().WithData(rows).Render(); err != nil {
-		return oopsx.B("cli").Wrapf(err, "render assignments table")
-	}
-	return nil
+	return writeTable([]string{"KEY", "NODE", "RUNTIME", "STATUS", "IMAGE", "ERROR"}, rows)
 }
 
 func nonEmpty(s string) string {

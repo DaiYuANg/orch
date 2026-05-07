@@ -2,7 +2,6 @@ package cliapp
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/arcgolabs/dix"
@@ -30,7 +29,7 @@ func NewManifestApp() *dix.App {
 	return dix.New(
 		"orch-cli-manifest",
 		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom0(slog.Default),
+		dix.WithLoggerFrom0(logger),
 		dix.WithModules(
 			moduleManifest(),
 			orch.Module(),

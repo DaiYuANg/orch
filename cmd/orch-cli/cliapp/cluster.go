@@ -2,7 +2,6 @@ package cliapp
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/arcgolabs/dix"
@@ -31,7 +30,7 @@ func NewClusterApp(conn Conn) *dix.App {
 	return dix.New(
 		"orch-cli-cluster",
 		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom0(slog.Default),
+		dix.WithLoggerFrom0(logger),
 		dix.WithModules(
 			moduleConn(conn),
 			moduleClusterClient(),

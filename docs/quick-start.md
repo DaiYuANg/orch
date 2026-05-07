@@ -32,6 +32,9 @@ go run ./cmd/orch-cli get workloads
 go run ./cmd/orch-cli get assignments
 ```
 
+Human output uses styled terminal tables. Add `--json` to keep automation output
+stable.
+
 ## Run local Docker smoke test
 
 ```powershell

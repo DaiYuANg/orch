@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strconv"
 
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
@@ -36,9 +36,11 @@ func runValidateManifest(ctx context.Context, deploy *loader.Loader, file string
 	if err != nil {
 		return err
 	}
-	pterm.Success.Printfln("OK app=%s namespace=%s", app.Metadata.Name, app.Metadata.Namespace)
-	pterm.Debug.Printfln("manifest validated app=%s namespace=%s", app.Metadata.Name, app.Metadata.Namespace)
-	return nil
+	return writeInfoLine("validate",
+		viewField("status", statusBadge("ok")),
+		viewField("app", app.Metadata.Name),
+		viewField("namespace", app.Metadata.Namespace),
+	)
 }
 
 func runParseManifest(ctx context.Context, deploy *loader.Loader, file string, jsonOut bool) error {
@@ -54,17 +56,15 @@ func runParseManifest(ctx context.Context, deploy *loader.Loader, file string, j
 		}
 		return nil
 	}
-	pterm.Println(pterm.Sprintf("app=%s namespace=%s workloads=%d ingresses=%d volumes=%d configs=%d secrets=%d",
-		app.Metadata.Name,
-		app.Metadata.Namespace,
-		len(app.Workloads),
-		len(app.Ingresses),
-		len(app.Volumes),
-		len(app.Configs),
-		len(app.Secrets),
-	))
-	pterm.Debug.Printfln("manifest parsed app=%s", app.Metadata.Name)
-	return nil
+	return writeInfoLine("manifest",
+		viewField("app", app.Metadata.Name),
+		viewField("namespace", app.Metadata.Namespace),
+		viewField("workloads", strconv.Itoa(len(app.Workloads))),
+		viewField("ingresses", strconv.Itoa(len(app.Ingresses))),
+		viewField("volumes", strconv.Itoa(len(app.Volumes))),
+		viewField("configs", strconv.Itoa(len(app.Configs))),
+		viewField("secrets", strconv.Itoa(len(app.Secrets))),
+	)
 }
 
 func newValidateCmd() *cobra.Command {

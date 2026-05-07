@@ -8,9 +8,9 @@ go 1.26.2
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/arcgolabs/authx v0.2.1
-	github.com/arcgolabs/authx/http/fiber v0.2.1
-	github.com/arcgolabs/authx/jwt v0.2.1
+	github.com/arcgolabs/authx v0.3.0
+	github.com/arcgolabs/authx/http/fiber v0.3.0
+	github.com/arcgolabs/authx/jwt v0.3.0
 	github.com/arcgolabs/clientx v0.1.2
 	github.com/arcgolabs/collectionx/list v0.7.0
 	github.com/arcgolabs/collectionx/mapping v0.7.0

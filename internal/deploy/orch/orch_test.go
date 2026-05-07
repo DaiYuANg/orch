@@ -2,6 +2,7 @@ package orch
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 )
 
@@ -79,6 +80,46 @@ func TestOrchLoadAppFromString(t *testing.T) {
 	}
 	if app.Metadata.Name != "mem" {
 		t.Fatalf("name = %q", app.Metadata.Name)
+	}
+	if err := app.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOrchLoadFullstackDockerExample(t *testing.T) {
+	c, err := NewCompiler()
+	if err != nil {
+		t.Fatal(err)
+	}
+	orch, err := NewOrch(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := orch.LoadAppFile(context.Background(), filepath.FromSlash("../../../examples/fullstack-docker.orch"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app.Metadata.Name != "fullstack" || app.Metadata.Namespace != "demo" {
+		t.Fatalf("metadata = %+v", app.Metadata)
+	}
+	if len(app.Workloads) != 4 {
+		t.Fatalf("workloads = %d, want 4", len(app.Workloads))
+	}
+	backend := app.Workloads[2]
+	if backend.Name != "backend" {
+		t.Fatalf("backend workload order/name = %q", backend.Name)
+	}
+	if backend.Run.Options.Docker == nil || backend.Run.Options.Docker.NetworkMode != "orch-demo" {
+		t.Fatalf("backend docker options = %+v", backend.Run.Options.Docker)
+	}
+	if len(backend.DependsOn) != 2 || backend.DependsOn[0].Name != "postgres" || backend.DependsOn[1].Name != "redis" {
+		t.Fatalf("backend dependsOn = %+v", backend.DependsOn)
+	}
+	if app.Workloads[0].Scheduling == nil || !app.Workloads[0].Scheduling.Stateful {
+		t.Fatalf("postgres scheduling = %+v", app.Workloads[0].Scheduling)
+	}
+	if len(app.Ingresses) != 1 || len(app.Ingresses[0].Routes) != 2 {
+		t.Fatalf("ingresses = %+v", app.Ingresses)
 	}
 	if err := app.Validate(); err != nil {
 		t.Fatal(err)

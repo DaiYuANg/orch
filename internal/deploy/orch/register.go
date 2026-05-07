@@ -53,7 +53,7 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 					Docs:       "Depends-on edges to other workloads.",
 				},
 			),
-			NestedForms: schema.NestedForms("run", "endpoint", "mount", "env", "resources"),
+			NestedForms: schema.NestedForms("run", "runtime_options", "endpoint", "mount", "env", "resources", "scheduling"),
 		},
 		schema.FormSpec{
 			Name:      "run",
@@ -103,6 +103,32 @@ func orchFormSpecs() list.List[schema.FormSpec] {
 			Fields: schema.Fields(
 				schema.FieldSpec{Name: "cpu_millis", Type: schema.TypeInt},
 				schema.FieldSpec{Name: "memory_bytes", Type: schema.TypeInt},
+			),
+		},
+		schema.FormSpec{
+			Name:        "runtime_options",
+			LabelKind:   schema.LabelNone,
+			BodyMode:    schema.BodyFormOnly,
+			NestedForms: schema.NestedForms("docker"),
+		},
+		schema.FormSpec{
+			Name:      "docker",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "network_mode", Type: schema.TypeString},
+				schema.FieldSpec{Name: "privileged", Type: schema.TypeBool, Default: false, HasDefault: true},
+				schema.FieldSpec{Name: "labels", Type: schema.MapType{Elem: schema.TypeString}},
+			),
+		},
+		schema.FormSpec{
+			Name:      "scheduling",
+			LabelKind: schema.LabelNone,
+			BodyMode:  schema.BodyFieldOnly,
+			Fields: schema.Fields(
+				schema.FieldSpec{Name: "stateful", Type: schema.TypeBool, Default: false, HasDefault: true},
+				schema.FieldSpec{Name: "allow_leader", Type: schema.TypeBool, Default: false, HasDefault: true},
+				schema.FieldSpec{Name: "preferred_nodes", Type: schema.ListType{Elem: schema.TypeString}, Default: []any{}, HasDefault: true},
 			),
 		},
 		schema.FormSpec{

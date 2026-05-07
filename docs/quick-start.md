@@ -45,6 +45,12 @@ This starts a single-node server, deploys `examples/local-docker-smoke.yaml`,
 checks the workload status with the CLI, and cleans up by default. See
 `docs/local-docker-smoke.md`.
 
+## Full-stack application example
+
+For a fuller `.orch` DSL example with frontend, backend, Postgres, Redis, and
+ingress routing, see `examples/fullstack-docker.orch` and
+`docs/fullstack-docker.md`.
+
 ## Run server
 
 ```bash

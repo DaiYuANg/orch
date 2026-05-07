@@ -161,6 +161,9 @@ func lowerWorkload(f *compiler.HIRForm) (v1.Workload, error) {
 	if err := fillRun(&w.Run, &runs[0]); err != nil {
 		return w, fmt.Errorf("workload %q: %w", name, err)
 	}
+	if err := fillRuntimeOptions(&w.Run.Options, f); err != nil {
+		return w, fmt.Errorf("workload %q: %w", name, err)
+	}
 
 	for _, ef := range childFormsByKind(f, "endpoint") {
 		ep, err := lowerEndpoint(&ef)
@@ -190,6 +193,13 @@ func lowerWorkload(f *compiler.HIRForm) (v1.Workload, error) {
 	if len(res) == 1 {
 		w.Resources = lowerResources(&res[0])
 	}
+	sched := childFormsByKind(f, "scheduling")
+	if len(sched) > 1 {
+		return w, fmt.Errorf("workload %q: at most one scheduling block", name)
+	}
+	if len(sched) == 1 {
+		w.Scheduling = lowerScheduling(&sched[0])
+	}
 	return w, nil
 }
 
@@ -211,6 +221,41 @@ func fillRun(run *v1.RunSpec, f *compiler.HIRForm) error {
 		run.Cwd = cwd
 	}
 	return nil
+}
+
+func fillRuntimeOptions(opts *v1.RunOptions, f *compiler.HIRForm) error {
+	blocks := childFormsByKind(f, "runtime_options")
+	if len(blocks) > 1 {
+		return fmt.Errorf("at most one runtime_options block")
+	}
+	if len(blocks) == 0 {
+		return nil
+	}
+	dockerBlocks := childFormsByKind(&blocks[0], "docker")
+	if len(dockerBlocks) > 1 {
+		return fmt.Errorf("runtime_options: at most one docker block")
+	}
+	if len(dockerBlocks) == 1 {
+		opts.Docker = lowerDockerOptions(&dockerBlocks[0])
+	}
+	return nil
+}
+
+func lowerDockerOptions(f *compiler.HIRForm) *v1.DockerOptions {
+	var d v1.DockerOptions
+	if networkMode, ok := stringField(f, "network_mode"); ok {
+		d.NetworkMode = strings.TrimSpace(networkMode)
+	}
+	if privileged, ok := boolField(f, "privileged"); ok {
+		d.Privileged = privileged
+	}
+	if labels, ok := stringMapField(f, "labels"); ok {
+		d.Labels = labels
+	}
+	if d.NetworkMode == "" && !d.Privileged && len(d.Labels) == 0 {
+		return nil
+	}
+	return &d
 }
 
 func lowerEndpoint(f *compiler.HIRForm) (v1.Endpoint, error) {
@@ -278,6 +323,23 @@ func lowerResources(f *compiler.HIRForm) *v1.Resources {
 		return nil
 	}
 	return &r
+}
+
+func lowerScheduling(f *compiler.HIRForm) *v1.Scheduling {
+	var s v1.Scheduling
+	if stateful, ok := boolField(f, "stateful"); ok {
+		s.Stateful = stateful
+	}
+	if allowLeader, ok := boolField(f, "allow_leader"); ok {
+		s.AllowLeader = allowLeader
+	}
+	if preferredNodes, ok := rawField(f, "preferred_nodes"); ok {
+		s.PreferredNodes = stringList(preferredNodes)
+	}
+	if !s.Stateful && !s.AllowLeader && len(s.PreferredNodes) == 0 {
+		return nil
+	}
+	return &s
 }
 
 func lowerConfig(f *compiler.HIRForm) (v1.Config, error) {

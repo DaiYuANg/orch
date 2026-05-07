@@ -1,0 +1,186 @@
+// Full-stack docker provider example.
+//
+// Topology:
+// - frontend: public HTTP UI
+// - backend: HTTP API
+// - postgres: database
+// - redis: cache / queue
+//
+// Before deploying locally, create the Docker network used by every workload:
+//
+//   docker network create orch-demo
+//
+// Replace the frontend/backend image names with images you build and publish.
+// Current docker provider support includes image, command, args, env, cwd,
+// resources, and runtime_options.docker.network_mode / privileged.
+// Volumes/mounts are represented by the deploy model but are not mounted by the
+// docker provider yet, so postgres/redis here are development topology examples.
+
+app {
+  metadata {
+    name = "fullstack"
+    namespace = "demo"
+  }
+
+  workload postgres {
+    kind = "stateful"
+    runtime = "docker"
+
+    run {
+      image = "postgres:16-alpine"
+    }
+
+    env {
+      name = "POSTGRES_DB"
+      value = "app"
+    }
+    env {
+      name = "POSTGRES_USER"
+      value = "orch"
+    }
+    env {
+      name = "POSTGRES_PASSWORD"
+      value = "orch-dev-password"
+    }
+
+    runtime_options {
+      docker {
+        network_mode = "orch-demo"
+      }
+    }
+
+    endpoint postgres_tcp {
+      port = 5432
+      protocol = "tcp"
+    }
+
+    resources {
+      cpu_millis = 500
+      memory_bytes = 536870912
+    }
+
+    scheduling {
+      stateful = true
+    }
+  }
+
+  workload redis {
+    kind = "stateful"
+    runtime = "docker"
+
+    run {
+      image = "redis:7-alpine"
+      command = ["redis-server"]
+      args = ["--appendonly", "yes"]
+    }
+
+    runtime_options {
+      docker {
+        network_mode = "orch-demo"
+      }
+    }
+
+    endpoint redis_tcp {
+      port = 6379
+      protocol = "tcp"
+    }
+
+    resources {
+      cpu_millis = 250
+      memory_bytes = 268435456
+    }
+
+    scheduling {
+      stateful = true
+    }
+  }
+
+  workload backend {
+    kind = "service"
+    runtime = "docker"
+    depends_on = [postgres, redis]
+
+    run {
+      image = "ghcr.io/acme/fullstack-backend:latest"
+    }
+
+    // Current docker provider names containers as orch-<namespace>-<workload>.
+    // With the user-created orch-demo Docker network, Docker DNS can resolve
+    // those names from other containers on the same network.
+    env {
+      name = "DATABASE_URL"
+      value = "postgres://orch:orch-dev-password@orch-demo-postgres:5432/app?sslmode=disable"
+    }
+    env {
+      name = "REDIS_ADDR"
+      value = "orch-demo-redis:6379"
+    }
+    env {
+      name = "HTTP_ADDR"
+      value = ":8080"
+    }
+
+    runtime_options {
+      docker {
+        network_mode = "orch-demo"
+      }
+    }
+
+    endpoint backend_http {
+      port = 8080
+      protocol = "http"
+    }
+
+    resources {
+      cpu_millis = 500
+      memory_bytes = 536870912
+    }
+  }
+
+  workload frontend {
+    kind = "service"
+    runtime = "docker"
+    depends_on = [backend]
+
+    run {
+      image = "ghcr.io/acme/fullstack-frontend:latest"
+    }
+
+    env {
+      name = "API_BASE_URL"
+      value = "/api"
+    }
+
+    runtime_options {
+      docker {
+        network_mode = "orch-demo"
+      }
+    }
+
+    endpoint frontend_http {
+      port = 80
+      protocol = "http"
+    }
+
+    resources {
+      cpu_millis = 250
+      memory_bytes = 268435456
+    }
+  }
+
+  ingress public {
+    // Put more specific prefixes first. The ingress layer strips the matched
+    // prefix by default, so /api/health is proxied to backend /health.
+    route {
+      path = "/api"
+      backend_workload = "backend"
+      backend_endpoint = "backend_http"
+    }
+
+    route {
+      path = "/"
+      backend_workload = "frontend"
+      backend_endpoint = "frontend_http"
+    }
+  }
+}

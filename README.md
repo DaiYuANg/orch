@@ -82,6 +82,10 @@ task smoke:local-docker
 
 The smoke manifest is `examples/local-docker-smoke.yaml`; details are in [Local Docker Smoke Test](docs/local-docker-smoke.md).
 
+For a complete application shape in the native `.orch` DSL (frontend, backend,
+Postgres, Redis, ingress), see `examples/fullstack-docker.orch` and
+[Full-Stack Docker Example](docs/fullstack-docker.md).
+
 ## Documentation (mdBook)
 
 Docs are now maintained with `mdBook`.
@@ -96,6 +100,7 @@ See:
 - [Project Status](docs/project-status.md)
 - [Quick Start](docs/quick-start.md)
 - [Local Docker Smoke Test](docs/local-docker-smoke.md)
+- [Full-Stack Docker Example](docs/fullstack-docker.md)
 - [Workload DSL v1 (EN)](docs/dsl.md)
 - [Workload DSL v1（中文）](docs/dsl.zh.md)
 - [Ingress Design v1 (EN)](docs/ingress.md)

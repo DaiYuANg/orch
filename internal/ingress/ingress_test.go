@@ -6,31 +6,25 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	velaruntime "github.com/arcgolabs/vela/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
-func testFiberApp(t *testing.T, routes []config.IngressRoute) *fiber.App {
+func testHTTPHandler(t *testing.T, routes []config.IngressRoute) http.Handler {
 	t.Helper()
-	live := &atomic.Pointer[liveRoutes]{}
-	compiled, err := buildFiberRoutes(routes)
+	snapshot, routeCount, err := buildVelaSnapshot(routes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	live.Store(&liveRoutes{compiled: compiled})
-	app, err := newIngressFiberApp(slog.Default(), live)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return app
+	gateway := velaruntime.NewGateway(snapshot, slog.Default(), false, velaruntime.NewNoopMetrics())
+	return newIngressHTTPHandler(gateway, func() int { return routeCount })
 }
 
-func TestNewIngressFiberApp_proxyPathRewrite(t *testing.T) {
+func TestNewIngressHTTPHandler_proxyPathRewrite(t *testing.T) {
 	t.Parallel()
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +33,7 @@ func TestNewIngressFiberApp_proxyPathRewrite(t *testing.T) {
 	}))
 	t.Cleanup(upstream.Close)
 
-	app := testFiberApp(t, []config.IngressRoute{
+	handler := testHTTPHandler(t, []config.IngressRoute{
 		{PathPrefix: "/api", Upstream: upstream.URL},
 	})
 
@@ -48,10 +42,9 @@ func TestNewIngressFiberApp_proxyPathRewrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Host = "127.0.0.1"
-	resp, err := app.Test(req, -1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	resp := rec.Result()
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 
@@ -63,44 +56,60 @@ func TestNewIngressFiberApp_proxyPathRewrite(t *testing.T) {
 	}
 }
 
-func TestNewIngressFiberApp_noRouteNotFound(t *testing.T) {
+func TestNewIngressHTTPHandler_noRouteNotFound(t *testing.T) {
 	t.Parallel()
 
-	app := testFiberApp(t, []config.IngressRoute{
+	handler := testHTTPHandler(t, []config.IngressRoute{
 		{PathPrefix: "/api", Upstream: "http://127.0.0.1:1"},
 	})
 	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/other", nil)
 	req.Host = "127.0.0.1"
-	resp, err := app.Test(req, -1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	resp := rec.Result()
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status: %d", resp.StatusCode)
 	}
 }
 
-func TestNewIngressFiberApp_placeholderNoRoutes(t *testing.T) {
+func TestNewIngressHTTPHandler_pathPrefixBoundary(t *testing.T) {
 	t.Parallel()
-	live := &atomic.Pointer[liveRoutes]{}
-	app, err := newIngressFiberApp(slog.Default(), live)
-	if err != nil {
-		t.Fatal(err)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("upstream should not receive %s", r.URL.Path)
+	}))
+	t.Cleanup(upstream.Close)
+
+	handler := testHTTPHandler(t, []config.IngressRoute{
+		{PathPrefix: "/api", Upstream: upstream.URL},
+	})
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/api2", nil)
+	req.Host = "127.0.0.1"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status: %d", resp.StatusCode)
 	}
+}
+
+func TestNewIngressHTTPHandler_placeholderNoRoutes(t *testing.T) {
+	t.Parallel()
+	handler := testHTTPHandler(t, nil)
 	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
 	req.Host = "127.0.0.1"
-	resp, err := app.Test(req, -1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	resp := rec.Result()
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: %d", resp.StatusCode)
 	}
 }
 
-func TestNewIngressFiberApp_roundRobinDistributes(t *testing.T) {
+func TestNewIngressHTTPHandler_roundRobinDistributes(t *testing.T) {
 	t.Parallel()
 
 	var hitsA, hitsB int
@@ -115,7 +124,7 @@ func TestNewIngressFiberApp_roundRobinDistributes(t *testing.T) {
 	t.Cleanup(srvA.Close)
 	t.Cleanup(srvB.Close)
 
-	app := testFiberApp(t, []config.IngressRoute{
+	handler := testHTTPHandler(t, []config.IngressRoute{
 		{
 			PathPrefix: "/p",
 			Upstreams:  []string{srvA.URL, srvB.URL},
@@ -126,10 +135,9 @@ func TestNewIngressFiberApp_roundRobinDistributes(t *testing.T) {
 	for range 8 {
 		req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/p/x", nil)
 		req.Host = "127.0.0.1"
-		resp, err := app.Test(req, -1)
-		if err != nil {
-			t.Fatal(err)
-		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		resp := rec.Result()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("status: %d", resp.StatusCode)
 		}

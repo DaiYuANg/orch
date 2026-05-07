@@ -5,12 +5,13 @@ import (
 	"crypto/tls"
 	"log/slog"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	velaruntime "github.com/arcgolabs/vela/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/dnssvc"
@@ -25,8 +26,9 @@ type Service struct {
 	dns           *dnssvc.Service
 	dataRoot      string
 	mu            sync.Mutex
-	apps          []*fiber.App
-	live          *atomic.Pointer[liveRoutes]
+	servers       []*http.Server
+	gateway       *velaruntime.Gateway
+	routeCount    atomic.Int64
 	refreshCancel context.CancelFunc
 	refreshWG     sync.WaitGroup
 	started       bool // guarded by mu
@@ -43,18 +45,24 @@ func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service, dns *dns
 }
 
 func (s *Service) refreshRoutes() {
-	if !s.cfg.Enabled || s.raft == nil || s.dns == nil || s.live == nil {
+	if !s.cfg.Enabled || s.raft == nil || s.dns == nil {
 		return
 	}
 	routes := CompileIngressRoutesFromDeploy(s.raft.ListDesiredDeployApps(), s.dns, s.logger)
-	compiled, err := buildFiberRoutes(routes)
+	snapshot, routeCount, err := buildVelaSnapshot(routes)
 	if err != nil {
 		s.logger.Warn("ingress routes compile failed", "error", err)
 		return
 	}
-	s.live.Store(&liveRoutes{compiled: compiled})
+	s.mu.Lock()
+	gateway := s.gateway
+	if gateway != nil {
+		gateway.Swap(snapshot)
+		s.routeCount.Store(int64(routeCount))
+	}
+	s.mu.Unlock()
 	log := s.logger.With(slog.String("component", "ingress"))
-	log.Info("ingress routes refreshed", "routes", len(compiled))
+	log.Info("ingress routes refreshed", "routes", routeCount)
 }
 
 func (s *Service) Start(_ context.Context) error {
@@ -122,34 +130,34 @@ func (s *Service) Start(_ context.Context) error {
 		return oopsx.B("ingress").Errorf("no ingress listeners (configure ingress.listen and/or ingress.tls)")
 	}
 
-	log := s.logger.With(slog.String("component", "ingress"), slog.String("engine", "fiber"))
+	log := s.logger.With(slog.String("component", "ingress"), slog.String("engine", "vela"))
 
-	live := &atomic.Pointer[liveRoutes]{}
-	s.live = live
-
-	apps := make([]*fiber.App, 0, len(listeners))
-	for range listeners {
-		app, err := newIngressFiberApp(log, live)
-		if err != nil {
-			for _, l := range listeners {
-				_ = l.Close()
-			}
-			s.mu.Unlock()
-			return err
+	snapshot, _, err := buildVelaSnapshot(nil)
+	if err != nil {
+		for _, l := range listeners {
+			_ = l.Close()
 		}
-		apps = append(apps, app)
+		s.mu.Unlock()
+		return err
+	}
+	gateway := velaruntime.NewGateway(snapshot, log, true, velaruntime.NewNoopMetrics())
+	s.gateway = gateway
+
+	servers := make([]*http.Server, 0, len(listeners))
+	for range listeners {
+		servers = append(servers, newIngressHTTPServer(log, gateway, s.currentRouteCount))
 	}
 
 	for i, ln := range listeners {
-		ln, app := ln, apps[i]
+		ln, server := ln, servers[i]
 		go func() {
-			if listenErr := app.Listener(ln); listenErr != nil {
+			if listenErr := server.Serve(ln); listenErr != nil && listenErr != http.ErrServerClosed {
 				log.Error("ingress listener stopped", "error", listenErr)
 			}
 		}()
 	}
 
-	s.apps = apps
+	s.servers = servers
 	s.started = true
 
 	refreshCtx, refreshCancel := context.WithCancel(context.Background())
@@ -189,8 +197,10 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.mu.Unlock()
 		return nil
 	}
-	apps := s.apps
-	s.apps = nil
+	servers := s.servers
+	s.servers = nil
+	s.gateway = nil
+	s.routeCount.Store(0)
 	s.started = false
 	cancel := s.refreshCancel
 	s.refreshCancel = nil
@@ -201,25 +211,25 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.refreshWG.Wait()
 	}
 
-	s.mu.Lock()
-	s.live = nil
-	s.mu.Unlock()
-
 	shutdownCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	var wg sync.WaitGroup
-	for _, app := range apps {
+	for _, server := range servers {
 		wg.Add(1)
-		go func(a *fiber.App) {
+		go func(srv *http.Server) {
 			defer wg.Done()
-			if err := a.ShutdownWithContext(shutdownCtx); err != nil {
+			if err := srv.Shutdown(shutdownCtx); err != nil {
 				s.logger.Warn("ingress shutdown", "error", err)
 			}
-		}(app)
+		}(server)
 	}
 	wg.Wait()
 
 	s.logger.Info("ingress stopped")
 	return nil
+}
+
+func (s *Service) currentRouteCount() int {
+	return int(s.routeCount.Load())
 }

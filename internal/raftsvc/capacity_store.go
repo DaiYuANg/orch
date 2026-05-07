@@ -26,12 +26,6 @@ func (r *raftCapacityStore) Upsert(ctx context.Context, snap nodecapacity.Snapsh
 	if r == nil || r.s == nil {
 		return nil
 	}
-	if r.s.r == nil {
-		return nil
-	}
-	if r.s.r.State() != hraft.Leader {
-		return nil
-	}
 	env := struct {
 		Type string                `json:"type"`
 		Node nodecapacity.Snapshot `json:"node"`
@@ -42,6 +36,13 @@ func (r *raftCapacityStore) Upsert(ctx context.Context, snap nodecapacity.Snapsh
 	b, err := json.Marshal(env)
 	if err != nil {
 		return err
+	}
+	if !r.s.cfg.Raft.Enabled || r.s.r == nil {
+		r.s.fsm.applyCommandPayload(b)
+		return nil
+	}
+	if r.s.r.State() != hraft.Leader {
+		return nil
 	}
 	f := r.s.r.Apply(b, 5*time.Second)
 	return f.Error()

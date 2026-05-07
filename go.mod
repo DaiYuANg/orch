@@ -16,18 +16,19 @@ require (
 	github.com/arcgolabs/collectionx/mapping v0.7.0
 	github.com/arcgolabs/collectionx/set v0.7.0
 	github.com/arcgolabs/configx v0.3.2
-	github.com/arcgolabs/dix v0.7.2
+	github.com/arcgolabs/dix v0.8.0
 	github.com/arcgolabs/dnsx/dnsserver v0.1.2
 	github.com/arcgolabs/httpx v0.1.4
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.4
 	github.com/arcgolabs/logx v0.1.2
 	github.com/arcgolabs/observabilityx v0.4.0
-	github.com/arcgolabs/plano v0.0.0-20260430012828-528122e33899
-	github.com/arcgolabs/plano/lsp v0.0.0-20260430012828-528122e33899
+	github.com/arcgolabs/plano v0.7.1
+	github.com/arcgolabs/plano/lsp v0.0.0-20260507041422-0364f76c1fa6
 	github.com/arcgolabs/storx/badgerx v0.4.0
 	github.com/arcgolabs/storx/bboltx v0.4.0
 	github.com/arcgolabs/storx/codec v0.1.0
 	github.com/arcgolabs/storx/keycodec v0.2.0
+	github.com/arcgolabs/vela v0.0.0-20260507030921-8ec8a0760923
 	github.com/compose-spec/compose-go/v2 v2.10.2
 	github.com/containerd/containerd v1.7.31
 	github.com/containerd/errdefs v1.0.0
@@ -62,6 +63,11 @@ require (
 )
 
 require (
+	github.com/arcgolabs/collectionx/bitset v0.7.0 // indirect
+	github.com/vulcand/oxy/v2 v2.1.0 // indirect
+)
+
+require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
@@ -80,7 +86,7 @@ require (
 	github.com/arcgolabs/httpx/adapter/gin v0.1.4 // indirect
 	github.com/arcgolabs/httpx/adapter/std v0.1.4 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
-	github.com/arcgolabs/plano/examples/builddsl v0.0.0-20260430012828-528122e33899 // indirect
+	github.com/arcgolabs/plano/examples/builddsl v0.0.0-20260507041422-0364f76c1fa6 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/observer v0.1.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
@@ -236,3 +242,5 @@ require (
 	gotest.tools/v3 v3.5.2 // indirect
 	resty.dev/v3 v3.0.0-beta.6 // indirect
 )
+
+replace github.com/arcgolabs/vela => github.com/arcgolabs/vale v0.0.0-20260507030921-8ec8a0760923

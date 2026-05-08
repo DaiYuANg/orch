@@ -150,6 +150,7 @@ See:
 - [Introduction](docs/introduction.md)
 - [Project Status](docs/project-status.md)
 - [Quick Start](docs/quick-start.md)
+- [Beta Release](docs/release-beta.md)
 - [Local Docker Smoke Test](docs/local-docker-smoke.md)
 - [Local Docker Worker Dispatch Smoke Test](docs/local-docker-worker-dispatch-smoke.md)
 - [Full-Stack Docker Example](docs/fullstack-docker.md)
@@ -173,8 +174,13 @@ Recommended workflow is **[GoReleaser](https://goreleaser.com)** with **[nFPM](h
 ```bash
 task goreleaser-check              # validate config
 task release-snapshot              # outputs under dist/ (no tag required)
-# tagged release + GitHub publish (when wired): goreleaser release --clean
+task release-gate                  # non-Docker beta release gate
+# publish beta: git tag -a v0.1.0-beta.1 -m "v0.1.0-beta.1" && git push origin v0.1.0-beta.1
 ```
+
+Pushing a `v*` tag runs `.github/workflows/release.yml` and publishes archives,
+checksums, and Linux packages. See [Beta Release](docs/release-beta.md) for the
+supported beta scope, release gate, and known limitations.
 
 Other common approaches:
 

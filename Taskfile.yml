@@ -96,3 +96,12 @@ tasks:
     desc: "Archives + deb/rpm/apk snapshot under dist/ (no GitHub publish)"
     cmds:
       - go run github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VER}} release --snapshot --clean
+
+  release-gate:
+    desc: "Run beta release gate checks that do not require Docker"
+    cmds:
+      - go mod tidy
+      - go test ./...
+      - task goreleaser-check
+      - task release-snapshot
+      - task smoke:local-raft-forwarding

@@ -30,6 +30,9 @@ builds:
     ldflags:
       - -s
       - -w
+      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
 
   - id: orch-server
     main: ./cmd/orch-server
@@ -46,6 +49,9 @@ builds:
     ldflags:
       - -s
       - -w
+      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
 
   - id: orch-lsp
     main: ./cmd/orch-lsp
@@ -62,6 +68,9 @@ builds:
     ldflags:
       - -s
       - -w
+      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
 
   - id: orch-vpn
     main: ./cmd/orch-vpn
@@ -78,6 +87,9 @@ builds:
     ldflags:
       - -s
       - -w
+      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
 
 archives:
   - formats: [tar.gz]

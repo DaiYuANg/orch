@@ -9,6 +9,9 @@ Implemented:
   `windows-service`.
 - The `containerd` provider targets the CRI sandbox path by default, including
   workload DNS injection through CRI sandbox DNS config.
+- Workload DNS is platform-managed for container runtimes: providers inject
+  orch DNS, and orch DNS can forward non-orch names to configured workload
+  upstream resolvers.
 - Runtime-neutral deploy spec: `run.artifact` for images/paths/URLs,
   `run.exec` for command/args, and typed `runtimeOptions` for `docker`,
   `containerd`, `firecracker`, `process`, `systemd`, and `windows-service`.

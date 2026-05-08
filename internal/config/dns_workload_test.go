@@ -44,3 +44,26 @@ func TestDNSWorkloadSearchDomainList(t *testing.T) {
 		t.Fatalf("custom search = %#v, want %#v", got, want)
 	}
 }
+
+func TestDNSWorkloadUpstreamList(t *testing.T) {
+	t.Parallel()
+
+	cfg := DNSConfig{}
+	cfg.Workload.Upstream = []string{
+		"1.1.1.1",
+		"8.8.8.8:5353",
+		"[2001:4860:4860::8888]:53",
+		"1.1.1.1:53",
+		"not-an-ip",
+	}
+
+	got := cfg.WorkloadUpstreamList().Values()
+	want := []string{
+		"1.1.1.1:53",
+		"8.8.8.8:5353",
+		"[2001:4860:4860::8888]:53",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("upstream = %#v, want %#v", got, want)
+	}
+}

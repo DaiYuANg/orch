@@ -64,6 +64,7 @@ func orchFlagToPath(name string) string {
 		"dns-data-path":                             "dns.data.path",
 		"dns-workload-nameserver":                   "dns.workload.nameserver",
 		"dns-workload-search":                       "dns.workload.search",
+		"dns-workload-upstream":                     "dns.workload.upstream",
 		"dns-workload-advertise-address":            "dns.workload.advertise_address",
 		"orch-vpn-enabled":                          "orch_vpn.enabled",
 		"orch-vpn-tunnel-listen-udp":                "orch_vpn.tunnel_listen_udp",

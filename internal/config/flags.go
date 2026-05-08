@@ -38,6 +38,7 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.String("dns-zone", def.DNS.Zone, "config path dns.zone")
 	fs.String("dns-workload-nameserver", def.DNS.Workload.Nameserver, "config path dns.workload.nameserver (IP reachable by workloads on port 53)")
 	fs.StringSlice("dns-workload-search", def.DNS.Workload.Search, "config path dns.workload.search")
+	fs.StringSlice("dns-workload-upstream", def.DNS.Workload.Upstream, "config path dns.workload.upstream (upstream DNS servers for non-orch names)")
 	fs.String("dns-workload-advertise-address", def.DNS.Workload.AdvertiseAddress, "config path dns.workload.advertise_address")
 
 	fs.Bool("orch-vpn-enabled", def.OrchVPN.Enabled, "config path orch_vpn.enabled (UDP tunnel gateway)")

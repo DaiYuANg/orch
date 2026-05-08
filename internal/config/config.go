@@ -251,6 +251,7 @@ type DNSConfig struct {
 type DNSWorkloadConfig struct {
 	Nameserver       string   `json:"nameserver,omitempty"`        // IP injected into container DNS config.
 	Search           []string `json:"search,omitempty"`            // Optional search domains; defaults to namespace/service/zone.
+	Upstream         []string `json:"upstream,omitempty"`          // Optional DNS upstreams for non-orch names queried by workloads.
 	AdvertiseAddress string   `json:"advertise_address,omitempty"` // Address used for host-style runtimes' A records.
 }
 
@@ -291,6 +292,10 @@ func (c DNSConfig) WorkloadAdvertiseAddress() string {
 	return strings.TrimSpace(c.Workload.AdvertiseAddress)
 }
 
+func (c DNSConfig) WorkloadUpstreamList() *list.List[string] {
+	return normalizeDNSUpstreams(list.NewList(c.Workload.Upstream...))
+}
+
 func workloadNameserverFromListen(listen string) (string, bool) {
 	host, port, err := net.SplitHostPort(strings.TrimSpace(listen))
 	if err != nil || port != "53" {
@@ -319,6 +324,46 @@ func normalizeDNSNameserver(raw string, allowLoopback bool) (string, bool) {
 		return "", false
 	}
 	return ip.String(), true
+}
+
+func normalizeDNSUpstreams(upstreams *list.List[string]) *list.List[string] {
+	seen := set.NewSet[string]()
+	out := list.NewListWithCapacity[string](upstreams.Len())
+	upstreams.Range(func(_ int, upstream string) bool {
+		u, ok := normalizeDNSUpstream(upstream)
+		if !ok || seen.Contains(u) {
+			return true
+		}
+		seen.Add(u)
+		out.Add(u)
+		return true
+	})
+	return out
+}
+
+func normalizeDNSUpstream(raw string) (string, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", false
+	}
+
+	host, port, err := net.SplitHostPort(s)
+	if err != nil {
+		host = s
+		port = "53"
+	}
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	if host == "" || net.ParseIP(host) == nil {
+		return "", false
+	}
+	if port == "" {
+		port = "53"
+	}
+	p, err := net.LookupPort("udp", port)
+	if err != nil || p <= 0 || p > 65535 {
+		return "", false
+	}
+	return net.JoinHostPort(net.ParseIP(host).String(), strconv.Itoa(p)), true
 }
 
 func normalizeDNSDomains(domains *list.List[string]) *list.List[string] {

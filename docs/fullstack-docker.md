@@ -53,12 +53,15 @@ go run ./cmd/orch-server \
   --ingress-listen :18080 \
   --dns-listen 0.0.0.0:53 \
   --dns-workload-nameserver 172.17.0.1 \
+  --dns-workload-upstream 1.1.1.1 \
   --dns-workload-advertise-address 172.17.0.1
 ```
 
 With those flags, Docker containers get `dns.workload.nameserver` and search
 domains like `demo.svc.orch.local`, `svc.orch.local`, and `orch.local` through
 Docker's native DNS settings. No `/etc/resolv.conf` bind mount is added.
+Workloads still see a single resolver: orch DNS answers names in the orch zone
+and forwards non-orch names to `dns.workload.upstream`.
 
 Deploy and wait:
 
@@ -156,6 +159,9 @@ The manifest intentionally stays inside the current runtime surface:
 - Supported by the `docker` provider now: image pull, command, args, env, cwd,
   resource limits, Docker network mode, labels, `privileged`, and Docker-native
   DNS nameserver/search injection.
+- Workload DNS is platform-managed. Configure `dns.workload.upstream` when
+  workloads also need non-orch DNS names, instead of adding per-workload
+  resolver settings.
 - `depends_on` is a scheduling/deploy graph signal today; it is not yet a
   readiness gate.
 - Workload `endpoint` entries feed DNS/ingress intent; they do not publish host

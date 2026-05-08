@@ -50,10 +50,16 @@ func (s *Service) Start(ctx context.Context) error {
 		return oopsx.B("dns").Wrapf(err, "open dns store")
 	}
 
-	server := dnsserver.NewServerWithRepository(
+	resolver := dnsserver.NewResolver(store, dnsserver.WithResolverLogger(s.logger))
+	upstreams := s.cfg.WorkloadUpstreamList()
+	serverOptions := []dnsserver.Option{dnsserver.WithLogger(s.logger)}
+	if upstreams.Len() > 0 {
+		serverOptions = append(serverOptions, dnsserver.WithHandler(newForwardingHandler(resolver, upstreams, s.logger)))
+	}
+	server := dnsserver.NewServerWithResolver(
 		dnsserver.Config{Listen: s.cfg.Listen},
-		store,
-		dnsserver.WithLogger(s.logger),
+		resolver,
+		serverOptions...,
 	)
 	if err := server.Start(ctx); err != nil {
 		if closeErr := store.Close(); closeErr != nil {
@@ -76,6 +82,9 @@ func (s *Service) Start(ctx context.Context) error {
 		return oopsx.B("dns").Wrapf(err, "seed zone record")
 	}
 	s.logger.Info("dns service started", "listen", s.cfg.Listen, "udp", server.UDPAddr(), "tcp", server.TCPAddr())
+	if upstreams.Len() > 0 {
+		s.logger.Info("dns workload upstreams configured", "upstream", upstreams.Values())
+	}
 	if ns, ok := s.WorkloadNameserver(); ok {
 		s.logger.Info("dns workload resolver configured",
 			"nameserver", ns,

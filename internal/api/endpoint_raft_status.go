@@ -6,17 +6,19 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/httpx"
 
+	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 type RaftStatusEndpoint struct {
+	cfg              config.Config
 	raft             *raftsvc.Service
 	openAPIAuthApply bool
 }
 
-func NewRaftStatusEndpoint(raft *raftsvc.Service, openAPIAuthApply bool) *RaftStatusEndpoint {
-	return &RaftStatusEndpoint{raft: raft, openAPIAuthApply: openAPIAuthApply}
+func NewRaftStatusEndpoint(cfg config.Config, raft *raftsvc.Service, openAPIAuthApply bool) *RaftStatusEndpoint {
+	return &RaftStatusEndpoint{cfg: cfg, raft: raft, openAPIAuthApply: openAPIAuthApply}
 }
 
 func (e *RaftStatusEndpoint) EndpointSpec() httpx.EndpointSpec {
@@ -50,6 +52,9 @@ func (e *RaftStatusEndpoint) status(ctx context.Context, _ *EmptyInput) (*RaftSt
 	out.Body.IsLeader = status.IsLeader
 	out.Body.LeaderID = status.LeaderID
 	out.Body.LeaderAddress = status.LeaderAddress
+	if leaderAPIURL, ok := e.cfg.Cluster.NodeURL(status.LeaderID); ok {
+		out.Body.LeaderAPIURL = leaderAPIURL
+	}
 	out.Body.LocalAddress = status.LocalAddress
 	out.Body.Members = list.MapList(status.Members, func(_ int, member raftsvc.Member) RaftMemberItem {
 		return raftMemberItem(member)

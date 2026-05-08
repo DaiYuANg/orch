@@ -49,12 +49,17 @@ go run ./cmd/orch-cli stop app my-app -n default
 go run ./cmd/orch-cli start app my-app -n default
 go run ./cmd/orch-cli restart app my-app -n default
 go run ./cmd/orch-cli delete app my-app -n default
+go run ./cmd/orch-cli migrate app my-app --to node-b -n default
+go run ./cmd/orch-cli failover app my-app -n default
+go run ./cmd/orch-cli rebalance app my-app -n default
 ```
 
 `stop` stops assigned workloads through the local runtime or worker dispatch and
 keeps the desired app document. `start` uses that retained desired state to run
 the app again, `restart` does stop then start, and `delete` stops workloads first
-then removes desired state from Raft.
+then removes desired state from Raft. `migrate` moves selected workloads to a
+target node, `failover` moves failed workloads (or explicitly selected
+workloads), and `rebalance` re-runs placement and moves only changed placements.
 
 ## Host DNS installer hook
 
@@ -78,9 +83,11 @@ go run ./cmd/orch-cli raft add-voter node-b 10.0.0.12:7444
 go run ./cmd/orch-cli raft remove-voter node-b
 ```
 
-Membership writes must target the current Raft leader. Use `raft status` to
-check local state and the known leader. For a node that will be joined
-dynamically, start it with `raft.bootstrap: false`.
+If `cluster.nodes` maps the current leader ID to its HTTP API URL, follower
+nodes forward deploy lifecycle writes and Raft membership writes to the leader.
+Use `raft status` to check local state, the known leader, and the configured
+leader API URL. For a node that will be joined dynamically, start it with
+`raft.bootstrap: false`.
 
 ## Run local Docker smoke test
 
@@ -88,6 +95,7 @@ dynamically, start it with `raft.bootstrap: false`.
 task smoke:local-docker
 task smoke:local-docker-dns
 task smoke:local-docker-worker-dispatch
+task smoke:local-raft-forwarding
 ```
 
 This starts a single-node server, deploys `examples/local-docker-smoke.yaml`,
@@ -95,9 +103,11 @@ checks workload status with the CLI, runs stop/start/restart/delete, and cleans
 up by default. The DNS smoke deploys two workloads and verifies the client can
 reach `dns-backend.default.svc.orch.local` through orch DNS. The worker dispatch
 smoke starts separate scheduler and worker server processes and verifies remote
-dispatch through the worker API. See `docs/local-docker-smoke.md`,
+dispatch through the worker API. The Raft forwarding smoke starts a local
+three-node cluster and verifies apply/delete through a follower. See
+`docs/local-docker-smoke.md`,
 `docs/local-docker-dns-smoke.md`, and
-`docs/local-docker-worker-dispatch-smoke.md`.
+`docs/local-docker-worker-dispatch-smoke.md`, and `docs/local-raft.md`.
 
 ## Full-stack application example
 

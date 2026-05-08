@@ -15,11 +15,12 @@ import (
 type DeploySourceEndpoint struct {
 	loader           *loader.Loader
 	tasks            *task.Service
+	leader           *LeaderForwarder
 	openAPIAuthApply bool
 }
 
-func NewDeploySourceEndpoint(loader *loader.Loader, tasks *task.Service, openAPIAuthApply bool) *DeploySourceEndpoint {
-	return &DeploySourceEndpoint{loader: loader, tasks: tasks, openAPIAuthApply: openAPIAuthApply}
+func NewDeploySourceEndpoint(loader *loader.Loader, tasks *task.Service, leader *LeaderForwarder, openAPIAuthApply bool) *DeploySourceEndpoint {
+	return &DeploySourceEndpoint{loader: loader, tasks: tasks, leader: leader, openAPIAuthApply: openAPIAuthApply}
 }
 
 func (e *DeploySourceEndpoint) EndpointSpec() httpx.EndpointSpec {
@@ -37,13 +38,19 @@ func (e *DeploySourceEndpoint) EndpointSpec() httpx.EndpointSpec {
 func (e *DeploySourceEndpoint) Register(r httpx.Registrar) {
 	httpx.MustGroupPost(r.Scope(), "", e.handle, OpenAPIMeta([]string{"deploy"}, "deployAppSource",
 		"Apply deploy source code",
-		"Parses virtualPath suffix (.orch plano, otherwise YAML) on the server, then replicates desired state via Raft. Target the Raft leader when clustering. Requires JWT when auth is enabled."))
+		"Parses virtualPath suffix (.orch plano, otherwise YAML) on the server, then replicates desired state via Raft. Follower nodes forward to the known leader when cluster.nodes maps the leader ID to an API URL. Requires JWT when auth is enabled."))
 }
 
 func (e *DeploySourceEndpoint) handle(ctx context.Context, in *DeploySourceInput) (*DeployOutput, error) {
 	vp := strings.TrimSpace(in.Body.VirtualPath)
 	if vp == "" {
 		return nil, oopsx.B("api").Errorf("virtualPath is required")
+	}
+	out := &DeployOutput{}
+	if forwarded, err := e.leader.ForwardPost(ctx, PathV1DeploySource, &in.Body, &out.Body); err != nil {
+		return nil, oopsx.B("api").Wrapf(err, "forward deploy source")
+	} else if forwarded {
+		return out, nil
 	}
 	app, err := e.loader.LoadAppString(ctx, vp, in.Body.Source)
 	if err != nil {
@@ -52,7 +59,6 @@ func (e *DeploySourceEndpoint) handle(ctx context.Context, in *DeploySourceInput
 	if err := e.tasks.SubmitDeploy(ctx, app); err != nil {
 		return nil, oopsx.B("api").Wrapf(err, "deploy app")
 	}
-	out := &DeployOutput{}
 	out.Body.Accepted = true
 	out.Body.App = app.Metadata.Name
 	out.Body.Workloads = len(app.Workloads)

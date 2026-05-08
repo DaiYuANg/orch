@@ -59,7 +59,8 @@ raft:
   bootstrap: false
 ```
 
-Then target the current leader:
+Then send the membership write to any node whose config has `cluster.nodes`
+mapping the current leader ID to its HTTP API URL:
 
 ```bash
 orch raft status
@@ -68,12 +69,29 @@ orch raft add-voter node-d 10.0.0.14:7444 --server http://10.0.0.11:17443
 orch raft remove-voter node-d --server http://10.0.0.11:17443
 ```
 
-Membership writes must be sent to the Raft leader. `orch raft status` shows the
-local Raft state, known leader ID/address, local Raft address, and member count.
-Automatic forwarding is still future work.
+If the contacted node is a follower, it forwards deploy lifecycle and operation
+writes (`apply`, `start`, `stop`, `restart`, `delete`, `migrate`, `failover`,
+`rebalance`) plus Raft membership writes to the known leader. `orch raft status`
+shows the local Raft state, known leader ID/address, leader API URL when
+configured, local Raft address, and member count.
+
+## Local forwarding smoke
+
+Run a local three-node Raft cluster and prove that write requests submitted to a
+follower are forwarded to the leader and replicated:
+
+```powershell
+task smoke:local-raft-forwarding
+```
+
+The smoke starts three `orch-server` processes with static peer bootstrap,
+applies `examples/local-raft-forwarding.yaml` through a follower, waits for the
+app to appear on every node, then deletes it through a follower and waits for
+the deletion to replicate.
 
 ## Current limits
 
 Static bootstrap and basic add/remove voter operations are supported. Leader
-visibility is available through `orch raft status`. Automatic forwarding,
-non-voter learners, and joint operational guardrails are still future work.
+visibility is available through `orch raft status`. Follower forwarding depends
+on `cluster.nodes` containing the leader's HTTP URL. Non-voter learners and
+joint operational guardrails are still future work.

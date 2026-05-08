@@ -50,6 +50,9 @@ func init() {
 	rootCmd.AddCommand(newDeleteCmd("delete", []string{"rm"}))
 	rootCmd.AddCommand(newStopCmd())
 	rootCmd.AddCommand(newRestartCmd())
+	rootCmd.AddCommand(newMigrateCmd())
+	rootCmd.AddCommand(newFailoverCmd())
+	rootCmd.AddCommand(newRebalanceCmd())
 	rootCmd.AddCommand(newComposeCmd())
 	// Cluster inspection (requires reachable control plane).
 	rootCmd.AddCommand(newGetCmd())

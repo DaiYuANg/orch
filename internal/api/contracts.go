@@ -190,6 +190,28 @@ type RestartDeployOutput struct {
 	} `json:"body"`
 }
 
+type DeployOperationInput struct {
+	Namespace string `path:"namespace"`
+	Name      string `path:"name"`
+	Body      struct {
+		TargetNode string   `json:"targetNode,omitempty"`
+		Workloads  []string `json:"workloads,omitempty"`
+	} `json:"body"`
+}
+
+type DeployOperationOutput struct {
+	Body struct {
+		Accepted   bool   `json:"accepted"`
+		Operation  string `json:"operation"`
+		App        string `json:"app"`
+		Namespace  string `json:"namespace"`
+		TargetNode string `json:"targetNode,omitempty"`
+		Workloads  int    `json:"workloads"`
+		Moved      int    `json:"moved"`
+		Status     string `json:"status"`
+	} `json:"body"`
+}
+
 type RaftMemberItem struct {
 	ID       string `json:"id"`
 	Address  string `json:"address"`
@@ -205,6 +227,7 @@ type RaftStatusOutput struct {
 		IsLeader      bool                       `json:"isLeader"`
 		LeaderID      string                     `json:"leaderId,omitempty"`
 		LeaderAddress string                     `json:"leaderAddress,omitempty"`
+		LeaderAPIURL  string                     `json:"leaderApiUrl,omitempty"`
 		LocalAddress  string                     `json:"localAddress,omitempty"`
 		Members       *list.List[RaftMemberItem] `json:"members"`
 	} `json:"body"`

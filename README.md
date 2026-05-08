@@ -8,7 +8,7 @@ orch is being built in Go and focuses on:
 
 - Multi-runtime workload execution (`docker`, `containerd`, `firecracker`, `process`, `systemd`, `windows-service`)
 - Built-in ingress and DNS record lifecycle
-- Raft-aware scheduling (deploy/stop/delete now; migrate/failover/rebalance are design targets)
+- Raft-aware scheduling and operations (deploy/stop/delete plus migrate/failover/rebalance baseline)
 - Declarative Workload DSL direction with compatibility inputs and `plan/render/apply/delete`
 
 Current core stack:
@@ -16,9 +16,9 @@ Current core stack:
 - DI: `github.com/arcgolabs/dix`
 - Logging: `github.com/arcgolabs/logx`
 - HTTP server/API: `github.com/arcgolabs/httpx` (`fiber` adapter)
-- Ingress: Fiber + `middleware/proxy` (round-robin); optional **Let's Encrypt** via `ingress.tls` (`golang.org/x/crypto/acme/autocert`, TLS-ALPN-01).
+- Ingress: `github.com/arcgolabs/vale` runtime/proxy (round-robin); optional **Let's Encrypt** via `ingress.tls` (`golang.org/x/crypto/acme/autocert`, TLS-ALPN-01).
 - CLI: `github.com/spf13/cobra`
-- Consensus path: `github.com/hashicorp/raft` over TCP transport with static peer bootstrap and basic membership commands
+- Consensus path: `github.com/hashicorp/raft` over TCP transport with static peer bootstrap, basic membership commands, and follower write forwarding when `cluster.nodes` maps leader IDs to API URLs
 
 ## Project Structure
 
@@ -86,12 +86,18 @@ go run ./cmd/orch-cli stop app my-app -n default
 go run ./cmd/orch-cli start app my-app -n default
 go run ./cmd/orch-cli restart app my-app -n default
 go run ./cmd/orch-cli delete app my-app -n default
+go run ./cmd/orch-cli migrate app my-app --to node-b -n default
+go run ./cmd/orch-cli failover app my-app -n default
+go run ./cmd/orch-cli rebalance app my-app -n default
 ```
 
 `stop` stops assigned workloads while keeping the desired app document. `start`
 uses retained desired state to run the app again, `restart` does stop then
 start, and `delete` stops assigned workloads first before removing the desired
-app from Raft.
+app from Raft. `migrate` moves selected workloads to `--to`, `failover` moves
+failed workloads (or explicitly selected workloads) to another node, and
+`rebalance` re-runs placement and only moves workloads whose selected node
+changes.
 
 Raft membership basics:
 
@@ -102,7 +108,7 @@ go run ./cmd/orch-cli raft add-voter node-b 10.0.0.12:7444
 go run ./cmd/orch-cli raft remove-voter node-b
 ```
 
-Membership writes must target the current leader; use `raft status` to see local state and the known leader. Dynamically joined nodes should start with `raft.bootstrap: false`.
+When `cluster.nodes` maps the current leader ID to its HTTP API URL, follower nodes forward deploy lifecycle writes and Raft membership writes to the leader. Use `raft status` to see local state, the known leader, and the configured leader API URL. Dynamically joined nodes should start with `raft.bootstrap: false`.
 
 ### Local Docker smoke test
 
@@ -112,6 +118,7 @@ Run a complete single-node smoke flow (server -> CLI deploy -> Docker runtime ->
 task smoke:local-docker
 task smoke:local-docker-dns
 task smoke:local-docker-worker-dispatch
+task smoke:local-raft-forwarding
 ```
 
 The lifecycle smoke manifest is `examples/local-docker-smoke.yaml`; details are
@@ -122,6 +129,9 @@ in [Local Docker Smoke Test](docs/local-docker-smoke.md). The DNS smoke uses
 dispatch smoke starts scheduler and worker server processes and verifies
 dispatch through the worker API; details are in
 [Local Docker Worker Dispatch Smoke Test](docs/local-docker-worker-dispatch-smoke.md).
+The Raft forwarding smoke starts a local three-node cluster and verifies
+apply/delete through a follower; details are in
+[Local Raft Cluster](docs/local-raft.md).
 
 For a complete application shape in the short native `.orch` DSL (frontend, backend,
 Postgres, Redis, ingress), see `examples/fullstack-docker.orch` and

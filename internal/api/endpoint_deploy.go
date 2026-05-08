@@ -12,11 +12,12 @@ import (
 // DeployEndpoint serves POST /api/v1/deploy.
 type DeployEndpoint struct {
 	tasks            *task.Service
+	leader           *LeaderForwarder
 	openAPIAuthApply bool // when true, OpenAPI documents bearerAuth on this route (matches Fiber auth when server auth is enabled)
 }
 
-func NewDeployEndpoint(tasks *task.Service, openAPIAuthApply bool) *DeployEndpoint {
-	return &DeployEndpoint{tasks: tasks, openAPIAuthApply: openAPIAuthApply}
+func NewDeployEndpoint(tasks *task.Service, leader *LeaderForwarder, openAPIAuthApply bool) *DeployEndpoint {
+	return &DeployEndpoint{tasks: tasks, leader: leader, openAPIAuthApply: openAPIAuthApply}
 }
 
 func (e *DeployEndpoint) EndpointSpec() httpx.EndpointSpec {
@@ -37,10 +38,15 @@ func (e *DeployEndpoint) Register(r httpx.Registrar) {
 }
 
 func (e *DeployEndpoint) handle(ctx context.Context, in *DeployInput) (*DeployOutput, error) {
+	out := &DeployOutput{}
+	if forwarded, err := e.leader.ForwardPost(ctx, PathV1Deploy, &in.Body, &out.Body); err != nil {
+		return nil, oopsx.B("api").Wrapf(err, "forward deploy app")
+	} else if forwarded {
+		return out, nil
+	}
 	if err := e.tasks.SubmitDeploy(ctx, &in.Body); err != nil {
 		return nil, oopsx.B("api").Wrapf(err, "deploy app")
 	}
-	out := &DeployOutput{}
 	out.Body.Accepted = true
 	out.Body.App = in.Body.Metadata.Name
 	out.Body.Workloads = len(in.Body.Workloads)

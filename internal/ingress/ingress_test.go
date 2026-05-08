@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/arcgolabs/collectionx/list"
-	velaruntime "github.com/arcgolabs/vela/runtime"
+	valeruntime "github.com/arcgolabs/vale/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -17,11 +17,11 @@ import (
 
 func testHTTPHandler(t *testing.T, routes *list.List[config.IngressRoute]) http.Handler {
 	t.Helper()
-	snapshot, routeCount, err := buildVelaSnapshot(routes)
+	snapshot, routeCount, err := buildValeSnapshot(routes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := velaruntime.NewGateway(snapshot, slog.Default(), false, velaruntime.NewNoopMetrics())
+	gateway := valeruntime.NewGateway(snapshot, slog.Default(), false, valeruntime.NewNoopMetrics())
 	return newIngressHTTPHandler(gateway, func() int { return routeCount })
 }
 

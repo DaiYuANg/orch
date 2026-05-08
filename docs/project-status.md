@@ -15,13 +15,14 @@ Implemented:
 - Runtime-neutral deploy spec: `run.artifact` for images/paths/URLs,
   `run.exec` for command/args, and typed `runtimeOptions` for `docker`,
   `containerd`, `firecracker`, `process`, `systemd`, and `windows-service`.
-- Task APIs: deploy/list and app start/stop/restart/delete. Migrate/failover/
-  rebalance remain control-plane design targets.
+- Task APIs: deploy/list, app start/stop/restart/delete, and baseline
+  migrate/failover/rebalance operations.
 - Registry-backed ingress route and endpoint management.
 - DNS record lifecycle tied to deploy/stop.
 - Raft-backed write-path coordination with TCP transport, static multi-node
-  bootstrap, local status visibility, and basic add/remove voter membership
-  operations.
+  bootstrap, local status visibility, basic add/remove voter membership
+  operations, and follower forwarding for deploy lifecycle and membership writes
+  when `cluster.nodes` maps leader IDs to API URLs.
 - Transitional DSL flow with `plan/render/apply/delete`, with the canonical
   Workload DSL v1 direction documented separately.
 - DSL/compiler pipeline direction (`parser -> HIR -> binder -> IR -> canonical ->
@@ -29,8 +30,9 @@ Implemented:
 - Canonical DSL subset support for `workload`, `volume`, `config`, `secret`,
   `ingress`, `import`, typed refs, `env`, `resources`, and basic HTTP health
   probes.
-- Ingress served by embedded Caddy (`internal/ingress`); longer-term snapshot /
-  reconciliation designs are described in `docs/ingress*.md`.
+- Ingress served by `github.com/arcgolabs/vale` runtime/proxy through
+  `internal/ingress`; longer-term snapshot / reconciliation designs are
+  described in `docs/ingress*.md`.
 - Ingress runtime snapshots now carry explicit backend binding identity
   (`workload_id` / `endpoint_name`) in addition to concrete backend addresses.
 - The transitional `/dsl/apply` flow now compiles explicit ingress route specs
@@ -48,6 +50,7 @@ In progress:
   recovery, and service wrapper ergonomics).
 - Firecracker provider parity hardening (automatic TAP/bridge management,
   jailer integration, recovery, and image/rootfs preparation workflow).
-- Stateful placement/migration policy refinement.
+- Stateful placement/migration policy refinement beyond the current explicit
+  migrate/failover/rebalance baseline.
 - More production-grade failure handling and recovery behavior.
-- Raft automatic request forwarding and higher-level membership guardrails.
+- Higher-level Raft membership guardrails.

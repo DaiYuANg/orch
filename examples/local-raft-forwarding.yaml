@@ -1,0 +1,6 @@
+apiVersion: warden.arcgolabs.io/v1alpha1
+kind: App
+metadata:
+  name: raft-forwarding
+  namespace: default
+workloads: []

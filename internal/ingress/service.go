@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	velaruntime "github.com/arcgolabs/vela/runtime"
+	valeruntime "github.com/arcgolabs/vale/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/dnssvc"
@@ -27,7 +27,7 @@ type Service struct {
 	dataRoot      string
 	mu            sync.Mutex
 	servers       []*http.Server
-	gateway       *velaruntime.Gateway
+	gateway       *valeruntime.Gateway
 	routeCount    atomic.Int64
 	refreshCancel context.CancelFunc
 	refreshWG     sync.WaitGroup
@@ -50,7 +50,7 @@ func (s *Service) refreshRoutes() {
 	}
 	apps := s.raft.ListDesiredDeployApps()
 	routes := CompileIngressRoutesFromDeploy(apps, s.dns, s.logger)
-	snapshot, routeCount, err := buildVelaSnapshot(routes)
+	snapshot, routeCount, err := buildValeSnapshot(routes)
 	if err != nil {
 		s.logger.Warn("ingress routes compile failed", "error", err)
 		return
@@ -143,9 +143,9 @@ func (s *Service) Start(_ context.Context) error {
 		return oopsx.B("ingress").Errorf("no ingress listeners (configure ingress.listen and/or ingress.tls)")
 	}
 
-	log := s.logger.With(slog.String("component", "ingress"), slog.String("engine", "vela"))
+	log := s.logger.With(slog.String("component", "ingress"), slog.String("engine", "vale"))
 
-	snapshot, _, err := buildVelaSnapshot(nil)
+	snapshot, _, err := buildValeSnapshot(nil)
 	if err != nil {
 		for _, l := range listeners {
 			_ = l.Close()
@@ -153,7 +153,7 @@ func (s *Service) Start(_ context.Context) error {
 		s.mu.Unlock()
 		return err
 	}
-	gateway := velaruntime.NewGateway(snapshot, log, true, velaruntime.NewNoopMetrics())
+	gateway := valeruntime.NewGateway(snapshot, log, true, valeruntime.NewNoopMetrics())
 	s.gateway = gateway
 
 	servers := make([]*http.Server, 0, len(listeners))

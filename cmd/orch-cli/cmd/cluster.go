@@ -200,7 +200,7 @@ func newRaftCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "raft",
 		Short: "Inspect and manage Raft membership",
-		Long:  `Raft membership commands operate on the configured control plane. Write operations must target the current Raft leader.`,
+		Long:  `Raft membership commands operate on the configured control plane. Followers forward writes to the known leader when cluster.nodes maps the leader ID to an API URL.`,
 		Args:  cobra.NoArgs,
 	}
 	cmd.AddCommand(newRaftStatusCmd())
@@ -270,7 +270,7 @@ func newRaftAddVoterCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add-voter ID ADDRESS",
 		Short: "Add or update a Raft voter",
-		Long:  `Adds or updates a Raft voter by node ID and advertised raft host:port. Target the current Raft leader.`,
+		Long:  `Adds or updates a Raft voter by node ID and advertised raft host:port. Followers forward writes when configured with the leader API URL.`,
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
@@ -303,7 +303,7 @@ func newRaftRemoveVoterCmd() *cobra.Command {
 		Use:     "remove-voter ID",
 		Aliases: []string{"remove-member"},
 		Short:   "Remove a Raft member",
-		Long:    `Removes a Raft server from membership. Target the current Raft leader.`,
+		Long:    `Removes a Raft server from membership. Followers forward writes when configured with the leader API URL.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
@@ -478,6 +478,116 @@ func newRestartCmd() *cobra.Command {
 	return cmd
 }
 
+func newMigrateCmd() *cobra.Command {
+	var namespace string
+	var targetNode string
+	var workloads []string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "migrate app NAME --to NODE",
+		Short: "Move app workloads to a target node",
+		Long:  `Stops selected workloads, starts them on the target node, and updates scheduler assignments. Desired app state is kept.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "app" {
+				return oopsx.B("cli").Errorf("expected resource type app, got %q", args[0])
+			}
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.MigrateDeploy(ctx, namespace, args[1], targetNode, workloads)
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "migrate app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeDeployOperationHuman("migrate", out)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().StringVar(&targetNode, "to", "", "Target node ID")
+	cmd.Flags().StringArrayVar(&workloads, "workload", nil, "Workload name to move (repeatable; default all)")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	_ = cmd.MarkFlagRequired("to")
+	return cmd
+}
+
+func newFailoverCmd() *cobra.Command {
+	var namespace string
+	var targetNode string
+	var workloads []string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "failover app NAME",
+		Short: "Move failed app workloads to another node",
+		Long:  `Moves failed workloads, or selected workloads, to --to when provided or another available node.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "app" {
+				return oopsx.B("cli").Errorf("expected resource type app, got %q", args[0])
+			}
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.FailoverDeploy(ctx, namespace, args[1], targetNode, workloads)
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "failover app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeDeployOperationHuman("failover", out)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().StringVar(&targetNode, "to", "", "Optional target node ID")
+	cmd.Flags().StringArrayVar(&workloads, "workload", nil, "Workload name to fail over (repeatable; default failed workloads)")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
+func newRebalanceCmd() *cobra.Command {
+	var namespace string
+	var workloads []string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "rebalance app NAME",
+		Short: "Re-run placement and move workloads when needed",
+		Long:  `Re-runs placement for selected workloads and migrates only those whose selected node changes.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "app" {
+				return oopsx.B("cli").Errorf("expected resource type app, got %q", args[0])
+			}
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.RebalanceDeploy(ctx, namespace, args[1], workloads)
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "rebalance app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeDeployOperationHuman("rebalance", out)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().StringArrayVar(&workloads, "workload", nil, "Workload name to rebalance (repeatable; default all)")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
 func newApplyCmd() *cobra.Command {
 	var file string
 	var jsonOut bool
@@ -488,7 +598,7 @@ func newApplyCmd() *cobra.Command {
 		Short: "Deploy a manifest to the cluster from a .orch or YAML file",
 		Long: `Reads the deploy file locally and sends its source to orch-server. The server parses the document (virtual path
 suffix selects .orch vs YAML), replicates desired state through Raft, then reconciles workloads on each node.
-Requires a reachable control plane (--server / ORCH_SERVER); clustered Raft deploys must target the leader.`,
+Requires a reachable control plane (--server / ORCH_SERVER); follower nodes forward clustered Raft deploys when configured with the leader API URL.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := contextFromCmd(cmd)
 			if file == "" {
@@ -803,6 +913,20 @@ func stderrIsTerminal() bool {
 	return info.Mode()&os.ModeCharDevice != 0
 }
 
+func writeDeployOperationHuman(label string, out *api.DeployOperationOutput) error {
+	body := out.Body
+	fields := []string{
+		viewField("status", statusBadge(body.Status)),
+		viewField("app", body.App),
+		viewField("namespace", body.Namespace),
+		viewField("moved", strconv.Itoa(body.Moved)+"/"+strconv.Itoa(body.Workloads)),
+	}
+	if body.TargetNode != "" {
+		fields = append(fields, viewField("target", body.TargetNode))
+	}
+	return writeInfoLine(label, fields...)
+}
+
 func writeHostinfoHuman(out *api.HostinfoOutput) error {
 	body := out.Body
 	h := body.Host
@@ -925,6 +1049,7 @@ func writeRaftStatusHuman(out *api.RaftStatusOutput) error {
 		[]string{"node_id", nonEmpty(body.NodeID)},
 		[]string{"leader_id", nonEmpty(body.LeaderID)},
 		[]string{"leader_address", nonEmpty(body.LeaderAddress)},
+		[]string{"leader_api", nonEmpty(body.LeaderAPIURL)},
 		[]string{"local_address", nonEmpty(body.LocalAddress)},
 		[]string{"members", strconv.Itoa(memberCount)},
 	)

@@ -28,11 +28,16 @@ import (
 type fakeRuntimeProvider struct {
 	mu       sync.Mutex
 	deployed []deployv1.Workload
+	stopped  []string
 	ch       chan deployv1.Workload
+	stopCh   chan string
 }
 
 func newFakeRuntimeProvider() *fakeRuntimeProvider {
-	return &fakeRuntimeProvider{ch: make(chan deployv1.Workload, 4)}
+	return &fakeRuntimeProvider{
+		ch:     make(chan deployv1.Workload, 4),
+		stopCh: make(chan string, 4),
+	}
 }
 
 func (p *fakeRuntimeProvider) Kind() deployv1.RuntimeKind {
@@ -47,7 +52,14 @@ func (p *fakeRuntimeProvider) Deploy(_ context.Context, _ deployv1.Metadata, wor
 	return nil
 }
 
-func (p *fakeRuntimeProvider) Stop(_ context.Context, _ deployv1.Metadata, _ string) error {
+func (p *fakeRuntimeProvider) Stop(_ context.Context, _ deployv1.Metadata, name string) error {
+	p.mu.Lock()
+	p.stopped = append(p.stopped, name)
+	p.mu.Unlock()
+	select {
+	case p.stopCh <- name:
+	default:
+	}
 	return nil
 }
 
@@ -493,6 +505,198 @@ func TestSubmitDeployRecordsFailedAssignmentOnRemoteDispatchError(t *testing.T) 
 	if assignment.Error == "" {
 		t.Fatalf("expected assignment error, got %#v", assignment)
 	}
+}
+
+func TestSubmitMigrateMovesWorkloadToTargetNode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dispatchCh := make(chan workerapi.DeployWorkloadBody, 1)
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != workerapi.PathV1WorkerDeploy {
+			t.Fatalf("worker path = %q, want %q", r.URL.Path, workerapi.PathV1WorkerDeploy)
+		}
+		var in workerapi.DeployWorkloadBody
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			t.Fatalf("decode worker request: %v", err)
+		}
+		dispatchCh <- in
+		out := workerapi.DeployWorkloadOutput{}
+		out.Body.Accepted = true
+		out.Body.Node = in.Node
+		out.Body.Status = workloadmeta.AssignmentStatusRunning
+		out.Body.Workload = in.Workload.Name
+		_ = json.NewEncoder(w).Encode(out.Body)
+	}))
+	t.Cleanup(worker.Close)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := config.Default()
+	cfg.Raft.Enabled = false
+	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
+	local := nodeid.Local{Value: "node-a"}
+	raft := raftsvc.New(cfg, logger, local)
+	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
+	fakeRuntime := newFakeRuntimeProvider()
+	runtimeManager := orchruntime.NewManager(logger, fakeRuntime)
+	registrySvc := registry.NewService(logger)
+	svc := NewService(logger, newTestMetrics(t, cfg, logger), runtimeManager, registrySvc, cfg, Bundle{
+		LocalNode:  local,
+		Catalog:    catalog,
+		Placement:  placement.NewEngine(),
+		Raft:       raft,
+		Dispatcher: NewHTTPWorkerDispatcher(cfg),
+	})
+
+	app := deployv1.App{
+		Metadata: deployv1.Metadata{Name: "migrate-demo", Namespace: "default"},
+		Workloads: []deployv1.Workload{{
+			Name:    "worker",
+			Kind:    deployv1.WorkloadKindWorker,
+			Runtime: deployv1.RuntimeDocker,
+			Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "busybox"}},
+		}},
+	}
+	if err := raft.ApplyDeployApp(app); err != nil {
+		t.Fatal(err)
+	}
+	if err := raft.ApplyWorkloadAssignment(workloadmeta.Assignment{
+		Key:      workloadmeta.AssignmentKey(app.Metadata, "worker"),
+		Metadata: app.Metadata,
+		Workload: "worker",
+		Node:     "node-a",
+		Runtime:  deployv1.RuntimeDocker,
+		Status:   workloadmeta.AssignmentStatusRunning,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := svc.SubmitMigrate(ctx, app.Metadata, AppOperationOptions{TargetNode: "node-b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Moved != 1 || summary.TargetNode != "node-b" {
+		t.Fatalf("summary = %#v", summary)
+	}
+	select {
+	case got := <-dispatchCh:
+		if got.Node != "node-b" || got.Workload.Name != "worker" {
+			t.Fatalf("dispatch request = %#v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for migrate dispatch")
+	}
+	waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-b", workloadmeta.AssignmentStatusRunning)
+}
+
+func TestSubmitFailoverMovesFailedWorkloadToLocalNode(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := config.Default()
+	cfg.Raft.Enabled = false
+	local := nodeid.Local{Value: "node-a"}
+	raft := raftsvc.New(cfg, logger, local)
+	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
+	fakeRuntime := newFakeRuntimeProvider()
+	runtimeManager := orchruntime.NewManager(logger, fakeRuntime)
+	registrySvc := registry.NewService(logger)
+	svc := NewService(logger, newTestMetrics(t, cfg, logger), runtimeManager, registrySvc, cfg, Bundle{
+		LocalNode: local,
+		Catalog:   catalog,
+		Placement: placement.NewEngine(),
+		Raft:      raft,
+	})
+
+	app := deployv1.App{
+		Metadata: deployv1.Metadata{Name: "failover-demo", Namespace: "default"},
+		Workloads: []deployv1.Workload{{
+			Name:    "worker",
+			Kind:    deployv1.WorkloadKindWorker,
+			Runtime: deployv1.RuntimeDocker,
+			Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "busybox"}},
+		}},
+	}
+	if err := raft.ApplyDeployApp(app); err != nil {
+		t.Fatal(err)
+	}
+	if err := raft.ApplyWorkloadAssignment(workloadmeta.Assignment{
+		Key:      workloadmeta.AssignmentKey(app.Metadata, "worker"),
+		Metadata: app.Metadata,
+		Workload: "worker",
+		Node:     "node-b",
+		Runtime:  deployv1.RuntimeDocker,
+		Status:   workloadmeta.AssignmentStatusFailed,
+		Error:    "node lost",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := svc.SubmitFailover(ctx, app.Metadata, AppOperationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Moved != 1 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	got := waitRuntimeDeploy(t, fakeRuntime, 3*time.Second)
+	if got.Name != "worker" {
+		t.Fatalf("deployed workload = %q", got.Name)
+	}
+	waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-a", workloadmeta.AssignmentStatusRunning)
+}
+
+func TestSubmitRebalanceStartsUnassignedWorkloadWithoutStop(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := config.Default()
+	cfg.Raft.Enabled = false
+	local := nodeid.Local{Value: "node-a"}
+	raft := raftsvc.New(cfg, logger, local)
+	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
+	fakeRuntime := newFakeRuntimeProvider()
+	runtimeManager := orchruntime.NewManager(logger, fakeRuntime)
+	registrySvc := registry.NewService(logger)
+	svc := NewService(logger, newTestMetrics(t, cfg, logger), runtimeManager, registrySvc, cfg, Bundle{
+		LocalNode: local,
+		Catalog:   catalog,
+		Placement: placement.NewEngine(),
+		Raft:      raft,
+	})
+
+	app := deployv1.App{
+		Metadata: deployv1.Metadata{Name: "rebalance-demo", Namespace: "default"},
+		Workloads: []deployv1.Workload{{
+			Name:    "worker",
+			Kind:    deployv1.WorkloadKindWorker,
+			Runtime: deployv1.RuntimeDocker,
+			Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "busybox"}},
+		}},
+	}
+	if err := raft.ApplyDeployApp(app); err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := svc.SubmitRebalance(ctx, app.Metadata, AppOperationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Moved != 1 || summary.Status != workloadmeta.AssignmentStatusRunning {
+		t.Fatalf("summary = %#v", summary)
+	}
+	select {
+	case stopped := <-fakeRuntime.stopCh:
+		t.Fatalf("unexpected stop for unassigned workload %q", stopped)
+	default:
+	}
+	got := waitRuntimeDeploy(t, fakeRuntime, 3*time.Second)
+	if got.Name != "worker" {
+		t.Fatalf("deployed workload = %q", got.Name)
+	}
+	waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-a", workloadmeta.AssignmentStatusRunning)
 }
 
 func waitRuntimeDeploy(t *testing.T, fakeRuntime *fakeRuntimeProvider, timeout time.Duration) deployv1.Workload {

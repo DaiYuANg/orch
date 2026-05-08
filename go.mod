@@ -12,15 +12,15 @@ require (
 	github.com/arcgolabs/authx/http/fiber v0.3.0
 	github.com/arcgolabs/authx/jwt v0.3.0
 	github.com/arcgolabs/clientx v0.1.2
-	github.com/arcgolabs/collectionx/graph v0.7.0
-	github.com/arcgolabs/collectionx/list v0.7.0
-	github.com/arcgolabs/collectionx/mapping v0.7.0
-	github.com/arcgolabs/collectionx/set v0.7.0
+	github.com/arcgolabs/collectionx/graph v0.8.0
+	github.com/arcgolabs/collectionx/list v0.8.0
+	github.com/arcgolabs/collectionx/mapping v0.8.0
+	github.com/arcgolabs/collectionx/set v0.8.0
 	github.com/arcgolabs/configx v0.3.2
 	github.com/arcgolabs/dix v0.8.0
 	github.com/arcgolabs/dnsx/dnsserver v0.1.3
-	github.com/arcgolabs/httpx v0.1.4
-	github.com/arcgolabs/httpx/adapter/fiber v0.1.4
+	github.com/arcgolabs/httpx v0.1.5
+	github.com/arcgolabs/httpx/adapter/fiber v0.1.5
 	github.com/arcgolabs/logx v0.1.2
 	github.com/arcgolabs/observabilityx v0.4.0
 	github.com/arcgolabs/plano v0.7.1
@@ -29,7 +29,7 @@ require (
 	github.com/arcgolabs/storx/bboltx v0.5.0
 	github.com/arcgolabs/storx/codec v0.1.0
 	github.com/arcgolabs/storx/keycodec v0.2.0
-	github.com/arcgolabs/vela v0.0.0-20260507030921-8ec8a0760923
+	github.com/arcgolabs/vale v0.1.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/compose-spec/compose-go/v2 v2.10.2
 	github.com/containerd/errdefs v1.0.0
@@ -66,7 +66,7 @@ require (
 )
 
 require (
-	github.com/arcgolabs/collectionx/bitset v0.7.0 // indirect
+	github.com/arcgolabs/collectionx/bitset v0.8.0 // indirect
 	github.com/vulcand/oxy/v2 v2.1.0 // indirect
 )
 
@@ -77,12 +77,10 @@ require (
 	github.com/DmitriyVTitov/size v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
-	github.com/arcgolabs/collectionx/interval v0.7.0 // indirect
-	github.com/arcgolabs/collectionx/prefix v0.7.0 // indirect
+	github.com/arcgolabs/collectionx/interval v0.8.0 // indirect
+	github.com/arcgolabs/collectionx/prefix v0.8.0 // indirect
 	github.com/arcgolabs/dnsx/dnsclient v0.1.3 // indirect
-	github.com/arcgolabs/httpx/adapter/echo v0.1.4 // indirect
-	github.com/arcgolabs/httpx/adapter/gin v0.1.4 // indirect
-	github.com/arcgolabs/httpx/adapter/std v0.1.4 // indirect
+	github.com/arcgolabs/httpx/adapter/std v0.1.5 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
 	github.com/arcgolabs/plano/examples/builddsl v0.0.0-20260507041422-0364f76c1fa6 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
@@ -91,7 +89,6 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
-	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
@@ -131,6 +128,7 @@ require (
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-memdb v1.3.5 // indirect
 	github.com/hashicorp/go-metrics v0.5.4 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.5 // indirect
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
@@ -175,6 +173,7 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
+	github.com/rs/cors v1.11.1 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/samber/do/v2 v2.0.0 // indirect
 	github.com/samber/go-singleflightx v0.3.2 // indirect
@@ -187,8 +186,10 @@ require (
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.3.4 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/sony/gobreaker v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
+	github.com/unrolled/secure v1.17.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.70.0 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
@@ -199,7 +200,6 @@ require (
 	go.lsp.dev/pkg v0.0.0-20210717090340-384b27a52fb2 // indirect
 	go.lsp.dev/protocol v0.12.0 // indirect
 	go.lsp.dev/uri v0.3.0 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0 // indirect
@@ -210,7 +210,6 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect
-	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
@@ -227,5 +226,3 @@ require (
 	gotest.tools/v3 v3.5.2 // indirect
 	resty.dev/v3 v3.0.0-beta.6 // indirect
 )
-
-replace github.com/arcgolabs/vela => github.com/arcgolabs/vale v0.0.0-20260507030921-8ec8a0760923

@@ -66,6 +66,13 @@ tasks:
     vars:
       CLI_ARGS: '{{default "" .CLI_ARGS}}'
 
+  smoke:local-raft-forwarding:
+    desc: "Run a local three-node Raft forwarding smoke test"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-raft-forwarding-smoke.ps1 {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
   dsl-parse:
     desc: "Parse deploy YAML into canonical model"
     requires:

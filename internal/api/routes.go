@@ -14,6 +14,7 @@ import (
 // Register wires all HTTP [httpx.Endpoint] modules in one place. Each module owns its Prefix and handlers;
 // route paths use "" to bind to that prefix root (see per-type EndpointSpec).
 func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.Service, taskSvc *task.Service, loaderSvc *loader.Loader, dnsSvc *dnssvc.Service, raftSvc *raftsvc.Service) {
+	leader := NewLeaderForwarder(cfg, raftSvc)
 	rt.RegisterOnly(
 		NewHealthEndpoint(),
 		NewHostinfoEndpoint(),
@@ -21,14 +22,17 @@ func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.S
 		NewWorkloadsEndpoint(registrySvc),
 		NewAssignmentsEndpoint(taskSvc),
 		NewOrchVPNBootstrapEndpoint(cfg, dnsSvc),
-		NewRaftStatusEndpoint(raftSvc, cfg.Auth.Enabled),
-		NewRaftMembersEndpoint(raftSvc, cfg.Auth.Enabled),
-		NewDeployEndpoint(taskSvc, cfg.Auth.Enabled),
-		NewStartDeployEndpoint(taskSvc, cfg.Auth.Enabled),
-		NewStopDeployEndpoint(taskSvc, cfg.Auth.Enabled),
-		NewRestartDeployEndpoint(taskSvc, cfg.Auth.Enabled),
-		NewDeleteDeployEndpoint(taskSvc, cfg.Auth.Enabled),
-		NewDeploySourceEndpoint(loaderSvc, taskSvc, cfg.Auth.Enabled),
+		NewRaftStatusEndpoint(cfg, raftSvc, cfg.Auth.Enabled),
+		NewRaftMembersEndpoint(raftSvc, leader, cfg.Auth.Enabled),
+		NewDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewStartDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewStopDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewRestartDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewMigrateDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewFailoverDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewRebalanceDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewDeleteDeployEndpoint(taskSvc, leader, cfg.Auth.Enabled),
+		NewDeploySourceEndpoint(loaderSvc, taskSvc, leader, cfg.Auth.Enabled),
 		NewWorkerDeployEndpoint(taskSvc, cfg.Auth.Enabled),
 		NewWorkerStopEndpoint(taskSvc, cfg.Auth.Enabled),
 	)

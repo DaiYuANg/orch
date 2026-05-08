@@ -223,9 +223,47 @@ func (c *Client) RestartDeploy(ctx context.Context, namespace, name string) (*ap
 	return &out, nil
 }
 
+func (c *Client) MigrateDeploy(ctx context.Context, namespace, name, targetNode string, workloads []string) (*api.DeployOperationOutput, error) {
+	return c.deployOperation(ctx, api.PathV1DeployMigrate, taskOperationMigrate, namespace, name, targetNode, workloads)
+}
+
+func (c *Client) FailoverDeploy(ctx context.Context, namespace, name, targetNode string, workloads []string) (*api.DeployOperationOutput, error) {
+	return c.deployOperation(ctx, api.PathV1DeployFailover, taskOperationFailover, namespace, name, targetNode, workloads)
+}
+
+func (c *Client) RebalanceDeploy(ctx context.Context, namespace, name string, workloads []string) (*api.DeployOperationOutput, error) {
+	return c.deployOperation(ctx, api.PathV1DeployRebalance, taskOperationRebalance, namespace, name, "", workloads)
+}
+
 func (c *Client) RaftStatus(ctx context.Context) (*api.RaftStatusOutput, error) {
 	var out api.RaftStatusOutput
 	if err := c.get(ctx, api.PathV1RaftStatus, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+const (
+	taskOperationMigrate   = "migrate"
+	taskOperationFailover  = "failover"
+	taskOperationRebalance = "rebalance"
+)
+
+func (c *Client) deployOperation(ctx context.Context, basePath, operation, namespace, name, targetNode string, workloads []string) (*api.DeployOperationOutput, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "default"
+	}
+	path := basePath + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/" + operation
+	var in api.DeployOperationInput
+	in.Body.TargetNode = targetNode
+	in.Body.Workloads = workloads
+	var out api.DeployOperationOutput
+	if err := c.post(ctx, path, &in.Body, &out.Body); err != nil {
 		return nil, err
 	}
 	return &out, nil

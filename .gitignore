@@ -85,3 +85,4 @@ data
 .orch-smoke/
 .orch-dns-smoke/
 .orch-worker-dispatch-smoke/
+.orch-raft-smoke/

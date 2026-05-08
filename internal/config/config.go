@@ -79,7 +79,7 @@ type IngressTLSAuto struct {
 // IngressRoute is a compiled ingress row (from deploy documents' ingresses block) used by the data plane.
 // The first route with a matching path_prefix wins. StripPrefix defaults to PathPrefix when empty.
 //
-// Specify either upstream (single) or upstreams (one or more). Multiple upstreams use Fiber proxy.Balancer
+// Specify either upstream (single) or upstreams (one or more). Multiple upstreams use arcgolabs/vale
 // round-robin (see lb).
 type IngressRoute struct {
 	PathPrefix  string   `json:"path_prefix"`

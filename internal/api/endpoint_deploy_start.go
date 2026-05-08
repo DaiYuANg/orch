@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/arcgolabs/httpx"
 
@@ -14,11 +15,12 @@ import (
 // StartDeployEndpoint serves POST /api/v1/deploy/{namespace}/{name}/start.
 type StartDeployEndpoint struct {
 	tasks            *task.Service
+	leader           *LeaderForwarder
 	openAPIAuthApply bool
 }
 
-func NewStartDeployEndpoint(tasks *task.Service, openAPIAuthApply bool) *StartDeployEndpoint {
-	return &StartDeployEndpoint{tasks: tasks, openAPIAuthApply: openAPIAuthApply}
+func NewStartDeployEndpoint(tasks *task.Service, leader *LeaderForwarder, openAPIAuthApply bool) *StartDeployEndpoint {
+	return &StartDeployEndpoint{tasks: tasks, leader: leader, openAPIAuthApply: openAPIAuthApply}
 }
 
 func (e *StartDeployEndpoint) EndpointSpec() httpx.EndpointSpec {
@@ -41,10 +43,16 @@ func (e *StartDeployEndpoint) Register(r httpx.Registrar) {
 
 func (e *StartDeployEndpoint) handle(ctx context.Context, in *StartDeployInput) (*StartDeployOutput, error) {
 	meta := deployv1.Metadata{Name: in.Name, Namespace: in.Namespace}
+	out := &StartDeployOutput{}
+	path := PathV1DeployStart + "/" + url.PathEscape(meta.Namespace) + "/" + url.PathEscape(meta.Name) + "/start"
+	if forwarded, err := e.leader.ForwardPost(ctx, path, struct{}{}, &out.Body); err != nil {
+		return nil, oopsx.B("api").Wrapf(err, "forward start app")
+	} else if forwarded {
+		return out, nil
+	}
 	if err := e.tasks.SubmitStart(ctx, meta); err != nil {
 		return nil, oopsx.B("api").Wrapf(err, "start app")
 	}
-	out := &StartDeployOutput{}
 	out.Body.Accepted = true
 	out.Body.App = meta.Name
 	out.Body.Namespace = workloadmeta.NamespaceOrDefault(meta.Namespace)

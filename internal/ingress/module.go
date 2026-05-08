@@ -9,7 +9,7 @@ import (
 	"github.com/daiyuang/orch/internal/config"
 )
 
-// Module wires ingress: Fiber reverse proxy/LB and optional Let's Encrypt autocert on HTTPS listeners.
+// Module wires ingress: arcgolabs/vale reverse proxy/LB and optional Let's Encrypt autocert on HTTPS listeners.
 // *ingress.Service for lifecycle and DI. Data-plane path routes are compiled from desired deploy apps
 // (ingresses) and workload DNS registrations, not from static config.
 //

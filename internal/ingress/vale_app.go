@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
-	velaproxy "github.com/arcgolabs/vela/proxy"
-	velaruntime "github.com/arcgolabs/vela/runtime"
+	valeproxy "github.com/arcgolabs/vale/proxy"
+	valeruntime "github.com/arcgolabs/vale/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/pkg/oopsx"
@@ -18,7 +18,7 @@ import (
 
 const ingressEntrypoint = "ingress"
 
-func newIngressHTTPServer(log *slog.Logger, gateway *velaruntime.Gateway, routeCount func() int) *http.Server {
+func newIngressHTTPServer(log *slog.Logger, gateway *valeruntime.Gateway, routeCount func() int) *http.Server {
 	return &http.Server{
 		Handler:           newIngressHTTPHandler(gateway, routeCount),
 		ReadTimeout:       60 * time.Second,
@@ -29,7 +29,7 @@ func newIngressHTTPServer(log *slog.Logger, gateway *velaruntime.Gateway, routeC
 	}
 }
 
-func newIngressHTTPHandler(gateway *velaruntime.Gateway, routeCount func() int) http.Handler {
+func newIngressHTTPHandler(gateway *valeruntime.Gateway, routeCount func() int) http.Handler {
 	gatewayHandler := gateway.Handler(ingressEntrypoint)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if routeCount != nil && routeCount() == 0 {
@@ -41,9 +41,9 @@ func newIngressHTTPHandler(gateway *velaruntime.Gateway, routeCount func() int) 
 	})
 }
 
-func buildVelaSnapshot(routes *list.List[config.IngressRoute]) (*velaruntime.CompiledSnapshot, int, error) {
-	snapshot := velaruntime.NewSnapshot().
-		AddEntrypoint(ingressEntrypoint, "", velaruntime.EntrypointRuntime{Name: ingressEntrypoint})
+func buildValeSnapshot(routes *list.List[config.IngressRoute]) (*valeruntime.CompiledSnapshot, int, error) {
+	snapshot := valeruntime.NewSnapshot().
+		AddEntrypoint(ingressEntrypoint, "", valeruntime.EntrypointRuntime{Name: ingressEntrypoint})
 	if routes.Len() == 0 {
 		return snapshot.BuildMatchers(), 0, nil
 	}
@@ -64,13 +64,13 @@ func buildVelaSnapshot(routes *list.List[config.IngressRoute]) (*velaruntime.Com
 				return false
 			}
 		}
-		endpoints, err := buildVelaEndpoints(eps, meta)
+		endpoints, err := buildValeEndpoints(eps, meta)
 		if err != nil {
 			buildErr = oopsx.B("ingress").Wrapf(err, "route %d", i)
 			return false
 		}
-		service := velaruntime.NewService(routeServiceName(i), "round_robin", endpoints.Values()...)
-		compiledRoute := velaruntime.NewRoute(routeName(i), ingressEntrypoint, service).
+		service := valeruntime.NewService(routeServiceName(i), "round_robin", endpoints.Values()...)
+		compiledRoute := valeruntime.NewRoute(routeName(i), ingressEntrypoint, service).
 			WithPathPrefix(normalizePathPrefix(raw.PathPrefix))
 		snapshot.AddService(service).AddRoute(compiledRoute)
 		routeCount++
@@ -82,12 +82,12 @@ func buildVelaSnapshot(routes *list.List[config.IngressRoute]) (*velaruntime.Com
 	return snapshot.BuildMatchers(), routeCount, nil
 }
 
-func buildVelaEndpoints(eps *list.List[string], meta routeMeta) (*list.List[*velaruntime.EndpointRuntime], error) {
+func buildValeEndpoints(eps *list.List[string], meta routeMeta) (*list.List[*valeruntime.EndpointRuntime], error) {
 	servers := normalizeProxyServers(eps)
 	if servers.Len() == 0 {
 		return nil, oopsx.B("ingress").Errorf("no valid upstream URLs")
 	}
-	out := list.NewListWithCapacity[*velaruntime.EndpointRuntime](servers.Len())
+	out := list.NewListWithCapacity[*valeruntime.EndpointRuntime](servers.Len())
 	var buildErr error
 	servers.Range(func(_ int, raw string) bool {
 		target, err := url.Parse(raw)
@@ -95,8 +95,8 @@ func buildVelaEndpoints(eps *list.List[string], meta routeMeta) (*list.List[*vel
 			buildErr = oopsx.B("ingress").Wrapf(err, "parse upstream %q", raw)
 			return false
 		}
-		proxyHandler := velaRewriteHandler(target, meta)
-		endpoint, err := velaruntime.NewEndpoint(raw, 1, proxyHandler)
+		proxyHandler := valeRewriteHandler(target, meta)
+		endpoint, err := valeruntime.NewEndpoint(raw, 1, proxyHandler)
 		if err != nil {
 			buildErr = oopsx.B("ingress").Wrapf(err, "upstream %q", raw)
 			return false
@@ -110,8 +110,8 @@ func buildVelaEndpoints(eps *list.List[string], meta routeMeta) (*list.List[*vel
 	return out, nil
 }
 
-func velaRewriteHandler(target *url.URL, meta routeMeta) http.Handler {
-	proxyHandler := velaproxy.Build(target)
+func valeRewriteHandler(target *url.URL, meta routeMeta) http.Handler {
+	proxyHandler := valeproxy.Build(target)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := normalizedPath(r.URL.Path)
 		if !meta.matches(p) {

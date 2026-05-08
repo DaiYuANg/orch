@@ -44,15 +44,16 @@ type ListWorkloadsOutput struct {
 
 // AssignmentItem is the public API representation of a scheduler assignment.
 type AssignmentItem struct {
-	Key       string               `json:"key"`
-	Metadata  deployv1.Metadata    `json:"metadata"`
-	Workload  string               `json:"workload"`
-	Node      string               `json:"node"`
-	Runtime   deployv1.RuntimeKind `json:"runtime"`
-	Artifact  string               `json:"artifact"`
-	Status    string               `json:"status"`
-	Error     string               `json:"error,omitempty"`
-	UpdatedAt time.Time            `json:"updatedAt"`
+	Key        string               `json:"key"`
+	Metadata   deployv1.Metadata    `json:"metadata"`
+	Workload   string               `json:"workload"`
+	Node       string               `json:"node"`
+	Runtime    deployv1.RuntimeKind `json:"runtime"`
+	Artifact   string               `json:"artifact"`
+	Status     string               `json:"status"`
+	Generation string               `json:"generation,omitempty"`
+	Error      string               `json:"error,omitempty"`
+	UpdatedAt  time.Time            `json:"updatedAt"`
 }
 
 // ListAssignmentsOutput is the response body envelope for GET PathV1Assignments.
@@ -60,6 +61,54 @@ type ListAssignmentsOutput struct {
 	Body struct {
 		Items *list.List[AssignmentItem] `json:"items"`
 	} `json:"body"`
+}
+
+type AppItem struct {
+	Name               string    `json:"name"`
+	Namespace          string    `json:"namespace"`
+	Status             string    `json:"status"`
+	DesiredGeneration  string    `json:"desiredGeneration,omitempty"`
+	ObservedGeneration string    `json:"observedGeneration,omitempty"`
+	DesiredWorkloads   int       `json:"desiredWorkloads"`
+	Running            int       `json:"running"`
+	Stopped            int       `json:"stopped"`
+	Failed             int       `json:"failed"`
+	Pending            int       `json:"pending"`
+	LastTransitionAt   time.Time `json:"lastTransitionAt,omitempty"`
+	LastError          string    `json:"lastError,omitempty"`
+}
+
+type AppWorkloadItem struct {
+	Name       string                `json:"name"`
+	Kind       deployv1.WorkloadKind `json:"kind"`
+	Runtime    deployv1.RuntimeKind  `json:"runtime"`
+	Node       string                `json:"node,omitempty"`
+	Artifact   string                `json:"artifact,omitempty"`
+	Status     string                `json:"status"`
+	Generation string                `json:"generation,omitempty"`
+	Error      string                `json:"error,omitempty"`
+	UpdatedAt  time.Time             `json:"updatedAt,omitempty"`
+}
+
+type AppDetailItem struct {
+	AppItem
+	Metadata  deployv1.Metadata           `json:"metadata"`
+	Workloads *list.List[AppWorkloadItem] `json:"workloads"`
+}
+
+type ListAppsOutput struct {
+	Body struct {
+		Items *list.List[AppItem] `json:"items"`
+	} `json:"body"`
+}
+
+type GetAppInput struct {
+	Namespace string `path:"namespace"`
+	Name      string `path:"name"`
+}
+
+type GetAppOutput struct {
+	Body AppDetailItem `json:"body"`
 }
 
 // DeployInput is the request body envelope for POST PathV1Deploy.

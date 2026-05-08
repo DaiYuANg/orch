@@ -6,6 +6,7 @@ const (
 
 	PathHealth             = BasePath + "/health"
 	PathV1Hostinfo         = BasePath + "/v1/hostinfo"
+	PathV1Apps             = BasePath + "/v1/apps"
 	PathV1Workloads        = BasePath + "/v1/workloads"
 	PathV1Assignments      = BasePath + "/v1/assignments"
 	PathV1Deploy           = BasePath + "/v1/deploy"

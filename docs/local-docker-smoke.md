@@ -3,7 +3,7 @@
 This smoke test exercises the full local deploy path:
 
 ```text
-orch-server -> orch-cli apply --watch -> Docker runtime -> orch-cli get workloads / get assignments -> orch-cli start app -> orch-cli stop app -> orch-cli start app -> orch-cli restart app -> orch-cli delete app
+orch-server -> orch-cli apply --watch -> Docker runtime -> orch-cli get apps / describe app / get workloads / get assignments -> orch-cli start app -> orch-cli stop app -> orch-cli start app -> orch-cli restart app -> orch-cli delete app
 ```
 
 ## Prerequisites
@@ -40,6 +40,8 @@ idempotent. Stop and delete wait until the workload disappears and the assignmen
 is marked `stopped`:
 
 ```powershell
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 get apps
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 describe app smoke -n default
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 get workloads
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 get assignments
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 start app smoke -n default
@@ -67,6 +69,7 @@ Then run:
 ```powershell
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 get workloads
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 get assignments
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 get apps
 docker ps --filter name=orch-default-smoke
 ```
 

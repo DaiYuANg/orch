@@ -105,6 +105,27 @@ func newAssignmentsCmd() *cobra.Command {
 	return newAssignmentsListCmd("assignments", []string{"assignment"})
 }
 
+func newAppsCmd() *cobra.Command {
+	return newAppsListCmd("apps", []string{"app"})
+}
+
+func newAppsListCmd(use string, aliases []string) *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:     use,
+		Aliases: aliases,
+		Short:   "List deployed apps",
+		Long:    `Shows desired apps with status aggregated from workload assignments.`,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			return runListApps(ctx, jsonOut)
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON array")
+	return cmd
+}
+
 func newAssignmentsListCmd(use string, aliases []string) *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
@@ -129,8 +150,49 @@ func newGetCmd() *cobra.Command {
 		Long:  `Display cluster resources from the current control plane context (--server), similar to kubectl get.`,
 		Args:  cobra.NoArgs,
 	}
+	cmd.AddCommand(newAppsListCmd("apps", []string{"app"}))
 	cmd.AddCommand(newWorkloadsListCmd("workloads", []string{"workload", "wl", "ps"}))
 	cmd.AddCommand(newAssignmentsListCmd("assignments", []string{"assignment", "assign"}))
+	return cmd
+}
+
+func newDescribeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "describe",
+		Short: "Show detailed cluster resource state",
+		Long:  `Show detailed resource state from the current control plane context (--server).`,
+		Args:  cobra.NoArgs,
+	}
+	cmd.AddCommand(newDescribeAppCmd())
+	return cmd
+}
+
+func newDescribeAppCmd() *cobra.Command {
+	var namespace string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "app NAME",
+		Short: "Describe an app",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.GetApp(ctx, namespace, args[0])
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "describe app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeAppDetailHuman(&out.Body)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
 	return cmd
 }
 
@@ -531,6 +593,22 @@ func runListAssignments(ctx context.Context, jsonOut bool) error {
 	})
 }
 
+func runListApps(ctx context.Context, jsonOut bool) error {
+	conn := cliapp.ConnFromGlobals(serverURL, authToken)
+	return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+		out, err := c.ListApps(ctx)
+		if err != nil {
+			return oopsx.B("cli").Wrapf(err, "list apps")
+		}
+		if jsonOut {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(out.Body.Items)
+		}
+		return writeAppsHuman(out.Body.Items)
+	})
+}
+
 type applyWatchOutput struct {
 	Accepted    bool                           `json:"accepted"`
 	App         string                         `json:"app"`
@@ -776,6 +854,56 @@ func writeAssignmentsHuman(items *list.List[api.AssignmentItem]) error {
 	return writeTable(list.NewList("KEY", "NODE", "RUNTIME", "STATUS", "ARTIFACT", "ERROR"), rows)
 }
 
+func writeAppsHuman(items *list.List[api.AppItem]) error {
+	rows := list.NewGridWithCapacity[string](items.Len())
+	items.Range(func(_ int, app api.AppItem) bool {
+		rows.AddRow(app.Namespace, app.Name, statusBadge(app.Status), appReadyText(app.Running, app.DesiredWorkloads), nonEmpty(app.DesiredGeneration), nonEmpty(app.ObservedGeneration), appCountsText(app), formatTime(app.LastTransitionAt), nonEmpty(app.LastError))
+		return true
+	})
+	return writeTable(list.NewList("NAMESPACE", "NAME", "STATUS", "READY", "GENERATION", "OBSERVED", "COUNTS", "UPDATED", "ERROR"), rows)
+}
+
+func writeAppDetailHuman(app *api.AppDetailItem) error {
+	if app == nil {
+		return writeLine(viewMutedStyle.Render("No resources found."))
+	}
+	rows := list.NewGrid[string](
+		[]string{"namespace", app.Namespace},
+		[]string{"name", app.Name},
+		[]string{"status", statusBadge(app.Status)},
+		[]string{"generation", nonEmpty(app.DesiredGeneration)},
+		[]string{"observed_generation", nonEmpty(app.ObservedGeneration)},
+		[]string{"ready", appReadyText(app.Running, app.DesiredWorkloads)},
+		[]string{"workloads", strconv.Itoa(app.DesiredWorkloads)},
+		[]string{"running", strconv.Itoa(app.Running)},
+		[]string{"stopped", strconv.Itoa(app.Stopped)},
+		[]string{"failed", strconv.Itoa(app.Failed)},
+		[]string{"pending", strconv.Itoa(app.Pending)},
+		[]string{"last_transition", formatTime(app.LastTransitionAt)},
+		[]string{"last_error", nonEmpty(app.LastError)},
+	)
+	if err := writeKVTable(rows); err != nil {
+		return err
+	}
+	if err := writeLine(""); err != nil {
+		return err
+	}
+	workloadRows := list.NewGridWithCapacity[string](app.Workloads.Len())
+	app.Workloads.Range(func(_ int, workload api.AppWorkloadItem) bool {
+		workloadRows.AddRow(workload.Name, string(workload.Kind), string(workload.Runtime), nonEmpty(workload.Node), statusBadge(workload.Status), nonEmpty(workload.Generation), nonEmpty(workload.Artifact), nonEmpty(workload.Error))
+		return true
+	})
+	return writeTable(list.NewList("WORKLOAD", "KIND", "RUNTIME", "NODE", "STATUS", "GENERATION", "ARTIFACT", "ERROR"), workloadRows)
+}
+
+func appReadyText(running, total int) string {
+	return strconv.Itoa(running) + "/" + strconv.Itoa(total)
+}
+
+func appCountsText(app api.AppItem) string {
+	return fmt.Sprintf("run=%d stop=%d fail=%d pending=%d", app.Running, app.Stopped, app.Failed, app.Pending)
+}
+
 func writeRaftStatusHuman(out *api.RaftStatusOutput) error {
 	body := out.Body
 	role := "follower"
@@ -817,6 +945,13 @@ func nonEmpty(s string) string {
 		return "-"
 	}
 	return s
+}
+
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.Local().Format("2006-01-02 15:04:05")
 }
 
 func contextFromCmd(cmd *cobra.Command) context.Context {

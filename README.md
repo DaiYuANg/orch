@@ -74,7 +74,10 @@ cluster:
 ```
 
 The worker endpoint executes the assigned workload locally and does not mutate Raft desired state.
-The scheduler records workload assignment results in Raft; inspect them with `orch get assignments --json` (or the legacy `orch assignments --json`) or `GET /api/v1/assignments`.
+The scheduler records workload assignment results in Raft; inspect apps with
+`orch get apps` / `orch describe app NAME`, or inspect lower-level assignments
+with `orch get assignments --json` (or the legacy `orch assignments --json`) or
+`GET /api/v1/assignments`.
 
 Start/stop/delete an app through the control plane:
 
@@ -107,9 +110,18 @@ Run a complete single-node smoke flow (server -> CLI deploy -> Docker runtime ->
 
 ```powershell
 task smoke:local-docker
+task smoke:local-docker-dns
+task smoke:local-docker-worker-dispatch
 ```
 
-The smoke manifest is `examples/local-docker-smoke.yaml`; details are in [Local Docker Smoke Test](docs/local-docker-smoke.md).
+The lifecycle smoke manifest is `examples/local-docker-smoke.yaml`; details are
+in [Local Docker Smoke Test](docs/local-docker-smoke.md). The DNS smoke uses
+`examples/local-docker-dns-smoke.yaml` to verify workload DNS with
+`dns-backend.default.svc.orch.local`; details are in
+[Local Docker DNS Smoke Test](docs/local-docker-dns-smoke.md). The worker
+dispatch smoke starts scheduler and worker server processes and verifies
+dispatch through the worker API; details are in
+[Local Docker Worker Dispatch Smoke Test](docs/local-docker-worker-dispatch-smoke.md).
 
 For a complete application shape in the short native `.orch` DSL (frontend, backend,
 Postgres, Redis, ingress), see `examples/fullstack-docker.orch` and
@@ -129,6 +141,7 @@ See:
 - [Project Status](docs/project-status.md)
 - [Quick Start](docs/quick-start.md)
 - [Local Docker Smoke Test](docs/local-docker-smoke.md)
+- [Local Docker Worker Dispatch Smoke Test](docs/local-docker-worker-dispatch-smoke.md)
 - [Full-Stack Docker Example](docs/fullstack-docker.md)
 - [Workload DSL v1 (EN)](docs/dsl.md)
 - [Workload DSL v1（中文）](docs/dsl.zh.md)

@@ -38,15 +38,16 @@ func (e *AssignmentsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListAss
 	if e != nil && e.tasks != nil {
 		out.Body.Items = list.MapList(e.tasks.ListWorkloadAssignments(), func(_ int, assignment workloadmeta.Assignment) AssignmentItem {
 			return AssignmentItem{
-				Key:       assignment.Key,
-				Metadata:  assignment.Metadata,
-				Workload:  assignment.Workload,
-				Node:      assignment.Node,
-				Runtime:   assignment.Runtime,
-				Artifact:  assignment.Artifact,
-				Status:    assignment.Status,
-				Error:     assignment.Error,
-				UpdatedAt: assignment.UpdatedAt,
+				Key:        assignment.Key,
+				Metadata:   assignment.Metadata,
+				Workload:   assignment.Workload,
+				Node:       assignment.Node,
+				Runtime:    assignment.Runtime,
+				Artifact:   assignment.Artifact,
+				Status:     assignment.Status,
+				Generation: assignment.Generation,
+				Error:      assignment.Error,
+				UpdatedAt:  assignment.UpdatedAt,
 			}
 		})
 	}

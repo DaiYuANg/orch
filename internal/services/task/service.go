@@ -191,6 +191,7 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 		s.logger.Warn("refresh local node capacity before placement", "error", err)
 	}
 	self := s.local.String()
+	generation := AppGeneration(*app)
 	workloads, err := app.WorkloadsInDependencyOrder()
 	if err != nil {
 		s.metrics.IncDeployApp(ctx, "invalid")
@@ -199,19 +200,19 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 
 	var deployErr error
 	workloads.Range(func(_ int, w deployv1.Workload) bool {
-		chosen, err := s.placement.Choose(ctx, w, s.catalog, self)
+		chosen, err := s.chooseWorkloadNode(ctx, w, self)
 		if err != nil {
-			s.applyWorkloadAssignment(app.Metadata, w, "", workloadmeta.AssignmentStatusFailed, err.Error())
+			s.applyWorkloadAssignment(app.Metadata, w, "", workloadmeta.AssignmentStatusFailed, generation, err.Error())
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
 			deployErr = oopsx.B("task").Wrapf(err, "placement workload %s", w.Name)
 			return false
 		}
-		s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusAssigned, "")
+		s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusAssigned, generation, "")
 		if chosen != self {
 			status, err := s.dispatchWorkload(ctx, app.Metadata, w, chosen)
 			if err != nil {
-				s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
+				s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusFailed, generation, err.Error())
 				s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 				s.metrics.IncDeployApp(ctx, "failed")
 				deployErr = err
@@ -228,18 +229,18 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 				Artifact: runconfig.ArtifactSummary(w.Run),
 				Status:   status,
 			})
-			s.applyWorkloadAssignment(app.Metadata, w, chosen, status, "")
+			s.applyWorkloadAssignment(app.Metadata, w, chosen, status, generation, "")
 			return true
 		}
 
 		if err := s.deployLocalWorkload(ctx, app.Metadata, w, chosen); err != nil {
-			s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusFailed, err.Error())
+			s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusFailed, generation, err.Error())
 			s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "failed")
 			s.metrics.IncDeployApp(ctx, "failed")
 			deployErr = err
 			return false
 		}
-		s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusRunning, "")
+		s.applyWorkloadAssignment(app.Metadata, w, chosen, workloadmeta.AssignmentStatusRunning, generation, "")
 		s.metrics.IncDeployWorkload(ctx, string(w.Runtime), "success")
 		return true
 	})
@@ -259,16 +260,50 @@ func (s *Service) stopAppWorkloads(ctx context.Context, app *deployv1.App) error
 	if err != nil {
 		return oopsx.B("task").Wrapf(err, "order workloads")
 	}
+	generation := AppGeneration(*app)
 	values := workloads.Values()
 	for i := len(values) - 1; i >= 0; i-- {
 		w := values[i]
 		if err := s.stopWorkload(ctx, app.Metadata, w); err != nil {
-			s.applyWorkloadAssignment(app.Metadata, w, assignmentNodeOrEmpty(s.raft, app.Metadata, w.Name), workloadmeta.AssignmentStatusFailed, err.Error())
+			s.applyWorkloadAssignment(app.Metadata, w, assignmentNodeOrEmpty(s.raft, app.Metadata, w.Name), workloadmeta.AssignmentStatusFailed, generation, err.Error())
 			return err
 		}
-		s.applyWorkloadAssignment(app.Metadata, w, assignmentNodeOrEmpty(s.raft, app.Metadata, w.Name), workloadmeta.AssignmentStatusStopped, "")
+		s.applyWorkloadAssignment(app.Metadata, w, assignmentNodeOrEmpty(s.raft, app.Metadata, w.Name), workloadmeta.AssignmentStatusStopped, generation, "")
 	}
 	return nil
+}
+
+func (s *Service) chooseWorkloadNode(ctx context.Context, workload deployv1.Workload, self string) (string, error) {
+	chosen, err := s.placement.Choose(ctx, workload, s.catalog, self)
+	if err == nil {
+		return chosen, nil
+	}
+	fallback, ok := s.preferredConfiguredNode(workload, self)
+	if !ok {
+		return "", err
+	}
+	s.logger.Warn("placement fallback to configured preferred node without capacity snapshot",
+		"node", fallback,
+		"workload", workload.Name,
+		"error", err,
+	)
+	return fallback, nil
+}
+
+func (s *Service) preferredConfiguredNode(workload deployv1.Workload, self string) (string, bool) {
+	if s == nil || workload.Scheduling == nil || len(workload.Scheduling.PreferredNodes) == 0 {
+		return "", false
+	}
+	for _, raw := range workload.Scheduling.PreferredNodes {
+		nodeID := strings.TrimSpace(raw)
+		if nodeID == "" || nodeID == strings.TrimSpace(self) {
+			continue
+		}
+		if _, ok := s.cfg.Cluster.NodeURL(nodeID); ok {
+			return nodeID, true
+		}
+	}
+	return "", false
 }
 
 func assignmentNodeOrEmpty(raft *raftsvc.Service, meta deployv1.Metadata, workloadName string) string {
@@ -312,7 +347,7 @@ func (s *Service) stopWorkload(ctx context.Context, meta deployv1.Metadata, work
 	return nil
 }
 
-func (s *Service) applyWorkloadAssignment(meta deployv1.Metadata, workload deployv1.Workload, nodeID, status, errMsg string) {
+func (s *Service) applyWorkloadAssignment(meta deployv1.Metadata, workload deployv1.Workload, nodeID, status, generation, errMsg string) {
 	if s == nil || s.raft == nil {
 		return
 	}
@@ -321,15 +356,16 @@ func (s *Service) applyWorkloadAssignment(meta deployv1.Metadata, workload deplo
 		status = workloadmeta.AssignmentStatusAssigned
 	}
 	assignment := workloadmeta.Assignment{
-		Key:       workloadmeta.AssignmentKey(meta, workload.Name),
-		Metadata:  meta,
-		Workload:  workload.Name,
-		Node:      strings.TrimSpace(nodeID),
-		Runtime:   workload.Runtime,
-		Artifact:  runconfig.ArtifactSummary(workload.Run),
-		Status:    status,
-		Error:     strings.TrimSpace(errMsg),
-		UpdatedAt: time.Now().UTC(),
+		Key:        workloadmeta.AssignmentKey(meta, workload.Name),
+		Metadata:   meta,
+		Workload:   workload.Name,
+		Node:       strings.TrimSpace(nodeID),
+		Runtime:    workload.Runtime,
+		Artifact:   runconfig.ArtifactSummary(workload.Run),
+		Status:     status,
+		Generation: strings.TrimSpace(generation),
+		Error:      strings.TrimSpace(errMsg),
+		UpdatedAt:  time.Now().UTC(),
 	}
 	if err := s.raft.ApplyWorkloadAssignment(assignment); err != nil {
 		s.logger.Warn("workload assignment apply",

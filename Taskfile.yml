@@ -54,6 +54,18 @@ tasks:
     vars:
       CLI_ARGS: '{{default "" .CLI_ARGS}}'
 
+  smoke:local-docker-dns:
+    desc: "Run a local Docker workload DNS smoke test"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-dns-smoke.ps1 {{.CLI_ARGS}}
+
+  smoke:local-docker-worker-dispatch:
+    desc: "Run a local two-server Docker worker dispatch smoke test"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-worker-dispatch-smoke.ps1 {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
   dsl-parse:
     desc: "Parse deploy YAML into canonical model"
     requires:

@@ -33,10 +33,14 @@ go run ./cmd/orch-cli apply --file path/to/app.yaml --watch
 ```bash
 go run ./cmd/orch-cli get workloads
 go run ./cmd/orch-cli get assignments
+go run ./cmd/orch-cli get apps
+go run ./cmd/orch-cli describe app my-app -n default
 ```
 
 Human output uses styled terminal tables. Add `--json` to keep automation output
-stable.
+stable. App status includes desired and observed generations; if an assignment
+has not reconciled the current desired generation yet, that workload is reported
+as pending.
 
 ## Start/stop/delete an app
 
@@ -82,11 +86,18 @@ dynamically, start it with `raft.bootstrap: false`.
 
 ```powershell
 task smoke:local-docker
+task smoke:local-docker-dns
+task smoke:local-docker-worker-dispatch
 ```
 
 This starts a single-node server, deploys `examples/local-docker-smoke.yaml`,
 checks workload status with the CLI, runs stop/start/restart/delete, and cleans
-up by default. See `docs/local-docker-smoke.md`.
+up by default. The DNS smoke deploys two workloads and verifies the client can
+reach `dns-backend.default.svc.orch.local` through orch DNS. The worker dispatch
+smoke starts separate scheduler and worker server processes and verifies remote
+dispatch through the worker API. See `docs/local-docker-smoke.md`,
+`docs/local-docker-dns-smoke.md`, and
+`docs/local-docker-worker-dispatch-smoke.md`.
 
 ## Full-stack application example
 

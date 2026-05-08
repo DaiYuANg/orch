@@ -25,7 +25,14 @@ func LoadFromCobra(cmd *cobra.Command) (Config, error) {
 		configx.WithFlagSet(flagsForConfigMerge(flags)),
 		configx.WithArgsNameFunc(orchFlagToPath),
 	)
-	return Load(opts...)
+	cfg, err := Load(opts...)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := overlayStringMapFlags(&cfg, flags); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
 }
 
 func cobraConfigFlags(cmd *cobra.Command) *pflag.FlagSet {
@@ -59,6 +66,27 @@ func flagsForConfigMerge(fs *pflag.FlagSet) *pflag.FlagSet {
 		out.AddFlag(f)
 	})
 	return out
+}
+
+func overlayStringMapFlags(cfg *Config, fs *pflag.FlagSet) error {
+	if cfg == nil || fs == nil {
+		return nil
+	}
+	if fs.Changed("cluster-nodes") {
+		nodes, err := fs.GetStringToString("cluster-nodes")
+		if err != nil {
+			return fmt.Errorf("cobra cluster-nodes flag: %w", err)
+		}
+		cfg.Cluster.Nodes = nodes
+	}
+	if fs.Changed("raft-peers") {
+		peers, err := fs.GetStringToString("raft-peers")
+		if err != nil {
+			return fmt.Errorf("cobra raft-peers flag: %w", err)
+		}
+		cfg.Raft.Peers = peers
+	}
+	return nil
 }
 
 // orchFlagToPath maps CLI flag names (before configx lowercasing) to dotted koanf paths.

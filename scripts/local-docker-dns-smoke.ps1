@@ -1,8 +1,10 @@
 [CmdletBinding()]
 param(
-    [string]$ServerAddr = "127.0.0.1:17443",
-    [string]$Manifest = "examples/local-docker-smoke.yaml",
-    [string]$WorkDir = ".orch-smoke",
+    [string]$ServerAddr = "127.0.0.1:17444",
+    [string]$Manifest = "examples/local-docker-dns-smoke.yaml",
+    [string]$WorkDir = ".orch-dns-smoke",
+    [string]$DNSListen = "0.0.0.0:53",
+    [string]$WorkloadNameserver = "",
     [int]$TimeoutSeconds = 120,
     [switch]$KeepServer,
     [switch]$KeepContainer,
@@ -16,10 +18,11 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
 $serverURL = "http://$ServerAddr"
-$nodeID = "smoke-node"
-$workloadName = "smoke"
-$assignmentKey = "default/smoke/smoke"
-$containerName = "orch-default-smoke"
+$nodeID = "dns-smoke-node"
+$appName = "dns-smoke"
+$workloadNames = @("dns-backend", "dns-client")
+$containerNames = @("orch-default-dns-backend", "orch-default-dns-client")
+$clientContainer = "orch-default-dns-client"
 $binDir = Join-Path $repoRoot (Join-Path $WorkDir "bin")
 $logDir = Join-Path $repoRoot (Join-Path $WorkDir "logs")
 $serverStdout = Join-Path $logDir "orch-server.out.log"
@@ -72,6 +75,35 @@ function Invoke-CLIJson {
     return @($parsed)
 }
 
+function Test-IPv4 {
+    param([string]$Value)
+    return $Value -match '^\d{1,3}(\.\d{1,3}){3}$'
+}
+
+function Resolve-WorkloadNameserver {
+    if (Test-IPv4 $WorkloadNameserver) {
+        return $WorkloadNameserver
+    }
+
+    $raw = & docker run --rm busybox:1.36 sh -c "nslookup host.docker.internal 2>/dev/null | awk '/^Address: / { print `$2 }' | grep '^[0-9]' | tail -n 1"
+    if ($LASTEXITCODE -eq 0) {
+        $candidate = ($raw | Out-String).Trim()
+        if (Test-IPv4 $candidate) {
+            return $candidate
+        }
+    }
+
+    $gateway = & docker network inspect bridge --format "{{range .IPAM.Config}}{{.Gateway}}{{end}}"
+    if ($LASTEXITCODE -eq 0) {
+        $candidate = ($gateway | Out-String).Trim()
+        if (Test-IPv4 $candidate) {
+            return $candidate
+        }
+    }
+
+    throw "Unable to auto-detect a Docker workload nameserver. Pass -WorkloadNameserver <IPv4>."
+}
+
 function Wait-OrchHealth {
     param([System.Diagnostics.Process]$Process)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -88,76 +120,121 @@ function Wait-OrchHealth {
     throw "Timed out waiting for orch-server health at $serverURL"
 }
 
-function Wait-SmokeState {
+function Wait-DNSWorkloadsRunning {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         $workloads = Invoke-CLIJson @("--server", $serverURL, "get", "workloads", "--json")
         $assignments = Invoke-CLIJson @("--server", $serverURL, "get", "assignments", "--json")
 
-        $workload = $workloads | Where-Object { $_.name -eq $workloadName -and $_.node -eq $nodeID -and $_.status -eq "running" } | Select-Object -First 1
-        $assignment = $assignments | Where-Object { $_.key -eq $assignmentKey -and $_.node -eq $nodeID -and $_.status -eq "running" } | Select-Object -First 1
+        $runningWorkloads = 0
+        $runningAssignments = 0
+        foreach ($name in $workloadNames) {
+            $workload = $workloads | Where-Object { $_.name -eq $name -and $_.node -eq $nodeID -and $_.status -eq "running" } | Select-Object -First 1
+            $assignment = $assignments | Where-Object { $_.key -eq "default/$appName/$name" -and $_.node -eq $nodeID -and $_.status -eq "running" } | Select-Object -First 1
+            if ($null -ne $workload) {
+                $runningWorkloads++
+            }
+            if ($null -ne $assignment) {
+                $runningAssignments++
+            }
+        }
 
-        if ($null -ne $workload -and $null -ne $assignment) {
+        if ($runningWorkloads -eq $workloadNames.Count -and $runningAssignments -eq $workloadNames.Count) {
             return
         }
         Start-Sleep -Milliseconds 500
     }
-    throw "Timed out waiting for workload and assignment to become running"
+    throw "Timed out waiting for DNS smoke workloads and assignments to become running"
 }
 
-function Wait-SmokeStopped {
+function Wait-DNSProbe {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $logs = & docker logs $clientContainer 2>&1
+        if (($logs | Out-String) -match "orch-dns-ok") {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Timed out waiting for DNS probe success in $clientContainer logs"
+}
+
+function Wait-DNSAppStopped {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         $workloads = Invoke-CLIJson @("--server", $serverURL, "get", "workloads", "--json")
         $assignments = Invoke-CLIJson @("--server", $serverURL, "get", "assignments", "--json")
 
-        $workload = $workloads | Where-Object { $_.name -eq $workloadName -and $_.node -eq $nodeID } | Select-Object -First 1
-        $assignment = $assignments | Where-Object { $_.key -eq $assignmentKey -and $_.node -eq $nodeID -and $_.status -eq "stopped" } | Select-Object -First 1
+        $presentWorkloads = 0
+        $stoppedAssignments = 0
+        foreach ($name in $workloadNames) {
+            $workload = $workloads | Where-Object { $_.name -eq $name -and $_.node -eq $nodeID } | Select-Object -First 1
+            $assignment = $assignments | Where-Object { $_.key -eq "default/$appName/$name" -and $_.node -eq $nodeID -and $_.status -eq "stopped" } | Select-Object -First 1
+            if ($null -ne $workload) {
+                $presentWorkloads++
+            }
+            if ($null -ne $assignment) {
+                $stoppedAssignments++
+            }
+        }
 
-        if ($null -eq $workload -and $null -ne $assignment) {
+        if ($presentWorkloads -eq 0 -and $stoppedAssignments -eq $workloadNames.Count) {
             return
         }
         Start-Sleep -Milliseconds 500
     }
-    throw "Timed out waiting for workload to be removed and assignment to become stopped"
+    throw "Timed out waiting for DNS smoke app to be deleted"
 }
 
 function Test-SmokeContainerExists {
-    $ids = & docker ps -a --filter "name=^/$containerName$" --format "{{.ID}}"
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $ids = & docker ps -a --filter "name=^/$Name$" --format "{{.ID}}"
     if ($LASTEXITCODE -ne 0) {
         throw "docker ps failed"
     }
     return (($ids | Out-String).Trim() -ne "")
 }
 
-function Wait-SmokeContainerRemoved {
+function Remove-SmokeContainers {
+    foreach ($name in $containerNames) {
+        if (Test-SmokeContainerExists $name) {
+            & docker rm -f $name | Out-Host
+            if ($LASTEXITCODE -ne 0) {
+                throw "docker rm -f $name failed"
+            }
+        }
+    }
+}
+
+function Wait-SmokeContainersRemoved {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        if (-not (Test-SmokeContainerExists)) {
+        $remaining = 0
+        foreach ($name in $containerNames) {
+            if (Test-SmokeContainerExists $name) {
+                $remaining++
+            }
+        }
+        if ($remaining -eq 0) {
             return
         }
         Start-Sleep -Milliseconds 500
     }
-    throw "Timed out waiting for Docker container $containerName to be removed"
-}
-
-function Remove-SmokeContainer {
-    if (Test-SmokeContainerExists) {
-        & docker rm -f $containerName | Out-Host
-        if ($LASTEXITCODE -ne 0) {
-            throw "docker rm -f $containerName failed"
-        }
-    }
+    throw "Timed out waiting for DNS smoke containers to be removed"
 }
 
 function Set-SmokeEnvironment {
+    param([Parameter(Mandatory = $true)][string]$Nameserver)
     $vars = [ordered]@{
         ORCH_DATA_DIR                         = $dataDir
         ORCH_HTTP_ADDR                        = $ServerAddr
         ORCH_RAFT_ENABLED                     = "false"
         ORCH_RAFT_NODE_ID                     = $nodeID
         ORCH_INGRESS_ENABLED                  = "false"
-        ORCH_DNS_ENABLED                      = "false"
+        ORCH_DNS_ENABLED                      = "true"
+        ORCH_DNS_LISTEN                       = $DNSListen
+        ORCH_DNS_ZONE                         = "orch.local"
+        ORCH_DNS_WORKLOAD_NAMESERVER          = $Nameserver
         ORCH_OBSERVABILITY_PROMETHEUS_ENABLED = "false"
         ORCH_OBSERVABILITY_OTLP_ENABLED       = "false"
         ORCH_LOG_LEVEL                        = "info"
@@ -182,6 +259,8 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 }
 Invoke-Checked docker @("version")
 
+$resolvedNameserver = Resolve-WorkloadNameserver
+
 if (-not $SkipBuild) {
     Invoke-Checked go @("build", "-o", $serverBin, "./cmd/orch-server")
     Invoke-Checked go @("build", "-o", $cliBin, "./cmd/orch-cli")
@@ -195,7 +274,7 @@ if (-not (Test-Path $cliBin)) {
 }
 
 $manifestPath = (Resolve-Path (Join-Path $repoRoot $Manifest)).Path
-Remove-SmokeContainer
+Remove-SmokeContainers
 
 $startArgs = @{
     FilePath               = $serverBin
@@ -211,72 +290,35 @@ if (Test-IsWindows) {
 $serverProcess = $null
 $previousEnv = $null
 try {
-    $previousEnv = Set-SmokeEnvironment
+    $previousEnv = Set-SmokeEnvironment $resolvedNameserver
     $serverProcess = Start-Process @startArgs
     Wait-OrchHealth $serverProcess
 
+    Write-Host "DNS listen:          $DNSListen"
+    Write-Host "Workload nameserver: $resolvedNameserver"
     Invoke-Checked $cliBin @("--server", $serverURL, "apply", "--file", $manifestPath, "--watch", "--timeout", "$($TimeoutSeconds)s")
-    Wait-SmokeState
+    Wait-DNSWorkloadsRunning
+    Wait-DNSProbe
 
     Write-Host ""
-    Write-Host "Smoke deploy is running."
-    Write-Host "Server:      $serverURL"
-    Write-Host "Container:   $containerName"
-    Write-Host "Workloads:   $cliBin --server $serverURL get workloads"
-    Write-Host "Assignments: $cliBin --server $serverURL get assignments"
+    Write-Host "DNS smoke probe completed."
+    Write-Host "FQDN:        dns-backend.default.svc.orch.local"
+    Write-Host "Client logs: docker logs $clientContainer"
     Write-Host ""
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
-    Invoke-Checked $cliBin @("--server", $serverURL, "describe", "app", $workloadName, "-n", "default")
+    Invoke-Checked $cliBin @("--server", $serverURL, "describe", "app", $appName, "-n", "default")
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+    & docker logs $clientContainer | Out-Host
 
     if (-not $KeepContainer) {
         Write-Host ""
-        Write-Host "Starting already-running smoke app..."
-        Invoke-Checked $cliBin @("--server", $serverURL, "start", "app", $workloadName, "-n", "default")
-        Wait-SmokeState
-        Write-Host "Repeated smoke start completed."
+        Write-Host "Deleting DNS smoke app..."
+        Invoke-Checked $cliBin @("--server", $serverURL, "delete", "app", $appName, "-n", "default")
+        Wait-DNSAppStopped
+        Wait-SmokeContainersRemoved
+        Write-Host "DNS smoke delete completed."
         Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
-
-        Write-Host ""
-        Write-Host "Stopping smoke app..."
-        Invoke-Checked $cliBin @("--server", $serverURL, "stop", "app", $workloadName, "-n", "default")
-        Wait-SmokeStopped
-        Wait-SmokeContainerRemoved
-        Write-Host "Smoke stop completed."
-        Invoke-Checked $cliBin @("--server", $serverURL, "describe", "app", $workloadName, "-n", "default")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
-
-        Write-Host ""
-        Write-Host "Starting smoke app after stop..."
-        Invoke-Checked $cliBin @("--server", $serverURL, "start", "app", $workloadName, "-n", "default")
-        Wait-SmokeState
-        Write-Host "Smoke start completed."
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
-
-        Write-Host ""
-        Write-Host "Restarting smoke app..."
-        Invoke-Checked $cliBin @("--server", $serverURL, "restart", "app", $workloadName, "-n", "default")
-        Wait-SmokeState
-        Write-Host "Smoke restart completed."
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
-
-        Write-Host ""
-        Write-Host "Deleting smoke app..."
-        Invoke-Checked $cliBin @("--server", $serverURL, "delete", "app", $workloadName, "-n", "default")
-        Wait-SmokeStopped
-        Wait-SmokeContainerRemoved
-        Write-Host "Smoke delete completed."
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
-        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
     }
 }
 finally {
@@ -288,7 +330,7 @@ finally {
     }
     if (-not $KeepContainer) {
         try {
-            Remove-SmokeContainer
+            Remove-SmokeContainers
         }
         catch {
             Write-Warning $_

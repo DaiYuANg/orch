@@ -17,6 +17,7 @@ func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.S
 	rt.RegisterOnly(
 		NewHealthEndpoint(),
 		NewHostinfoEndpoint(),
+		NewAppsEndpoint(taskSvc),
 		NewWorkloadsEndpoint(registrySvc),
 		NewAssignmentsEndpoint(taskSvc),
 		NewOrchVPNBootstrapEndpoint(cfg, dnsSvc),

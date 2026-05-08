@@ -328,6 +328,91 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 	}
 }
 
+func TestSubmitDeployDispatchesConfiguredPreferredWorkerWithoutCapacitySnapshot(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dispatchCh := make(chan workerapi.DeployWorkloadBody, 1)
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != workerapi.PathV1WorkerDeploy {
+			t.Fatalf("worker path = %q, want %q", r.URL.Path, workerapi.PathV1WorkerDeploy)
+		}
+		var in workerapi.DeployWorkloadBody
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			t.Fatalf("decode worker request: %v", err)
+		}
+		dispatchCh <- in
+		out := workerapi.DeployWorkloadOutput{}
+		out.Body.Accepted = true
+		out.Body.Node = in.Node
+		out.Body.Status = "running"
+		out.Body.Workload = in.Workload.Name
+		_ = json.NewEncoder(w).Encode(out.Body)
+	}))
+	t.Cleanup(worker.Close)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := config.Default()
+	cfg.Raft.Enabled = false
+	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
+	local := nodeid.Local{Value: "node-a"}
+	raft := raftsvc.New(cfg, logger, local)
+	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
+	fakeRuntime := newFakeRuntimeProvider()
+	runtimeManager := orchruntime.NewManager(logger, fakeRuntime)
+	registrySvc := registry.NewService(logger)
+	svc := NewService(logger, newTestMetrics(t, cfg, logger), runtimeManager, registrySvc, cfg, Bundle{
+		LocalNode:  local,
+		Catalog:    catalog,
+		Placement:  placement.NewEngine(),
+		Raft:       raft,
+		Dispatcher: NewHTTPWorkerDispatcher(cfg),
+	})
+
+	svc.StartDeployReconcile(ctx)
+
+	app := &deployv1.App{
+		Metadata: deployv1.Metadata{Name: "remote-no-capacity", Namespace: "default"},
+		Workloads: []deployv1.Workload{{
+			Name:    "worker",
+			Kind:    deployv1.WorkloadKindWorker,
+			Runtime: deployv1.RuntimeDocker,
+			Run: deployv1.RunSpec{
+				Artifact: deployv1.ArtifactSpec{Image: "busybox"},
+			},
+			Scheduling: &deployv1.Scheduling{
+				PreferredNodes: []string{"node-b"},
+			},
+		}},
+	}
+
+	if err := svc.SubmitDeploy(ctx, app); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case got := <-dispatchCh:
+		if got.Node != "node-b" || got.Workload.Name != "worker" {
+			t.Fatalf("dispatch request = %#v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for worker dispatch")
+	}
+
+	select {
+	case got := <-fakeRuntime.ch:
+		t.Fatalf("local runtime should not deploy remote workload, got %q", got.Name)
+	default:
+	}
+
+	assignment := waitAssignment(t, raft, workloadmeta.AssignmentKey(app.Metadata, "worker"), "node-b", workloadmeta.AssignmentStatusRunning)
+	if assignment.Generation == "" {
+		t.Fatalf("assignment missing generation: %#v", assignment)
+	}
+}
+
 func TestSubmitDeployRecordsFailedAssignmentOnRemoteDispatchError(t *testing.T) {
 	t.Parallel()
 

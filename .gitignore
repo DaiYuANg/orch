@@ -83,3 +83,5 @@ test/build
 tmp
 data
 .orch-smoke/
+.orch-dns-smoke/
+.orch-worker-dispatch-smoke/

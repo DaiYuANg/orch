@@ -102,6 +102,31 @@ func (c *Client) ListAssignments(ctx context.Context) (*api.ListAssignmentsOutpu
 	return &out, nil
 }
 
+func (c *Client) ListApps(ctx context.Context) (*api.ListAppsOutput, error) {
+	var out api.ListAppsOutput
+	if err := c.get(ctx, api.PathV1Apps, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) GetApp(ctx context.Context, namespace, name string) (*api.GetAppOutput, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "default"
+	}
+	path := api.PathV1Apps + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name)
+	var out api.GetAppOutput
+	if err := c.get(ctx, path, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Deploy calls POST /api/v1/deploy with a deploy DSL document.
 func (c *Client) Deploy(ctx context.Context, app *deployv1.App) (*api.DeployOutput, error) {
 	if app == nil {

@@ -205,6 +205,10 @@ workloads:
 	if workload.Node != "node-b" || workload.Status != workloadmeta.AssignmentStatusRunning || workload.Artifact != "busybox" {
 		t.Fatalf("workload = %#v", workload)
 	}
+	appStatus := waitHTTPApp(t, ctx, client, "default", "e2e-demo", workloadmeta.AssignmentStatusRunning)
+	if appStatus.Running != 1 || appStatus.DesiredWorkloads != 1 || appStatus.Workloads.Len() != 1 {
+		t.Fatalf("app status = %#v", appStatus)
+	}
 
 	stopped, err := client.StopDeploy(ctx, "default", "e2e-demo")
 	if err != nil {
@@ -226,6 +230,7 @@ workloads:
 		t.Fatalf("stopped assignment = %#v", stoppedAssignment)
 	}
 	waitHTTPWorkloadGone(t, ctx, client, "worker")
+	waitHTTPApp(t, ctx, client, "default", "e2e-demo", workloadmeta.AssignmentStatusStopped)
 
 	started, err := client.StartDeploy(ctx, "default", "e2e-demo")
 	if err != nil {
@@ -244,6 +249,7 @@ workloads:
 	}
 	waitHTTPAssignment(t, ctx, client, "default/e2e-demo/worker", "node-b", workloadmeta.AssignmentStatusRunning)
 	waitHTTPWorkload(t, ctx, client, "worker")
+	waitHTTPApp(t, ctx, client, "default", "e2e-demo", workloadmeta.AssignmentStatusRunning)
 
 	restarted, err := client.RestartDeploy(ctx, "default", "e2e-demo")
 	if err != nil {
@@ -270,6 +276,7 @@ workloads:
 	}
 	waitHTTPAssignment(t, ctx, client, "default/e2e-demo/worker", "node-b", workloadmeta.AssignmentStatusRunning)
 	waitHTTPWorkload(t, ctx, client, "worker")
+	waitHTTPApp(t, ctx, client, "default", "e2e-demo", workloadmeta.AssignmentStatusRunning)
 
 	deleted, err := client.DeleteDeploy(ctx, "default", "e2e-demo")
 	if err != nil {
@@ -291,6 +298,7 @@ workloads:
 		t.Fatalf("deleted assignment = %#v", deletedAssignment)
 	}
 	waitHTTPWorkloadGone(t, ctx, client, "worker")
+	waitHTTPAppGone(t, ctx, client, "default", "e2e-demo")
 }
 
 func newE2ELoader(t *testing.T) *loader.Loader {
@@ -426,6 +434,46 @@ func waitHTTPWorkloadGone(t *testing.T, ctx context.Context, client *apiclient.C
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("workload %q still present", name)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func waitHTTPApp(t *testing.T, ctx context.Context, client *apiclient.Client, namespace, name, status string) api.AppDetailItem {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		out, err := client.GetApp(ctx, namespace, name)
+		if err == nil && out.Body.Status == status {
+			return out.Body
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("app %s/%s did not converge to status=%q", namespace, name, status)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func waitHTTPAppGone(t *testing.T, ctx context.Context, client *apiclient.Client, namespace, name string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		out, err := client.ListApps(ctx)
+		if err == nil {
+			found := false
+			out.Body.Items.Range(func(_ int, item api.AppItem) bool {
+				if item.Namespace == namespace && item.Name == name {
+					found = true
+					return false
+				}
+				return true
+			})
+			if !found {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("app %s/%s still present", namespace, name)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

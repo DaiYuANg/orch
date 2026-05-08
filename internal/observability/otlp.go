@@ -10,6 +10,7 @@ import (
 
 	obs "github.com/arcgolabs/observabilityx"
 	obsotel "github.com/arcgolabs/observabilityx/otel"
+	"github.com/samber/lo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -30,18 +31,8 @@ const (
 
 func newOTLP(ctx context.Context, cfg config.Config, logger *slog.Logger) (obs.Observability, func(context.Context) error, error) {
 	o := cfg.Observability.OTLP
-	proto := strings.ToLower(strings.TrimSpace(o.Protocol))
-	if proto == "" {
-		proto = "grpc"
-	}
-
-	serviceName := strings.TrimSpace(o.ServiceName)
-	if serviceName == "" {
-		serviceName = strings.TrimSpace(cfg.App.Name)
-	}
-	if serviceName == "" {
-		serviceName = "orch"
-	}
+	proto := lo.CoalesceOrEmpty(strings.ToLower(strings.TrimSpace(o.Protocol)), "grpc")
+	serviceName := lo.CoalesceOrEmpty(strings.TrimSpace(o.ServiceName), strings.TrimSpace(cfg.App.Name), "orch")
 
 	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceName(serviceName)))
 	if err != nil {
@@ -118,11 +109,7 @@ func newOTLP(ctx context.Context, cfg config.Config, logger *slog.Logger) (obs.O
 }
 
 func otlpGRPCAddr(endpoint string) string {
-	e := strings.TrimSpace(endpoint)
-	if e == "" {
-		return "localhost:4317"
-	}
-	return stripScheme(e)
+	return stripScheme(lo.CoalesceOrEmpty(strings.TrimSpace(endpoint), "localhost:4317"))
 }
 
 func stripScheme(hostport string) string {

@@ -12,6 +12,8 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
+	"github.com/arcgolabs/collectionx/mapping"
+
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/runtime/runconfig"
@@ -95,18 +97,20 @@ func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Clie
 }
 
 func containerLabels(meta deployv1.Metadata, w deployv1.Workload) map[string]string {
-	labels := map[string]string{}
+	labels := mapping.NewMapWithCapacity[string, string](4)
 	if w.Run.Options.Docker != nil {
-		for k, v := range w.Run.Options.Docker.Labels {
+		w.Run.Options.Docker.LabelMap().Range(func(k, v string) bool {
 			if key := strings.TrimSpace(k); key != "" {
-				labels[key] = v
+				labels.Set(key, v)
 			}
-		}
+			return true
+		})
 	}
-	for k, v := range workloadmeta.Labels(meta, w) {
-		labels[k] = v
-	}
-	return labels
+	workloadmeta.LabelMap(meta, w).Range(func(k, v string) bool {
+		labels.Set(k, v)
+		return true
+	})
+	return labels.All()
 }
 
 func (p *Provider) dockerRunAfterCreate(ctx context.Context, cli *client.Client, meta deployv1.Metadata, w deployv1.Workload, name, containerID string) error {

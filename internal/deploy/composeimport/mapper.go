@@ -2,7 +2,6 @@ package composeimport
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
@@ -86,9 +85,7 @@ func mapComposeVolumes(proj *composetypes.Project) []deployv1.Volume {
 	if proj.Volumes == nil {
 		return nil
 	}
-	names := mapping.NewMapFrom(proj.Volumes).Keys()
-	sort.Strings(names)
-	return list.MapList(list.NewList(names...), func(_ int, name string) deployv1.Volume {
+	return list.MapList(sortedMapKeys(proj.Volumes), func(_ int, name string) deployv1.Volume {
 		return deployv1.Volume{Name: name, Persistent: true}
 	}).Values()
 }
@@ -158,9 +155,7 @@ func envFromCompose(m composetypes.MappingWithEquals) []deployv1.EnvVar {
 		return nil
 	}
 	flat := m.ToMapping()
-	keys := mapping.NewMapFrom(flat).Keys()
-	sort.Strings(keys)
-	return list.MapList(list.NewList(keys...), func(_ int, k string) deployv1.EnvVar {
+	return list.MapList(sortedMapKeys(flat), func(_ int, k string) deployv1.EnvVar {
 		return deployv1.EnvVar{Name: k, Value: flat[k]}
 	}).Values()
 }
@@ -195,11 +190,11 @@ func dockerOptionsFromCompose(svcName string, s *composetypes.ServiceConfig, rep
 	}
 	if opts.NetworkMode == "" && len(s.Networks) > 0 {
 		nn := networkNamesSorted(s.Networks)
-		if len(nn) == 1 {
-			opts.NetworkMode = nn[0]
-		} else if len(nn) > 1 {
-			opts.NetworkMode = nn[0]
-			rep.warnf("service %q: multiple compose networks; using first only: %v", svcName, nn)
+		if first, ok := nn.GetFirstOption().Get(); ok {
+			opts.NetworkMode = first
+		}
+		if nn.Len() > 1 {
+			rep.warnf("service %q: multiple compose networks; using first only: %v", svcName, nn.Values())
 		}
 	}
 	if opts.NetworkMode == "" && opts.Labels == nil && !opts.Privileged {
@@ -208,10 +203,8 @@ func dockerOptionsFromCompose(svcName string, s *composetypes.ServiceConfig, rep
 	return opts
 }
 
-func networkNamesSorted(nets map[string]*composetypes.ServiceNetworkConfig) []string {
-	out := mapping.NewMapFrom(nets).Keys()
-	sort.Strings(out)
-	return out
+func networkNamesSorted(nets map[string]*composetypes.ServiceNetworkConfig) *list.List[string] {
+	return sortedMapKeys(nets)
 }
 
 func endpointsFromCompose(service string, ports []composetypes.ServicePortConfig, rep *Report) []deployv1.Endpoint {
@@ -252,10 +245,9 @@ func dependsFromCompose(d composetypes.DependsOnConfig, rep *Report) []deployv1.
 	if len(d) == 0 {
 		return nil
 	}
-	names := mapping.NewMapFrom(d).Keys()
-	sort.Strings(names)
-	out := list.NewListWithCapacity[deployv1.WorkloadRef](len(names))
-	for _, name := range names {
+	names := sortedMapKeys(d)
+	out := list.NewListWithCapacity[deployv1.WorkloadRef](names.Len())
+	names.Range(func(_ int, name string) bool {
 		dep := d[name]
 		switch strings.TrimSpace(dep.Condition) {
 		case "", composetypes.ServiceConditionStarted, composetypes.ServiceConditionHealthy:
@@ -267,8 +259,15 @@ func dependsFromCompose(d composetypes.DependsOnConfig, rep *Report) []deployv1.
 			rep.warnf("depends_on service %q uses condition %q; treating as ordered dependency", name, dep.Condition)
 			out.Add(deployv1.WorkloadRef{Name: name})
 		}
-	}
+		return true
+	})
 	return out.Values()
+}
+
+func sortedMapKeys[V any](m map[string]V) *list.List[string] {
+	keys := list.NewList(mapping.NewMapFrom(m).Keys()...)
+	keys.Sort(strings.Compare)
+	return keys
 }
 
 func resourcesFromCompose(d *composetypes.DeployConfig) *deployv1.Resources {

@@ -86,10 +86,16 @@ func (s *Service) openRaftStores() (*raftOpenedStores, error) {
 		filepath.Dir(s.cfg.Raft.Bolt.Path),
 		s.cfg.Raft.Snapshot.Dir,
 	)
-	for _, dir := range raftDirs.Values() {
+	var mkdirErr error
+	raftDirs.Range(func(_ int, dir string) bool {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
-			return nil, oopsx.B("raft").Wrapf(err, "raft mkdir %q", dir)
+			mkdirErr = oopsx.B("raft").Wrapf(err, "raft mkdir %q", dir)
+			return false
 		}
+		return true
+	})
+	if mkdirErr != nil {
+		return nil, mkdirErr
 	}
 
 	opts := badger.DefaultOptions(s.cfg.Raft.Badger.Dir)

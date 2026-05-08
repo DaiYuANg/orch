@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sort"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/shirou/gopsutil/v4/host"
 )
 
@@ -41,16 +41,16 @@ func fingerprintFallback() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("nodeid: fingerprint interfaces: %w", err)
 	}
-	var macs []string
+	macs := list.NewList[string]()
 	for _, ni := range ifaces {
 		if ni.Flags&net.FlagLoopback != 0 {
 			continue
 		}
 		if len(ni.HardwareAddr) >= 6 {
-			macs = append(macs, ni.HardwareAddr.String())
+			macs.Add(ni.HardwareAddr.String())
 		}
 	}
-	sort.Strings(macs)
-	sum := sha256.Sum256([]byte(strings.Join([]string{hn, strings.Join(macs, ",")}, "|")))
+	macs.Sort(strings.Compare)
+	sum := sha256.Sum256([]byte(list.NewList(hn, macs.Join(",")).Join("|")))
 	return "orch-" + hex.EncodeToString(sum[:16]), nil
 }

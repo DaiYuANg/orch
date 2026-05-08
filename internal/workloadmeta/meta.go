@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/arcgolabs/collectionx/mapping"
+
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
@@ -43,14 +45,19 @@ func OrchContainerName(meta deployv1.Metadata, workload string) string {
 	return fmt.Sprintf("orch-%s-%s", SanitizeName(ns), SanitizeName(w))
 }
 
+// LabelMap returns container labels for lookup on stop/diagnostics.
+func LabelMap(meta deployv1.Metadata, w deployv1.Workload) *mapping.Map[string, string] {
+	labels := mapping.NewMapWithCapacity[string, string](4)
+	labels.Set("orch.io/app", meta.Name)
+	labels.Set("orch.io/namespace", NamespaceOrDefault(meta.Namespace))
+	labels.Set("orch.io/workload", w.Name)
+	labels.Set("orch.io/runtime", string(w.Runtime))
+	return labels
+}
+
 // Labels are applied to containers for lookup on stop/diagnostics.
 func Labels(meta deployv1.Metadata, w deployv1.Workload) map[string]string {
-	return map[string]string{
-		"orch.io/app":       meta.Name,
-		"orch.io/namespace": NamespaceOrDefault(meta.Namespace),
-		"orch.io/workload":  w.Name,
-		"orch.io/runtime":   string(w.Runtime),
-	}
+	return LabelMap(meta, w).All()
 }
 
 // NormalizeImageRef expands short docker.io/library names.

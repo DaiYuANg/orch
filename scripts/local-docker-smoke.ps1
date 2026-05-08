@@ -105,12 +105,44 @@ function Wait-SmokeState {
     throw "Timed out waiting for workload and assignment to become running"
 }
 
-function Remove-SmokeContainer {
+function Wait-SmokeStopped {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $workloads = Invoke-CLIJson @("--server", $serverURL, "get", "workloads", "--json")
+        $assignments = Invoke-CLIJson @("--server", $serverURL, "get", "assignments", "--json")
+
+        $workload = $workloads | Where-Object { $_.name -eq $workloadName -and $_.node -eq $nodeID } | Select-Object -First 1
+        $assignment = $assignments | Where-Object { $_.key -eq $assignmentKey -and $_.node -eq $nodeID -and $_.status -eq "stopped" } | Select-Object -First 1
+
+        if ($null -eq $workload -and $null -ne $assignment) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Timed out waiting for workload to be removed and assignment to become stopped"
+}
+
+function Test-SmokeContainerExists {
     $ids = & docker ps -a --filter "name=^/$containerName$" --format "{{.ID}}"
     if ($LASTEXITCODE -ne 0) {
         throw "docker ps failed"
     }
-    if (($ids | Out-String).Trim() -ne "") {
+    return (($ids | Out-String).Trim() -ne "")
+}
+
+function Wait-SmokeContainerRemoved {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Test-SmokeContainerExists)) {
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Timed out waiting for Docker container $containerName to be removed"
+}
+
+function Remove-SmokeContainer {
+    if (Test-SmokeContainerExists) {
         & docker rm -f $containerName | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "docker rm -f $containerName failed"
@@ -195,6 +227,50 @@ try {
     Write-Host ""
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+
+    if (-not $KeepContainer) {
+        Write-Host ""
+        Write-Host "Starting already-running smoke app..."
+        Invoke-Checked $cliBin @("--server", $serverURL, "start", "app", $workloadName, "-n", "default")
+        Wait-SmokeState
+        Write-Host "Repeated smoke start completed."
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+
+        Write-Host ""
+        Write-Host "Stopping smoke app..."
+        Invoke-Checked $cliBin @("--server", $serverURL, "stop", "app", $workloadName, "-n", "default")
+        Wait-SmokeStopped
+        Wait-SmokeContainerRemoved
+        Write-Host "Smoke stop completed."
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+
+        Write-Host ""
+        Write-Host "Starting smoke app after stop..."
+        Invoke-Checked $cliBin @("--server", $serverURL, "start", "app", $workloadName, "-n", "default")
+        Wait-SmokeState
+        Write-Host "Smoke start completed."
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+
+        Write-Host ""
+        Write-Host "Restarting smoke app..."
+        Invoke-Checked $cliBin @("--server", $serverURL, "restart", "app", $workloadName, "-n", "default")
+        Wait-SmokeState
+        Write-Host "Smoke restart completed."
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+
+        Write-Host ""
+        Write-Host "Deleting smoke app..."
+        Invoke-Checked $cliBin @("--server", $serverURL, "delete", "app", $workloadName, "-n", "default")
+        Wait-SmokeStopped
+        Wait-SmokeContainerRemoved
+        Write-Host "Smoke delete completed."
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
+        Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+    }
 }
 finally {
     if (-not $KeepServer -and $null -ne $serverProcess -and -not $serverProcess.HasExited) {

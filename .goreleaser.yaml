@@ -105,3 +105,6 @@ nfpms:
       - rpm
       - apk
     bindir: /usr/bin
+    scripts:
+      postinstall: packaging/linux/postinstall.sh
+      postremove: packaging/linux/postremove.sh

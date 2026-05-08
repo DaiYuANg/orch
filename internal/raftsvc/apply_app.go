@@ -27,6 +27,13 @@ func (s *Service) ListDesiredDeployApps() *list.List[deployv1.App] {
 	return s.fsm.listDeployApps()
 }
 
+func (s *Service) GetDesiredDeployApp(meta deployv1.Metadata) (deployv1.App, bool) {
+	if s == nil || s.fsm == nil {
+		return deployv1.App{}, false
+	}
+	return s.fsm.getDeployApp(meta)
+}
+
 // ApplyDeployApp replicates a validated [deployv1.App] through Raft when enabled; the local FSM is updated on every peer after commit.
 // Callers must target the Raft leader when Raft is enabled.
 func (s *Service) ApplyDeployApp(app deployv1.App) error {
@@ -50,6 +57,33 @@ func (s *Service) ApplyDeployApp(app deployv1.App) error {
 	}
 	if s.r.State() != hraft.Leader {
 		return oopsx.B("raft").Errorf("not leader: send deploy to the raft leader node")
+	}
+	return s.r.Apply(b, 30*time.Second).Error()
+}
+
+func (s *Service) ApplyDeleteDeployApp(meta deployv1.Metadata) error {
+	if s == nil {
+		return oopsx.B("raft").Errorf("nil service")
+	}
+	if meta.Name == "" {
+		return oopsx.B("raft").Errorf("metadata.name is required")
+	}
+	b, err := json.Marshal(struct {
+		Type     string            `json:"type"`
+		Metadata deployv1.Metadata `json:"metadata"`
+	}{
+		Type:     cmdDeleteDeployApp,
+		Metadata: meta,
+	})
+	if err != nil {
+		return oopsx.B("raft").Wrapf(err, "marshal delete deploy app command")
+	}
+	if !s.cfg.Raft.Enabled || s.r == nil {
+		s.fsm.applyCommandPayload(b)
+		return nil
+	}
+	if s.r.State() != hraft.Leader {
+		return oopsx.B("raft").Errorf("not leader: send delete to the raft leader node")
 	}
 	return s.r.Apply(b, 30*time.Second).Error()
 }

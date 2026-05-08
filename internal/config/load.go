@@ -12,7 +12,8 @@ import (
 // LoadFromCobra loads [Config] after Cobra has parsed flags. File from --config is merged before env; flag
 // values override per [configx] priority. The --config flag is not applied as a config key.
 func LoadFromCobra(cmd *cobra.Command) (Config, error) {
-	cfgPath, err := cmd.Flags().GetString("config")
+	flags := cobraConfigFlags(cmd)
+	cfgPath, err := flags.GetString("config")
 	if err != nil {
 		return Config{}, fmt.Errorf("cobra config flag: %w", err)
 	}
@@ -21,10 +22,30 @@ func LoadFromCobra(cmd *cobra.Command) (Config, error) {
 		opts = append(opts, configx.WithFiles(p))
 	}
 	opts = append(opts,
-		configx.WithFlagSet(flagsForConfigMerge(cmd.Flags())),
+		configx.WithFlagSet(flagsForConfigMerge(flags)),
 		configx.WithArgsNameFunc(orchFlagToPath),
 	)
 	return Load(opts...)
+}
+
+func cobraConfigFlags(cmd *cobra.Command) *pflag.FlagSet {
+	out := pflag.NewFlagSet("orch-cobra-config", pflag.ContinueOnError)
+	seen := map[string]struct{}{}
+	add := func(fs *pflag.FlagSet) {
+		if fs == nil {
+			return
+		}
+		fs.VisitAll(func(f *pflag.Flag) {
+			if _, ok := seen[f.Name]; ok {
+				return
+			}
+			seen[f.Name] = struct{}{}
+			out.AddFlag(f)
+		})
+	}
+	add(cmd.InheritedFlags())
+	add(cmd.Flags())
+	return out
 }
 
 // flagsForConfigMerge returns a FlagSet that shares the same *pflag.Flag values as fs but omits "config",
@@ -70,6 +91,9 @@ func orchFlagToPath(name string) string {
 		"orch-vpn-tunnel-listen-udp":                "orch_vpn.tunnel_listen_udp",
 		"auth-jwt-secret":                           "auth.jwt.secret",
 		"raft-node-id":                              "raft.node.id",
+		"raft-advertise":                            "raft.advertise",
+		"raft-peers":                                "raft.peers",
+		"raft-bootstrap":                            "raft.bootstrap",
 		"raft-badger-dir":                           "raft.badger.dir",
 		"raft-bolt-path":                            "raft.bolt.path",
 		"raft-snapshot-dir":                         "raft.snapshot.dir",

@@ -23,6 +23,7 @@ const (
 	AssignmentStatusAssigned = "assigned"
 	AssignmentStatusFailed   = "failed"
 	AssignmentStatusRunning  = "running"
+	AssignmentStatusStopped  = "stopped"
 )
 
 func AssignmentKey(meta deployv1.Metadata, workloadName string) string {

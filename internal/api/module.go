@@ -7,6 +7,7 @@ import (
 	"github.com/daiyuang/orch/internal/deploy/loader"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/httpserver"
+	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/internal/services/task"
 )
@@ -15,9 +16,38 @@ func Module() dix.Module {
 	return dix.NewModule(
 		"api",
 		dix.Invokes(
-			dix.Invoke6(func(server *httpserver.Server, cfg config.Config, registrySvc *registry.Service, taskSvc *task.Service, loaderSvc *loader.Loader, dnsSvc *dnssvc.Service) {
-				Register(server.Runtime(), cfg, registrySvc, taskSvc, loaderSvc, dnsSvc)
+			dix.RawInvoke(func(c *dix.Container) error {
+				server, err := dix.ResolveAs[*httpserver.Server](c)
+				if err != nil {
+					return err
+				}
+				cfg, err := dix.ResolveAs[config.Config](c)
+				if err != nil {
+					return err
+				}
+				registrySvc, err := dix.ResolveAs[*registry.Service](c)
+				if err != nil {
+					return err
+				}
+				taskSvc, err := dix.ResolveAs[*task.Service](c)
+				if err != nil {
+					return err
+				}
+				loaderSvc, err := dix.ResolveAs[*loader.Loader](c)
+				if err != nil {
+					return err
+				}
+				dnsSvc, err := dix.ResolveAs[*dnssvc.Service](c)
+				if err != nil {
+					return err
+				}
+				raftSvc, err := dix.ResolveAs[*raftsvc.Service](c)
+				if err != nil {
+					return err
+				}
+				Register(server.Runtime(), cfg, registrySvc, taskSvc, loaderSvc, dnsSvc, raftSvc)
 				server.LogRegisteredRoutes()
+				return nil
 			}),
 		),
 	)

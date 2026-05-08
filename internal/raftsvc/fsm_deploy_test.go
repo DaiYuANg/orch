@@ -34,6 +34,39 @@ func TestFSMApplyDeployApp(t *testing.T) {
 	}
 }
 
+func TestFSMDeployAppDefaultNamespaceDelete(t *testing.T) {
+	f := &schedulingFSM{}
+	app := deployv1.App{}
+	app.Metadata.Name = "demo"
+	app.Workloads = []deployv1.Workload{{Name: "w", Runtime: deployv1.RuntimeDocker}}
+
+	upsert, err := json.Marshal(struct {
+		Type string       `json:"type"`
+		App  deployv1.App `json:"app"`
+	}{Type: cmdUpsertDeployApp, App: app})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.applyCommandPayload(upsert)
+
+	if _, ok := f.getDeployApp(deployv1.Metadata{Name: "demo", Namespace: "default"}); !ok {
+		t.Fatal("default namespace app not found")
+	}
+
+	deletePayload, err := json.Marshal(struct {
+		Type     string            `json:"type"`
+		Metadata deployv1.Metadata `json:"metadata"`
+	}{Type: cmdDeleteDeployApp, Metadata: deployv1.Metadata{Name: "demo", Namespace: "default"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.applyCommandPayload(deletePayload)
+
+	if apps := f.listDeployApps(); apps.Len() != 0 {
+		t.Fatalf("apps after delete = %#v", apps.Values())
+	}
+}
+
 func TestFSMDeploySnapshotRoundTrip(t *testing.T) {
 	f := &schedulingFSM{}
 	app := deployv1.App{}

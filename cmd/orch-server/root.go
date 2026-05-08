@@ -50,6 +50,7 @@ func newRootCmd() *cobra.Command {
 
 	cmd.Flags().String("config", "", "Path to YAML, JSON, or TOML config file (merged before env; CLI flags override)")
 	config.BindOrchFlags(cmd.Flags(), config.Default())
+	cmd.AddCommand(newHostDNSCmd())
 
 	return cmd
 }

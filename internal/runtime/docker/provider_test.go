@@ -43,6 +43,22 @@ func TestContainerLabelsMergesDockerLabels(t *testing.T) {
 	}
 }
 
+func TestWorkloadLabelsMatch(t *testing.T) {
+	meta := deployv1.Metadata{Name: "app", Namespace: "demo"}
+	workload := deployv1.Workload{Name: "api", Runtime: deployv1.RuntimeDocker}
+	labels := containerLabels(meta, workload)
+
+	if !workloadLabelsMatch(labels, meta, workload) {
+		t.Fatal("expected labels to match app/workload identity")
+	}
+	if workloadLabelsMatch(labels, deployv1.Metadata{Name: "other", Namespace: "demo"}, workload) {
+		t.Fatal("expected app mismatch to fail")
+	}
+	if workloadLabelsMatch(labels, meta, deployv1.Workload{Name: "other", Runtime: deployv1.RuntimeDocker}) {
+		t.Fatal("expected workload mismatch to fail")
+	}
+}
+
 type fakeWorkloadDNS struct{}
 
 func (fakeWorkloadDNS) WorkloadNameserver() (string, bool) {

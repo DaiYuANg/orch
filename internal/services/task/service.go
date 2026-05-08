@@ -106,6 +106,79 @@ func (s *Service) DeployApp(ctx context.Context, app *deployv1.App) error {
 	return s.SubmitDeploy(ctx, app)
 }
 
+func (s *Service) SubmitDelete(ctx context.Context, meta deployv1.Metadata) error {
+	meta.Name = strings.TrimSpace(meta.Name)
+	meta.Namespace = strings.TrimSpace(meta.Namespace)
+	if meta.Name == "" {
+		return oopsx.B("task").Errorf("metadata.name is required")
+	}
+	if s.raft == nil {
+		return oopsx.B("task").Errorf("raft service unavailable")
+	}
+	app, ok := s.raft.GetDesiredDeployApp(meta)
+	if ok {
+		if err := s.stopAppWorkloads(ctx, &app); err != nil {
+			return err
+		}
+	}
+	if err := s.raft.ApplyDeleteDeployApp(meta); err != nil {
+		return oopsx.B("task").Wrapf(err, "delete desired app")
+	}
+	s.logger.Info("deploy deleted", "app", meta.Name, "namespace", workloadmeta.NamespaceOrDefault(meta.Namespace))
+	return nil
+}
+
+func (s *Service) SubmitStop(ctx context.Context, meta deployv1.Metadata) error {
+	meta.Name = strings.TrimSpace(meta.Name)
+	meta.Namespace = strings.TrimSpace(meta.Namespace)
+	if meta.Name == "" {
+		return oopsx.B("task").Errorf("metadata.name is required")
+	}
+	if s.raft == nil {
+		return oopsx.B("task").Errorf("raft service unavailable")
+	}
+	app, ok := s.raft.GetDesiredDeployApp(meta)
+	if !ok {
+		return oopsx.B("task").Errorf("deploy app %s/%s not found", workloadmeta.NamespaceOrDefault(meta.Namespace), meta.Name)
+	}
+	if err := s.stopAppWorkloads(ctx, &app); err != nil {
+		return err
+	}
+	s.logger.Info("deploy stopped", "app", meta.Name, "namespace", workloadmeta.NamespaceOrDefault(meta.Namespace))
+	return nil
+}
+
+func (s *Service) SubmitStart(ctx context.Context, meta deployv1.Metadata) error {
+	meta.Name = strings.TrimSpace(meta.Name)
+	meta.Namespace = strings.TrimSpace(meta.Namespace)
+	if meta.Name == "" {
+		return oopsx.B("task").Errorf("metadata.name is required")
+	}
+	if s.raft == nil {
+		return oopsx.B("task").Errorf("raft service unavailable")
+	}
+	app, ok := s.raft.GetDesiredDeployApp(meta)
+	if !ok {
+		return oopsx.B("task").Errorf("deploy app %s/%s not found", workloadmeta.NamespaceOrDefault(meta.Namespace), meta.Name)
+	}
+	if err := s.deployAppWorkloads(ctx, &app); err != nil {
+		return err
+	}
+	s.logger.Info("deploy started", "app", meta.Name, "namespace", workloadmeta.NamespaceOrDefault(meta.Namespace))
+	return nil
+}
+
+func (s *Service) SubmitRestart(ctx context.Context, meta deployv1.Metadata) error {
+	if err := s.SubmitStop(ctx, meta); err != nil {
+		return err
+	}
+	if err := s.SubmitStart(ctx, meta); err != nil {
+		return err
+	}
+	s.logger.Info("deploy restarted", "app", meta.Name, "namespace", workloadmeta.NamespaceOrDefault(meta.Namespace))
+	return nil
+}
+
 // deployAppWorkloads runs placement against the node resource catalog, then deploys locally or dispatches to a
 // configured worker API when placement selects a remote node.
 func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) error {
@@ -175,6 +248,67 @@ func (s *Service) deployAppWorkloads(ctx context.Context, app *deployv1.App) err
 	}
 	s.metrics.IncDeployApp(ctx, "success")
 	s.logger.Info("application deployed", "app", app.Metadata.Name, "workloads", len(app.Workloads))
+	return nil
+}
+
+func (s *Service) stopAppWorkloads(ctx context.Context, app *deployv1.App) error {
+	if app == nil {
+		return nil
+	}
+	workloads, err := app.WorkloadsInDependencyOrder()
+	if err != nil {
+		return oopsx.B("task").Wrapf(err, "order workloads")
+	}
+	values := workloads.Values()
+	for i := len(values) - 1; i >= 0; i-- {
+		w := values[i]
+		if err := s.stopWorkload(ctx, app.Metadata, w); err != nil {
+			s.applyWorkloadAssignment(app.Metadata, w, assignmentNodeOrEmpty(s.raft, app.Metadata, w.Name), workloadmeta.AssignmentStatusFailed, err.Error())
+			return err
+		}
+		s.applyWorkloadAssignment(app.Metadata, w, assignmentNodeOrEmpty(s.raft, app.Metadata, w.Name), workloadmeta.AssignmentStatusStopped, "")
+	}
+	return nil
+}
+
+func assignmentNodeOrEmpty(raft *raftsvc.Service, meta deployv1.Metadata, workloadName string) string {
+	if raft == nil {
+		return ""
+	}
+	assignment, ok := raft.GetWorkloadAssignment(workloadmeta.AssignmentKey(meta, workloadName))
+	if !ok {
+		return ""
+	}
+	return assignment.Node
+}
+
+func (s *Service) stopWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload) error {
+	key := workloadmeta.AssignmentKey(meta, workload.Name)
+	assignment, ok := s.raft.GetWorkloadAssignment(key)
+	nodeID := s.local.String()
+	if ok && strings.TrimSpace(assignment.Node) != "" {
+		nodeID = strings.TrimSpace(assignment.Node)
+	}
+	if nodeID != "" && nodeID != s.local.String() {
+		if s.dispatcher == nil {
+			return oopsx.B("task").Errorf("workload %q assigned to remote node %q but worker dispatcher is unavailable", workload.Name, nodeID)
+		}
+		result, err := s.dispatcher.StopWorkload(ctx, nodeID, meta, workload)
+		if err != nil {
+			return oopsx.B("task").Wrapf(err, "stop workload %s on node %s", workload.Name, nodeID)
+		}
+		status := strings.TrimSpace(result.Status)
+		if status == "" {
+			status = workloadmeta.AssignmentStatusStopped
+		}
+		s.registry.Delete(workload.Name)
+		s.logger.Info("workload stop dispatched", "workload", workload.Name, "node", nodeID, "runtime", workload.Runtime, "status", status)
+		return nil
+	}
+	if err := s.runtime.Stop(ctx, workload.Runtime, meta, workload.Name); err != nil {
+		return oopsx.B("task").Wrapf(err, "stop workload %s", workload.Name)
+	}
+	s.registry.Delete(workload.Name)
 	return nil
 }
 
@@ -256,5 +390,25 @@ func (s *Service) DeployWorkerWorkload(ctx context.Context, meta deployv1.Metada
 		return err
 	}
 	s.metrics.IncDeployWorkload(ctx, string(workload.Runtime), "success")
+	return nil
+}
+
+func (s *Service) StopWorkerWorkload(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, assignedNode string) error {
+	if strings.TrimSpace(meta.Name) == "" {
+		return oopsx.B("task", "worker").Errorf("metadata.name is required")
+	}
+	if strings.TrimSpace(workload.Name) == "" {
+		return oopsx.B("task", "worker").Errorf("workload.name is required")
+	}
+	self := s.local.String()
+	if n := strings.TrimSpace(assignedNode); n != "" && self != "" && n != self {
+		return oopsx.B("task", "worker").Errorf("workload %q assigned to node %q, local node is %q", workload.Name, n, self)
+	}
+	if err := s.runtime.Stop(ctx, workload.Runtime, meta, workload.Name); err != nil {
+		s.metrics.IncDeployWorkload(ctx, string(workload.Runtime), "failed")
+		return err
+	}
+	s.registry.Delete(workload.Name)
+	s.metrics.IncDeployWorkload(ctx, string(workload.Runtime), workloadmeta.AssignmentStatusStopped)
 	return nil
 }

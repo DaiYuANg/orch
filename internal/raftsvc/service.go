@@ -2,10 +2,15 @@ package raftsvc
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync/atomic"
+	"time"
 
 	hclog "github.com/hashicorp/go-hclog"
 
@@ -35,7 +40,7 @@ type Service struct {
 	bboltDB        *bboltx.DB
 	logStore       *storxBadgerLogStore
 	stable         *storxBoltStableStore
-	transport      *hraft.InmemTransport
+	transport      hraft.Transport
 
 	started atomic.Bool
 }
@@ -128,6 +133,92 @@ func (s *Service) openRaftStores() (*raftOpenedStores, error) {
 	return st, nil
 }
 
+func (s *Service) openRaftTransport(st *raftOpenedStores) (*hraft.NetworkTransport, hraft.ServerAddress, error) {
+	bindAddr := strings.TrimSpace(s.cfg.Raft.Bind)
+	if bindAddr == "" {
+		return nil, "", oopsx.B("raft").Errorf("raft.bind is required")
+	}
+
+	var advertise net.Addr
+	if raw := strings.TrimSpace(s.cfg.Raft.Advertise); raw != "" {
+		addr, err := net.ResolveTCPAddr("tcp", raw)
+		if err != nil {
+			return nil, "", oopsx.B("raft").Wrapf(err, "resolve raft.advertise %q", raw)
+		}
+		if addr.IP == nil || addr.IP.IsUnspecified() {
+			return nil, "", oopsx.B("raft").Errorf("raft.advertise must be a concrete host:port, got %q", raw)
+		}
+		advertise = addr
+	}
+
+	transport, err := hraft.NewTCPTransportWithLogger(bindAddr, advertise, 3, 10*time.Second, st.raftHC)
+	if err != nil {
+		return nil, "", oopsx.B("raft").Wrapf(err, "create raft tcp transport (set raft.advertise when raft.bind is 0.0.0.0/:port)")
+	}
+	return transport, transport.LocalAddr(), nil
+}
+
+func validateRaftPeerAddress(label, raw string) (string, error) {
+	addr := strings.TrimSpace(raw)
+	if addr == "" {
+		return "", fmt.Errorf("%s is required", label)
+	}
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", fmt.Errorf("%s must be host:port: %w", label, err)
+	}
+	if strings.TrimSpace(host) == "" {
+		return "", fmt.Errorf("%s must include a host", label)
+	}
+	if strings.TrimSpace(port) == "" {
+		return "", fmt.Errorf("%s must include a port", label)
+	}
+	return addr, nil
+}
+
+func (s *Service) bootstrapServerList(localID hraft.ServerID, localAddr hraft.ServerAddress) (*list.List[hraft.Server], error) {
+	localIDString := strings.TrimSpace(string(localID))
+	if localIDString == "" {
+		return nil, oopsx.B("raft").Errorf("raft local id is required")
+	}
+	peers := map[string]string{}
+	for rawID, rawAddr := range s.cfg.Raft.Peers {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			continue
+		}
+		addr, err := validateRaftPeerAddress("raft.peers."+id, rawAddr)
+		if err != nil {
+			return nil, oopsx.B("raft").Wrapf(err, "validate raft peer")
+		}
+		peers[id] = addr
+	}
+	if configured, ok := peers[localIDString]; ok && configured != string(localAddr) {
+		s.logger.Warn("raft peer address for local node differs from transport advertise address; using transport address",
+			"node_id", localIDString,
+			"configured", configured,
+			"transport", localAddr,
+		)
+	}
+	peers[localIDString] = string(localAddr)
+
+	ids := make([]string, 0, len(peers))
+	for id := range peers {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	servers := list.NewListWithCapacity[hraft.Server](len(ids))
+	for _, id := range ids {
+		servers.Add(hraft.Server{
+			Suffrage: hraft.Voter,
+			ID:       hraft.ServerID(id),
+			Address:  hraft.ServerAddress(peers[id]),
+		})
+	}
+	return servers, nil
+}
+
 func (s *Service) maybeBootstrapRaft(
 	hrCfg *hraft.Config,
 	st *raftOpenedStores,
@@ -138,23 +229,25 @@ func (s *Service) maybeBootstrapRaft(
 	if hasState {
 		return nil
 	}
-	bootstrapServers := list.NewList(hraft.Server{
-		Suffrage: hraft.Voter,
-		ID:       hrCfg.LocalID,
-		Address:  localAddr,
-	})
+	if !s.cfg.Raft.Bootstrap {
+		s.logger.Info("raft bootstrap skipped by config", "node_id", hrCfg.LocalID, "local_addr", localAddr)
+		return nil
+	}
+	bootstrapServers, err := s.bootstrapServerList(hrCfg.LocalID, localAddr)
+	if err != nil {
+		return err
+	}
 	configuration := hraft.Configuration{
 		Servers: bootstrapServers.Values(),
 	}
 	if bootstrapErr := hraft.BootstrapCluster(hrCfg, st.logStore, st.stable, st.snapStore, transport, configuration); bootstrapErr != nil {
-		warnRaftCleanup(s.logger, func() error { return st.bbolt.Close() }, func() error { return st.bgx.Close() })
 		return oopsx.B("raft").Wrapf(bootstrapErr, "raft BootstrapCluster")
 	}
 	return nil
 }
 
-// Start opens storx engines and, if needed, bootstraps a single-node cluster before
-// constructing the Raft instance.
+// Start opens storx engines and, if needed, bootstraps the configured voter set
+// before constructing the Raft instance.
 func (s *Service) Start(_ context.Context) error {
 	if !s.cfg.Raft.Enabled {
 		s.logger.Info("raft disabled by config")
@@ -171,7 +264,11 @@ func (s *Service) Start(_ context.Context) error {
 	bgx, bbolt := st.bgx, st.bbolt
 	logStore, stable, snapStore := st.logStore, st.stable, st.snapStore
 
-	localAddr, transport := hraft.NewInmemTransport("")
+	transport, localAddr, err := s.openRaftTransport(st)
+	if err != nil {
+		warnRaftCleanup(s.logger, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
+		return err
+	}
 
 	hrCfg := hraft.DefaultConfig()
 	hrCfg.LocalID = hraft.ServerID(s.localID.String())
@@ -179,17 +276,18 @@ func (s *Service) Start(_ context.Context) error {
 
 	hasState, err := hraft.HasExistingState(logStore, stable, snapStore)
 	if err != nil {
-		warnRaftCleanup(s.logger, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
+		warnRaftCleanup(s.logger, func() error { return transport.Close() }, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
 		return oopsx.B("raft").Wrapf(err, "raft HasExistingState")
 	}
 
 	if bootstrapErr := s.maybeBootstrapRaft(hrCfg, st, localAddr, transport, hasState); bootstrapErr != nil {
+		warnRaftCleanup(s.logger, func() error { return transport.Close() }, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
 		return bootstrapErr
 	}
 
 	node, err := hraft.NewRaft(hrCfg, s.fsm, logStore, stable, snapStore, transport)
 	if err != nil {
-		warnRaftCleanup(s.logger, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
+		warnRaftCleanup(s.logger, func() error { return transport.Close() }, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
 		return oopsx.B("raft").Wrapf(err, "raft.NewRaft")
 	}
 
@@ -203,6 +301,9 @@ func (s *Service) Start(_ context.Context) error {
 
 	s.logger.Info("raft started",
 		"node_id", hrCfg.LocalID,
+		"bind", s.cfg.Raft.Bind,
+		"advertise", localAddr,
+		"configured_peers", len(s.cfg.Raft.Peers),
 		"badger_dir", s.cfg.Raft.Badger.Dir,
 		"bolt_path", s.cfg.Raft.Bolt.Path,
 		"snapshot_dir", s.cfg.Raft.Snapshot.Dir,
@@ -218,6 +319,18 @@ func (s *Service) shutdownRaftInstance() {
 		s.logger.Warn("raft shutdown", "error", err)
 	}
 	s.r = nil
+}
+
+func (s *Service) closeRaftTransportSilently() {
+	if s.transport == nil {
+		return
+	}
+	if closer, ok := s.transport.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			s.logger.Warn("close raft transport", "error", err)
+		}
+	}
+	s.transport = nil
 }
 
 func (s *Service) closeRaftStorageSilently() {
@@ -238,7 +351,6 @@ func (s *Service) closeRaftStorageSilently() {
 func (s *Service) clearRaftReferences() {
 	s.logStore = nil
 	s.stable = nil
-	s.transport = nil
 }
 
 // Stop shuts Raft down then closes embedded databases.
@@ -247,6 +359,7 @@ func (s *Service) Stop(_ context.Context) error {
 		return nil
 	}
 	s.shutdownRaftInstance()
+	s.closeRaftTransportSilently()
 	s.closeRaftStorageSilently()
 	s.clearRaftReferences()
 	if s.started.Load() {

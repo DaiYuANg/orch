@@ -18,6 +18,7 @@ import (
 const (
 	cmdUpsertNodeCapacity       = "upsert_node_capacity"
 	cmdUpsertDeployApp          = "upsert_deploy_app"
+	cmdDeleteDeployApp          = "delete_deploy_app"
 	cmdUpsertWorkloadAssignment = "upsert_workload_assignment"
 )
 
@@ -106,6 +107,23 @@ func (f *schedulingFSM) applyPayloadLocked(data []byte) {
 		if f.notifyDeploy != nil {
 			f.notifyDeploy()
 		}
+	case cmdDeleteDeployApp:
+		var env struct {
+			Type     string            `json:"type"`
+			Metadata deployv1.Metadata `json:"metadata"`
+		}
+		if err := json.Unmarshal(data, &env); err != nil {
+			return
+		}
+		if strings.TrimSpace(env.Metadata.Name) == "" {
+			return
+		}
+		if f.state.DeployApps != nil {
+			delete(f.state.DeployApps, deployAppMapKey(env.Metadata))
+		}
+		if f.notifyDeploy != nil {
+			f.notifyDeploy()
+		}
 	case cmdUpsertWorkloadAssignment:
 		var env struct {
 			Type       string                  `json:"type"`
@@ -140,7 +158,17 @@ func (f *schedulingFSM) applyPayloadLocked(data []byte) {
 }
 
 func deployAppMapKey(m deployv1.Metadata) string {
-	return strings.TrimSpace(m.Namespace) + "/" + strings.TrimSpace(m.Name)
+	return workloadmeta.NamespaceOrDefault(m.Namespace) + "/" + strings.TrimSpace(m.Name)
+}
+
+func (f *schedulingFSM) getDeployApp(meta deployv1.Metadata) (deployv1.App, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.state.DeployApps == nil {
+		return deployv1.App{}, false
+	}
+	app, ok := f.state.DeployApps[deployAppMapKey(meta)]
+	return app, ok
 }
 
 func (f *schedulingFSM) listDeployApps() *list.List[deployv1.App] {

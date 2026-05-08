@@ -85,6 +85,113 @@ type DeployOutput struct {
 	} `json:"body"`
 }
 
+type DeleteDeployInput struct {
+	Namespace string `path:"namespace"`
+	Name      string `path:"name"`
+}
+
+type DeleteDeployOutput struct {
+	Body struct {
+		Accepted  bool   `json:"accepted"`
+		App       string `json:"app"`
+		Namespace string `json:"namespace"`
+		Status    string `json:"status"`
+	} `json:"body"`
+}
+
+type StopDeployInput struct {
+	Namespace string `path:"namespace"`
+	Name      string `path:"name"`
+}
+
+type StopDeployOutput struct {
+	Body struct {
+		Accepted  bool   `json:"accepted"`
+		App       string `json:"app"`
+		Namespace string `json:"namespace"`
+		Status    string `json:"status"`
+	} `json:"body"`
+}
+
+type StartDeployInput struct {
+	Namespace string `path:"namespace"`
+	Name      string `path:"name"`
+}
+
+type StartDeployOutput struct {
+	Body struct {
+		Accepted  bool   `json:"accepted"`
+		App       string `json:"app"`
+		Namespace string `json:"namespace"`
+		Status    string `json:"status"`
+	} `json:"body"`
+}
+
+type RestartDeployInput struct {
+	Namespace string `path:"namespace"`
+	Name      string `path:"name"`
+}
+
+type RestartDeployOutput struct {
+	Body struct {
+		Accepted  bool   `json:"accepted"`
+		App       string `json:"app"`
+		Namespace string `json:"namespace"`
+		Status    string `json:"status"`
+	} `json:"body"`
+}
+
+type RaftMemberItem struct {
+	ID       string `json:"id"`
+	Address  string `json:"address"`
+	Suffrage string `json:"suffrage"`
+}
+
+type RaftStatusOutput struct {
+	Body struct {
+		Enabled       bool                       `json:"enabled"`
+		Ready         bool                       `json:"ready"`
+		NodeID        string                     `json:"nodeId"`
+		State         string                     `json:"state"`
+		IsLeader      bool                       `json:"isLeader"`
+		LeaderID      string                     `json:"leaderId,omitempty"`
+		LeaderAddress string                     `json:"leaderAddress,omitempty"`
+		LocalAddress  string                     `json:"localAddress,omitempty"`
+		Members       *list.List[RaftMemberItem] `json:"members"`
+	} `json:"body"`
+}
+
+type ListRaftMembersOutput struct {
+	Body struct {
+		Items *list.List[RaftMemberItem] `json:"items"`
+	} `json:"body"`
+}
+
+type AddRaftMemberInput struct {
+	Body struct {
+		ID      string `json:"id"`
+		Address string `json:"address"`
+	} `json:"body"`
+}
+
+type AddRaftMemberOutput struct {
+	Body struct {
+		Accepted bool           `json:"accepted"`
+		Member   RaftMemberItem `json:"member"`
+	} `json:"body"`
+}
+
+type RemoveRaftMemberInput struct {
+	ID string `path:"id"`
+}
+
+type RemoveRaftMemberOutput struct {
+	Body struct {
+		Accepted bool   `json:"accepted"`
+		ID       string `json:"id"`
+	} `json:"body"`
+}
+
 // OrchVPNBootstrapOutput is the response body for GET PathV1OrchVPNBootstrap.
 type OrchVPNBootstrapOutput struct {
 	Body struct {

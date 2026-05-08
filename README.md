@@ -8,7 +8,7 @@ orch is being built in Go and focuses on:
 
 - Multi-runtime workload execution (`docker`, `containerd`, `firecracker`, `process`, `systemd`, `windows-service`)
 - Built-in ingress and DNS record lifecycle
-- Raft-aware scheduling (deploy/migrate/failover/rebalance)
+- Raft-aware scheduling (deploy/stop/delete now; migrate/failover/rebalance are design targets)
 - Declarative Workload DSL direction with compatibility inputs and `plan/render/apply/delete`
 
 Current core stack:
@@ -18,7 +18,7 @@ Current core stack:
 - HTTP server/API: `github.com/arcgolabs/httpx` (`fiber` adapter)
 - Ingress: Fiber + `middleware/proxy` (round-robin); optional **Let's Encrypt** via `ingress.tls` (`golang.org/x/crypto/acme/autocert`, TLS-ALPN-01).
 - CLI: `github.com/spf13/cobra`
-- Consensus path: `github.com/hashicorp/raft`
+- Consensus path: `github.com/hashicorp/raft` over TCP transport with static peer bootstrap and basic membership commands
 
 ## Project Structure
 
@@ -76,9 +76,34 @@ cluster:
 The worker endpoint executes the assigned workload locally and does not mutate Raft desired state.
 The scheduler records workload assignment results in Raft; inspect them with `orch get assignments --json` (or the legacy `orch assignments --json`) or `GET /api/v1/assignments`.
 
+Start/stop/delete an app through the control plane:
+
+```bash
+go run ./cmd/orch-cli stop app my-app -n default
+go run ./cmd/orch-cli start app my-app -n default
+go run ./cmd/orch-cli restart app my-app -n default
+go run ./cmd/orch-cli delete app my-app -n default
+```
+
+`stop` stops assigned workloads while keeping the desired app document. `start`
+uses retained desired state to run the app again, `restart` does stop then
+start, and `delete` stops assigned workloads first before removing the desired
+app from Raft.
+
+Raft membership basics:
+
+```bash
+go run ./cmd/orch-cli raft status
+go run ./cmd/orch-cli raft members
+go run ./cmd/orch-cli raft add-voter node-b 10.0.0.12:7444
+go run ./cmd/orch-cli raft remove-voter node-b
+```
+
+Membership writes must target the current leader; use `raft status` to see local state and the known leader. Dynamically joined nodes should start with `raft.bootstrap: false`.
+
 ### Local Docker smoke test
 
-Run a complete single-node smoke flow (server -> CLI deploy -> Docker runtime -> CLI status checks):
+Run a complete single-node smoke flow (server -> CLI deploy -> Docker runtime -> CLI status checks -> CLI stop/start/restart/delete):
 
 ```powershell
 task smoke:local-docker

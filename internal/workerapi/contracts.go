@@ -3,6 +3,7 @@ package workerapi
 import deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 
 const PathV1WorkerDeploy = "/api/v1/worker/deploy"
+const PathV1WorkerStop = "/api/v1/worker/stop"
 
 type DeployWorkloadBody struct {
 	Metadata deployv1.Metadata `json:"metadata"`
@@ -15,6 +16,25 @@ type DeployWorkloadInput struct {
 }
 
 type DeployWorkloadOutput struct {
+	Body struct {
+		Accepted bool   `json:"accepted"`
+		Node     string `json:"node"`
+		Status   string `json:"status"`
+		Workload string `json:"workload"`
+	} `json:"body"`
+}
+
+type StopWorkloadBody struct {
+	Metadata deployv1.Metadata `json:"metadata"`
+	Workload deployv1.Workload `json:"workload"`
+	Node     string            `json:"node,omitempty"`
+}
+
+type StopWorkloadInput struct {
+	Body StopWorkloadBody `json:"body"`
+}
+
+type StopWorkloadOutput struct {
 	Body struct {
 		Accepted bool   `json:"accepted"`
 		Node     string `json:"node"`

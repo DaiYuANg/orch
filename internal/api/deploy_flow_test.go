@@ -68,22 +68,37 @@ func TestDeploySourceDispatchesWorkerAndExposesState(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	workerCh := make(chan workerapi.DeployWorkloadBody, 1)
+	workerCh := make(chan workerapi.DeployWorkloadBody, 3)
+	stopCh := make(chan workerapi.StopWorkloadBody, 3)
 	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != workerapi.PathV1WorkerDeploy {
-			t.Fatalf("worker path = %q, want %q", r.URL.Path, workerapi.PathV1WorkerDeploy)
+		switch r.URL.Path {
+		case workerapi.PathV1WorkerDeploy:
+			var in workerapi.DeployWorkloadBody
+			if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+				t.Fatalf("decode worker request: %v", err)
+			}
+			workerCh <- in
+			out := workerapi.DeployWorkloadOutput{}
+			out.Body.Accepted = true
+			out.Body.Node = in.Node
+			out.Body.Status = workloadmeta.AssignmentStatusRunning
+			out.Body.Workload = in.Workload.Name
+			_ = json.NewEncoder(w).Encode(out.Body)
+		case workerapi.PathV1WorkerStop:
+			var in workerapi.StopWorkloadBody
+			if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+				t.Fatalf("decode worker stop request: %v", err)
+			}
+			stopCh <- in
+			out := workerapi.StopWorkloadOutput{}
+			out.Body.Accepted = true
+			out.Body.Node = in.Node
+			out.Body.Status = workloadmeta.AssignmentStatusStopped
+			out.Body.Workload = in.Workload.Name
+			_ = json.NewEncoder(w).Encode(out.Body)
+		default:
+			t.Fatalf("worker path = %q", r.URL.Path)
 		}
-		var in workerapi.DeployWorkloadBody
-		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-			t.Fatalf("decode worker request: %v", err)
-		}
-		workerCh <- in
-		out := workerapi.DeployWorkloadOutput{}
-		out.Body.Accepted = true
-		out.Body.Node = in.Node
-		out.Body.Status = workloadmeta.AssignmentStatusRunning
-		out.Body.Workload = in.Workload.Name
-		_ = json.NewEncoder(w).Encode(out.Body)
 	}))
 	t.Cleanup(worker.Close)
 
@@ -128,7 +143,7 @@ func TestDeploySourceDispatchesWorkerAndExposesState(t *testing.T) {
 
 	loaderSvc := newE2ELoader(t)
 	fiberApp, rt := newE2EServerRuntime(logger)
-	api.Register(rt, cfg, registrySvc, taskSvc, loaderSvc, nil)
+	api.Register(rt, cfg, registrySvc, taskSvc, loaderSvc, nil, raft)
 	baseURL := startTestFiberServer(t, fiberApp)
 	client, err := apiclient.New(baseURL, "")
 	if err != nil {
@@ -139,6 +154,14 @@ func TestDeploySourceDispatchesWorkerAndExposesState(t *testing.T) {
 			t.Logf("close client: %v", err)
 		}
 	})
+
+	raftStatus, err := client.RaftStatus(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raftStatus.Body.Enabled || raftStatus.Body.Ready || raftStatus.Body.State != "disabled" {
+		t.Fatalf("raft status = %#v", raftStatus.Body)
+	}
 
 	out, err := client.DeploySource(ctx, "app.yaml", `metadata:
   name: e2e-demo
@@ -182,6 +205,92 @@ workloads:
 	if workload.Node != "node-b" || workload.Status != workloadmeta.AssignmentStatusRunning || workload.Artifact != "busybox" {
 		t.Fatalf("workload = %#v", workload)
 	}
+
+	stopped, err := client.StopDeploy(ctx, "default", "e2e-demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stopped.Body.Accepted || stopped.Body.App != "e2e-demo" || stopped.Body.Status != workloadmeta.AssignmentStatusStopped {
+		t.Fatalf("stop response = %#v", stopped.Body)
+	}
+	select {
+	case got := <-stopCh:
+		if got.Node != "node-b" || got.Workload.Name != "worker" || got.Metadata.Name != "e2e-demo" {
+			t.Fatalf("worker stop request = %#v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for worker stop")
+	}
+	stoppedAssignment := waitHTTPAssignment(t, ctx, client, "default/e2e-demo/worker", "node-b", workloadmeta.AssignmentStatusStopped)
+	if stoppedAssignment.Status != workloadmeta.AssignmentStatusStopped {
+		t.Fatalf("stopped assignment = %#v", stoppedAssignment)
+	}
+	waitHTTPWorkloadGone(t, ctx, client, "worker")
+
+	started, err := client.StartDeploy(ctx, "default", "e2e-demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !started.Body.Accepted || started.Body.App != "e2e-demo" || started.Body.Status != workloadmeta.AssignmentStatusRunning {
+		t.Fatalf("start response = %#v", started.Body)
+	}
+	select {
+	case got := <-workerCh:
+		if got.Node != "node-b" || got.Workload.Name != "worker" || got.Workload.Run.Artifact.Image != "busybox" {
+			t.Fatalf("worker start request = %#v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for worker start")
+	}
+	waitHTTPAssignment(t, ctx, client, "default/e2e-demo/worker", "node-b", workloadmeta.AssignmentStatusRunning)
+	waitHTTPWorkload(t, ctx, client, "worker")
+
+	restarted, err := client.RestartDeploy(ctx, "default", "e2e-demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !restarted.Body.Accepted || restarted.Body.App != "e2e-demo" || restarted.Body.Status != workloadmeta.AssignmentStatusRunning {
+		t.Fatalf("restart response = %#v", restarted.Body)
+	}
+	select {
+	case got := <-stopCh:
+		if got.Node != "node-b" || got.Workload.Name != "worker" || got.Metadata.Name != "e2e-demo" {
+			t.Fatalf("worker restart stop request = %#v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for worker restart stop")
+	}
+	select {
+	case got := <-workerCh:
+		if got.Node != "node-b" || got.Workload.Name != "worker" || got.Workload.Run.Artifact.Image != "busybox" {
+			t.Fatalf("worker restart start request = %#v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for worker restart start")
+	}
+	waitHTTPAssignment(t, ctx, client, "default/e2e-demo/worker", "node-b", workloadmeta.AssignmentStatusRunning)
+	waitHTTPWorkload(t, ctx, client, "worker")
+
+	deleted, err := client.DeleteDeploy(ctx, "default", "e2e-demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !deleted.Body.Accepted || deleted.Body.App != "e2e-demo" || deleted.Body.Status != workloadmeta.AssignmentStatusStopped {
+		t.Fatalf("delete response = %#v", deleted.Body)
+	}
+	select {
+	case got := <-stopCh:
+		if got.Node != "node-b" || got.Workload.Name != "worker" || got.Metadata.Name != "e2e-demo" {
+			t.Fatalf("worker delete stop request = %#v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for worker delete stop")
+	}
+	deletedAssignment := waitHTTPAssignment(t, ctx, client, "default/e2e-demo/worker", "node-b", workloadmeta.AssignmentStatusStopped)
+	if deletedAssignment.Status != workloadmeta.AssignmentStatusStopped {
+		t.Fatalf("deleted assignment = %#v", deletedAssignment)
+	}
+	waitHTTPWorkloadGone(t, ctx, client, "worker")
 }
 
 func newE2ELoader(t *testing.T) *loader.Loader {
@@ -292,6 +401,31 @@ func waitHTTPWorkload(t *testing.T, ctx context.Context, client *apiclient.Clien
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("workload %q did not appear", name)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func waitHTTPWorkloadGone(t *testing.T, ctx context.Context, client *apiclient.Client, name string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		out, err := client.ListWorkloads(ctx)
+		if err == nil {
+			found := false
+			out.Body.Items.Range(func(_ int, item api.WorkloadItem) bool {
+				if item.Name == name {
+					found = true
+					return false
+				}
+				return true
+			})
+			if !found {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("workload %q still present", name)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

@@ -63,6 +63,47 @@ func (p *Provider) drainDockerImagePull(ctx context.Context, cli *client.Client,
 	return nil
 }
 
+func (p *Provider) ensureDockerImage(ctx context.Context, cli *client.Client, ref string) error {
+	if err := p.drainDockerImagePull(ctx, cli, ref); err != nil {
+		if _, inspectErr := cli.ImageInspect(ctx, ref); inspectErr == nil {
+			p.logger.Warn("docker pull failed; using cached local image", "image", ref, "error", err)
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func (p *Provider) prepareExistingDockerContainer(ctx context.Context, cli *client.Client, meta deployv1.Metadata, w deployv1.Workload, name string) (bool, error) {
+	inspect, err := cli.ContainerInspect(ctx, name)
+	if err != nil {
+		if cerrdefs.IsNotFound(err) {
+			return false, nil
+		}
+		return false, oopsx.B("runtime", "docker").Wrapf(err, "docker inspect existing container %q", name)
+	}
+	labels := map[string]string{}
+	if inspect.Config != nil {
+		labels = inspect.Config.Labels
+	}
+	if !workloadLabelsMatch(labels, meta, w) {
+		return false, oopsx.B("runtime", "docker").Errorf("docker: container %q already exists and is not managed by app %s/%s workload %s",
+			name, workloadmeta.NamespaceOrDefault(meta.Namespace), meta.Name, w.Name)
+	}
+	if inspect.State != nil && inspect.State.Running {
+		if err := p.recordDockerWorkloadDNS(ctx, meta, w, name, inspect); err != nil {
+			return false, err
+		}
+		p.logger.Info("docker workload already running", "container", name, "workload", w.Name)
+		return true, nil
+	}
+	if err := cli.ContainerRemove(ctx, inspect.ID, container.RemoveOptions{Force: true}); err != nil {
+		return false, oopsx.B("runtime", "docker").Wrapf(err, "docker remove stale container %q", name)
+	}
+	p.logger.Info("docker stale workload container removed", "container", name, "workload", w.Name)
+	return false, nil
+}
+
 func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Client, meta deployv1.Metadata, w deployv1.Workload, ref string) error {
 	name := workloadmeta.OrchContainerName(meta, w.Name)
 	ctrCfg := &container.Config{
@@ -90,12 +131,35 @@ func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Clie
 	createResp, err := cli.ContainerCreate(ctx, ctrCfg, hostCfg, nil, nil, name)
 	if err != nil {
 		if cerrdefs.IsConflict(err) {
-			return oopsx.B("runtime", "docker").Errorf("docker: container %q already exists", name)
+			ready, prepErr := p.prepareExistingDockerContainer(ctx, cli, meta, w, name)
+			if prepErr != nil {
+				return prepErr
+			}
+			if ready {
+				return nil
+			}
+			createResp, err = cli.ContainerCreate(ctx, ctrCfg, hostCfg, nil, nil, name)
+			if err == nil {
+				return p.dockerRunAfterCreate(ctx, cli, meta, w, name, createResp.ID)
+			}
 		}
 		return oopsx.B("runtime", "docker").Wrapf(err, "docker create %q", name)
 	}
 
 	return p.dockerRunAfterCreate(ctx, cli, meta, w, name, createResp.ID)
+}
+
+func workloadLabelsMatch(labels map[string]string, meta deployv1.Metadata, w deployv1.Workload) bool {
+	expected := workloadmeta.LabelMap(meta, w)
+	matches := true
+	expected.Range(func(key, want string) bool {
+		if labels[key] != want {
+			matches = false
+			return false
+		}
+		return true
+	})
+	return matches
 }
 
 func containerLabels(meta deployv1.Metadata, w deployv1.Workload) map[string]string {
@@ -151,18 +215,23 @@ func (p *Provider) dockerRunAfterCreate(ctx context.Context, cli *client.Client,
 		removeFailed("inspect", err)
 		return oopsx.B("runtime", "docker").Wrapf(err, "docker inspect after start")
 	}
+	if err := p.recordDockerWorkloadDNS(ctx, meta, w, name, inspect); err != nil {
+		removeFailed("record_dns", err)
+		return err
+	}
+
+	p.logger.Info("docker workload running", "container", name, "workload", w.Name)
+	return nil
+}
+
+func (p *Provider) recordDockerWorkloadDNS(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload, name string, inspect container.InspectResponse) error {
 	ip := primaryIPv4(inspect.NetworkSettings)
 	if ip == "" {
-		removeFailed("no_ipv4", nil)
 		return oopsx.B("runtime", "docker").Errorf("docker: no ipv4 address for container %s (ensure default bridge / or set networkMode)", name)
 	}
-
 	if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, ip); err != nil {
-		removeFailed("dns", err)
 		return oopsx.B("runtime", "dns").Wrapf(err, "upsert workload DNS")
 	}
-
-	p.logger.Info("docker workload running", "container", name, "workload", w.Name, "ip", ip)
 	return nil
 }
 
@@ -182,7 +251,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		return oopsx.B("runtime", "docker").Errorf("docker: workload %q: run.artifact.image is required", w.Name)
 	}
 
-	if pullErr := p.drainDockerImagePull(ctx, cli, ref); pullErr != nil {
+	if pullErr := p.ensureDockerImage(ctx, cli, ref); pullErr != nil {
 		return pullErr
 	}
 	return p.deployWorkloadContainer(ctx, cli, meta, w, ref)
@@ -201,6 +270,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 
 	ns := workloadmeta.NamespaceOrDefault(meta.Namespace)
 	fl := filters.NewArgs(
+		filters.Arg("label", "orch.io/app="+strings.TrimSpace(meta.Name)),
 		filters.Arg("label", "orch.io/namespace="+ns),
 		filters.Arg("label", "orch.io/workload="+strings.TrimSpace(workloadName)),
 	)

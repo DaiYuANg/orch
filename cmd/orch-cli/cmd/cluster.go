@@ -134,6 +134,288 @@ func newGetCmd() *cobra.Command {
 	return cmd
 }
 
+func newRaftCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "raft",
+		Short: "Inspect and manage Raft membership",
+		Long:  `Raft membership commands operate on the configured control plane. Write operations must target the current Raft leader.`,
+		Args:  cobra.NoArgs,
+	}
+	cmd.AddCommand(newRaftStatusCmd())
+	cmd.AddCommand(newRaftMembersCmd())
+	cmd.AddCommand(newRaftAddVoterCmd())
+	cmd.AddCommand(newRaftRemoveVoterCmd())
+	return cmd
+}
+
+func newRaftStatusCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show local Raft state and leader identity",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.RaftStatus(ctx)
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "raft status")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeRaftStatusHuman(out)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
+func newRaftMembersCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:     "members",
+		Aliases: []string{"member", "peers"},
+		Short:   "List Raft members",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.ListRaftMembers(ctx)
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "list raft members")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body.Items)
+				}
+				return writeRaftMembersHuman(out.Body.Items)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON array")
+	return cmd
+}
+
+func newRaftAddVoterCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "add-voter ID ADDRESS",
+		Short: "Add or update a Raft voter",
+		Long:  `Adds or updates a Raft voter by node ID and advertised raft host:port. Target the current Raft leader.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.AddRaftVoter(ctx, args[0], args[1])
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "add raft voter")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeInfoLine("raft",
+					viewField("status", statusBadge("accepted")),
+					viewField("id", out.Body.Member.ID),
+					viewField("address", out.Body.Member.Address),
+				)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
+func newRaftRemoveVoterCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:     "remove-voter ID",
+		Aliases: []string{"remove-member"},
+		Short:   "Remove a Raft member",
+		Long:    `Removes a Raft server from membership. Target the current Raft leader.`,
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.RemoveRaftMember(ctx, args[0])
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "remove raft member")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeInfoLine("raft",
+					viewField("status", statusBadge("accepted")),
+					viewField("id", out.Body.ID),
+				)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
+func newDeleteCmd(use string, aliases []string) *cobra.Command {
+	var namespace string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:     use + " app NAME",
+		Aliases: aliases,
+		Short:   "Stop and delete a deployed app",
+		Long:    `Stops workloads for the named app, removes the desired app document, and records stopped assignments.`,
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "app" {
+				return oopsx.B("cli").Errorf("expected resource type app, got %q", args[0])
+			}
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.DeleteDeploy(ctx, namespace, args[1])
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "delete app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeInfoLine("delete",
+					viewField("status", statusBadge(out.Body.Status)),
+					viewField("app", out.Body.App),
+					viewField("namespace", out.Body.Namespace),
+				)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
+func newStartCmd() *cobra.Command {
+	var namespace string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "start app NAME",
+		Short: "Start a stopped app",
+		Long:  `Starts workloads for the named app from the desired app document retained by the control plane.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "app" {
+				return oopsx.B("cli").Errorf("expected resource type app, got %q", args[0])
+			}
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.StartDeploy(ctx, namespace, args[1])
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "start app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeInfoLine("start",
+					viewField("status", statusBadge(out.Body.Status)),
+					viewField("app", out.Body.App),
+					viewField("namespace", out.Body.Namespace),
+				)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
+func newStopCmd() *cobra.Command {
+	var namespace string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "stop app NAME",
+		Short: "Stop a deployed app",
+		Long:  `Stops workloads for the named app and records stopped assignments while keeping the desired app document.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "app" {
+				return oopsx.B("cli").Errorf("expected resource type app, got %q", args[0])
+			}
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.StopDeploy(ctx, namespace, args[1])
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "stop app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeInfoLine("stop",
+					viewField("status", statusBadge(out.Body.Status)),
+					viewField("app", out.Body.App),
+					viewField("namespace", out.Body.Namespace),
+				)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
+func newRestartCmd() *cobra.Command {
+	var namespace string
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "restart app NAME",
+		Short: "Restart a deployed app",
+		Long:  `Stops then starts workloads for the named app using its desired app document.`,
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "app" {
+				return oopsx.B("cli").Errorf("expected resource type app, got %q", args[0])
+			}
+			ctx := contextFromCmd(cmd)
+			conn := cliapp.ConnFromGlobals(serverURL, authToken)
+			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+				out, err := c.RestartDeploy(ctx, namespace, args[1])
+				if err != nil {
+					return oopsx.B("cli").Wrapf(err, "restart app")
+				}
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(out.Body)
+				}
+				return writeInfoLine("restart",
+					viewField("status", statusBadge(out.Body.Status)),
+					viewField("app", out.Body.App),
+					viewField("namespace", out.Body.Namespace),
+				)
+			})
+		},
+	}
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
+	return cmd
+}
+
 func newApplyCmd() *cobra.Command {
 	var file string
 	var jsonOut bool
@@ -492,6 +774,42 @@ func writeAssignmentsHuman(items *list.List[api.AssignmentItem]) error {
 		return true
 	})
 	return writeTable(list.NewList("KEY", "NODE", "RUNTIME", "STATUS", "ARTIFACT", "ERROR"), rows)
+}
+
+func writeRaftStatusHuman(out *api.RaftStatusOutput) error {
+	body := out.Body
+	role := "follower"
+	if body.IsLeader {
+		role = "leader"
+	}
+	if !body.Ready {
+		role = "-"
+	}
+	memberCount := 0
+	if body.Members != nil {
+		memberCount = body.Members.Len()
+	}
+	rows := list.NewGrid[string](
+		[]string{"enabled", strconv.FormatBool(body.Enabled)},
+		[]string{"ready", strconv.FormatBool(body.Ready)},
+		[]string{"state", statusBadge(body.State)},
+		[]string{"role", role},
+		[]string{"node_id", nonEmpty(body.NodeID)},
+		[]string{"leader_id", nonEmpty(body.LeaderID)},
+		[]string{"leader_address", nonEmpty(body.LeaderAddress)},
+		[]string{"local_address", nonEmpty(body.LocalAddress)},
+		[]string{"members", strconv.Itoa(memberCount)},
+	)
+	return writeKVTable(rows)
+}
+
+func writeRaftMembersHuman(items *list.List[api.RaftMemberItem]) error {
+	rows := list.NewGridWithCapacity[string](items.Len())
+	items.Range(func(_ int, member api.RaftMemberItem) bool {
+		rows.AddRow(member.ID, member.Address, member.Suffrage)
+		return true
+	})
+	return writeTable(list.NewList("ID", "ADDRESS", "SUFFRAGE"), rows)
 }
 
 func nonEmpty(s string) string {

@@ -46,6 +46,10 @@ func init() {
 	rootCmd.AddCommand(newValidateCmd())
 	rootCmd.AddCommand(newParseCmd())
 	rootCmd.AddCommand(newApplyCmd())
+	rootCmd.AddCommand(newStartCmd())
+	rootCmd.AddCommand(newDeleteCmd("delete", []string{"rm"}))
+	rootCmd.AddCommand(newStopCmd())
+	rootCmd.AddCommand(newRestartCmd())
 	rootCmd.AddCommand(newComposeCmd())
 	// Cluster inspection (requires reachable control plane).
 	rootCmd.AddCommand(newGetCmd())
@@ -53,4 +57,5 @@ func init() {
 	rootCmd.AddCommand(newWorkloadsCmd())
 	rootCmd.AddCommand(newAssignmentsCmd())
 	rootCmd.AddCommand(newHostinfoCmd())
+	rootCmd.AddCommand(newRaftCmd())
 }

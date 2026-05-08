@@ -36,6 +36,15 @@ func (s *Service) Upsert(record WorkloadRecord) {
 	s.logger.Debug("registry upsert", "workload", record.Name, "status", record.Status)
 }
 
+func (s *Service) Delete(name string) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	s.items.Delete(name)
+	s.logger.Debug("registry delete", "workload", name)
+}
+
 func (s *Service) List() *list.List[WorkloadRecord] {
 	out := list.NewListWithCapacity[WorkloadRecord](s.items.Len())
 	s.items.Range(func(_ string, record WorkloadRecord) bool {

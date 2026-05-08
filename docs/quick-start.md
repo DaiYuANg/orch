@@ -38,6 +38,46 @@ go run ./cmd/orch-cli get assignments
 Human output uses styled terminal tables. Add `--json` to keep automation output
 stable.
 
+## Start/stop/delete an app
+
+```bash
+go run ./cmd/orch-cli stop app my-app -n default
+go run ./cmd/orch-cli start app my-app -n default
+go run ./cmd/orch-cli restart app my-app -n default
+go run ./cmd/orch-cli delete app my-app -n default
+```
+
+`stop` stops assigned workloads through the local runtime or worker dispatch and
+keeps the desired app document. `start` uses that retained desired state to run
+the app again, `restart` does stop then start, and `delete` stops workloads first
+then removes desired state from Raft.
+
+## Host DNS installer hook
+
+Linux packages run the host DNS installer during package install/removal. For
+manual development checks:
+
+```bash
+go run ./cmd/orch-server host-dns status --json
+go run ./cmd/orch-server host-dns install
+```
+
+This configures the OS resolver for the orch DNS zone. Workloads remain unaware
+of the host resolver setup.
+
+## Raft membership
+
+```bash
+go run ./cmd/orch-cli raft status
+go run ./cmd/orch-cli raft members
+go run ./cmd/orch-cli raft add-voter node-b 10.0.0.12:7444
+go run ./cmd/orch-cli raft remove-voter node-b
+```
+
+Membership writes must target the current Raft leader. Use `raft status` to
+check local state and the known leader. For a node that will be joined
+dynamically, start it with `raft.bootstrap: false`.
+
 ## Run local Docker smoke test
 
 ```powershell
@@ -45,8 +85,8 @@ task smoke:local-docker
 ```
 
 This starts a single-node server, deploys `examples/local-docker-smoke.yaml`,
-checks the workload status with the CLI, and cleans up by default. See
-`docs/local-docker-smoke.md`.
+checks workload status with the CLI, runs stop/start/restart/delete, and cleans
+up by default. See `docs/local-docker-smoke.md`.
 
 ## Full-stack application example
 

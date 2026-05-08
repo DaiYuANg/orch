@@ -3,6 +3,7 @@ package apiclient
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -129,6 +130,119 @@ func (c *Client) DeploySource(ctx context.Context, virtualPath, source string) (
 	return &out, nil
 }
 
+func (c *Client) DeleteDeploy(ctx context.Context, namespace, name string) (*api.DeleteDeployOutput, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "default"
+	}
+	path := api.PathV1DeployDelete + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name)
+	var out api.DeleteDeployOutput
+	if err := c.delete(ctx, path, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) StopDeploy(ctx context.Context, namespace, name string) (*api.StopDeployOutput, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "default"
+	}
+	path := api.PathV1DeployStop + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/stop"
+	var out api.StopDeployOutput
+	if err := c.post(ctx, path, struct{}{}, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) StartDeploy(ctx context.Context, namespace, name string) (*api.StartDeployOutput, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "default"
+	}
+	path := api.PathV1DeployStart + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/start"
+	var out api.StartDeployOutput
+	if err := c.post(ctx, path, struct{}{}, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) RestartDeploy(ctx context.Context, namespace, name string) (*api.RestartDeployOutput, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "default"
+	}
+	path := api.PathV1DeployRestart + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/restart"
+	var out api.RestartDeployOutput
+	if err := c.post(ctx, path, struct{}{}, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) RaftStatus(ctx context.Context) (*api.RaftStatusOutput, error) {
+	var out api.RaftStatusOutput
+	if err := c.get(ctx, api.PathV1RaftStatus, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) ListRaftMembers(ctx context.Context) (*api.ListRaftMembersOutput, error) {
+	var out api.ListRaftMembersOutput
+	if err := c.get(ctx, api.PathV1RaftMembers, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) AddRaftVoter(ctx context.Context, id, address string) (*api.AddRaftMemberOutput, error) {
+	id = strings.TrimSpace(id)
+	address = strings.TrimSpace(address)
+	if id == "" || address == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("raft member id and address are required")
+	}
+	var in api.AddRaftMemberInput
+	in.Body.ID = id
+	in.Body.Address = address
+	var out api.AddRaftMemberOutput
+	if err := c.post(ctx, api.PathV1RaftMembers, &in.Body, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) RemoveRaftMember(ctx context.Context, id string) (*api.RemoveRaftMemberOutput, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, oopsx.B("cli", "apiclient").Errorf("raft member id is required")
+	}
+	path := api.PathV1RaftMembers + "/" + url.PathEscape(id)
+	var out api.RemoveRaftMemberOutput
+	if err := c.delete(ctx, path, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // OrchVPNBootstrap calls GET /api/v1/orch-vpn/bootstrap.
 func (c *Client) OrchVPNBootstrap(ctx context.Context) (*api.OrchVPNBootstrapOutput, error) {
 	var out api.OrchVPNBootstrapOutput
@@ -152,6 +266,24 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	}
 	if err := clientcodec.JSON.Unmarshal(resp.Bytes(), out); err != nil {
 		return oopsx.B("cli", "apiclient").Wrapf(err, "GET %s response", path)
+	}
+	return nil
+}
+
+func (c *Client) delete(ctx context.Context, path string, out any) error {
+	if c == nil || c.hc == nil {
+		return oopsx.B("cli", "apiclient").Errorf("nil client")
+	}
+	resp, err := c.hc.Execute(ctx, c.hc.R(), http.MethodDelete, path)
+	if err != nil {
+		return oopsx.B("cli", "apiclient").Wrapf(err, "DELETE %s", path)
+	}
+	if !resp.IsSuccess() {
+		msg := strings.TrimSpace(string(resp.Bytes()))
+		return oopsx.B("cli", "apiclient").Errorf("DELETE %s: %s: %s", path, resp.Status(), msg)
+	}
+	if err := clientcodec.JSON.Unmarshal(resp.Bytes(), out); err != nil {
+		return oopsx.B("cli", "apiclient").Wrapf(err, "DELETE %s response", path)
 	}
 	return nil
 }

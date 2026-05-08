@@ -429,8 +429,11 @@ type RaftConfig struct {
 		// ID forces this Raft/server identity (omit, "", or "auto" → resolved via nodeid hardware resolver).
 		ID string `json:"id"`
 	} `json:"node"`
-	Bind   string `json:"bind"`
-	Badger struct {
+	Bind      string            `json:"bind"`
+	Advertise string            `json:"advertise,omitempty"`
+	Peers     map[string]string `json:"peers,omitempty"`
+	Bootstrap bool              `json:"bootstrap,omitempty"`
+	Badger    struct {
 		Dir string `json:"dir"`
 	} `json:"badger"`
 	Bolt struct {
@@ -480,6 +483,9 @@ func Default() Config {
 	// raft.Node.ID empty or "auto" → resolved from hardware at runtime ([nodeid.Resolve]).
 	raft.Node.ID = ""
 	raft.Bind = "127.0.0.1:7444"
+	raft.Advertise = ""
+	raft.Peers = map[string]string{}
+	raft.Bootstrap = true
 	raft.Badger.Dir = filepath.Join(root, "raft-sched")
 	raft.Bolt.Path = filepath.Join(root, "raft-meta.db")
 	raft.Snapshot.Dir = filepath.Join(root, "raft-snapshots")

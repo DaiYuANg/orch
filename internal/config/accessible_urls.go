@@ -95,7 +95,8 @@ func LogRaftReachablePaths(logger *slog.Logger, cfg Config) {
 	if bind == "" {
 		return
 	}
-	logger.Info("lifecycle reachable paths", "component", "raft", "transport_bind", bind)
+	advertise := strings.TrimSpace(cfg.Raft.Advertise)
+	logger.Info("lifecycle reachable paths", "component", "raft", "transport_bind", bind, "transport_advertise", advertise)
 }
 
 // LogSchedulerReachableContext logs scheduler cadence (no external URL).
@@ -131,6 +132,9 @@ func appendReachabilityDNS(attrs *list.List[any], cfg Config) {
 func appendReachabilityRaft(attrs *list.List[any], cfg Config) {
 	if cfg.Raft.Enabled && strings.TrimSpace(cfg.Raft.Bind) != "" {
 		attrs.Add(slog.String("raft_transport", cfg.Raft.Bind))
+		if advertise := strings.TrimSpace(cfg.Raft.Advertise); advertise != "" {
+			attrs.Add(slog.String("raft_advertise", advertise))
+		}
 	}
 }
 

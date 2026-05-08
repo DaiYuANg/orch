@@ -15,10 +15,13 @@ Implemented:
 - Runtime-neutral deploy spec: `run.artifact` for images/paths/URLs,
   `run.exec` for command/args, and typed `runtimeOptions` for `docker`,
   `containerd`, `firecracker`, `process`, `systemd`, and `windows-service`.
-- Task APIs: deploy, stop, migrate, failover, rebalance.
+- Task APIs: deploy/list and app start/stop/restart/delete. Migrate/failover/
+  rebalance remain control-plane design targets.
 - Registry-backed ingress route and endpoint management.
 - DNS record lifecycle tied to deploy/stop.
-- Raft-aware write-path coordination baseline.
+- Raft-backed write-path coordination with TCP transport, static multi-node
+  bootstrap, local status visibility, and basic add/remove voter membership
+  operations.
 - Transitional DSL flow with `plan/render/apply/delete`, with the canonical
   Workload DSL v1 direction documented separately.
 - DSL/compiler pipeline direction (`parser -> HIR -> binder -> IR -> canonical ->
@@ -47,3 +50,4 @@ In progress:
   jailer integration, recovery, and image/rootfs preparation workflow).
 - Stateful placement/migration policy refinement.
 - More production-grade failure handling and recovery behavior.
+- Raft automatic request forwarding and higher-level membership guardrails.

@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/mapping"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -84,6 +85,7 @@ func (p *Provider) deployWorkloadContainer(ctx context.Context, cli *client.Clie
 		}
 		hostCfg.Privileged = w.Run.Options.Docker.Privileged
 	}
+	applyWorkloadDNS(hostCfg, p.dns, meta.Namespace)
 
 	createResp, err := cli.ContainerCreate(ctx, ctrCfg, hostCfg, nil, nil, name)
 	if err != nil {
@@ -111,6 +113,25 @@ func containerLabels(meta deployv1.Metadata, w deployv1.Workload) map[string]str
 		return true
 	})
 	return labels.All()
+}
+
+type workloadDNSResolver interface {
+	WorkloadNameserver() (string, bool)
+	WorkloadSearchDomains(namespace string) *list.List[string]
+}
+
+func applyWorkloadDNS(hostCfg *container.HostConfig, resolver workloadDNSResolver, namespace string) {
+	if hostCfg == nil || resolver == nil {
+		return
+	}
+	nameserver, ok := resolver.WorkloadNameserver()
+	if !ok {
+		return
+	}
+	hostCfg.DNS = []string{nameserver}
+	if search := resolver.WorkloadSearchDomains(namespace); search.Len() > 0 {
+		hostCfg.DNSSearch = search.Values()
+	}
 }
 
 func (p *Provider) dockerRunAfterCreate(ctx context.Context, cli *client.Client, meta deployv1.Metadata, w deployv1.Workload, name, containerID string) error {

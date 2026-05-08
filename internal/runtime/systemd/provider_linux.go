@@ -51,7 +51,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		return err
 	}
 	if p.dns != nil {
-		if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, "127.0.0.1"); err != nil {
+		if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, p.dns.WorkloadAdvertiseAddress("127.0.0.1")); err != nil {
 			p.cleanupUnit(ctx, unitName, unitPath)
 			_ = p.removeState(meta, w.Name)
 			return oopsx.B("runtime", "dns").Wrapf(err, "upsert workload DNS")

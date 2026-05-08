@@ -43,6 +43,23 @@ high port:
 go run ./cmd/orch-server --ingress-listen :18080
 ```
 
+To let Docker workloads resolve orch service names through the internal DNS,
+run the DNS listener on port 53 at an address reachable from the Docker network
+and pass that same IP as the workload nameserver. For the default Linux bridge,
+that is often the bridge gateway:
+
+```bash
+go run ./cmd/orch-server \
+  --ingress-listen :18080 \
+  --dns-listen 0.0.0.0:53 \
+  --dns-workload-nameserver 172.17.0.1 \
+  --dns-workload-advertise-address 172.17.0.1
+```
+
+With those flags, Docker containers get `dns.workload.nameserver` and search
+domains like `demo.svc.orch.local`, `svc.orch.local`, and `orch.local` through
+Docker's native DNS settings. No `/etc/resolv.conf` bind mount is added.
+
 Deploy and wait:
 
 ```bash
@@ -137,7 +154,8 @@ endpoints or when routing to a non-default endpoint name.
 The manifest intentionally stays inside the current runtime surface:
 
 - Supported by the `docker` provider now: image pull, command, args, env, cwd,
-  resource limits, Docker network mode, labels, and `privileged`.
+  resource limits, Docker network mode, labels, `privileged`, and Docker-native
+  DNS nameserver/search injection.
 - `depends_on` is a scheduling/deploy graph signal today; it is not yet a
   readiness gate.
 - Workload `endpoint` entries feed DNS/ingress intent; they do not publish host

@@ -13,11 +13,7 @@ import (
 )
 
 func dnsZoneName(cfg config.DNSConfig) string {
-	z := strings.TrimSpace(cfg.Zone)
-	if z == "" {
-		return "orch.local"
-	}
-	return z
+	return cfg.ZoneName()
 }
 
 func workloadRecordKey(namespace, workloadName string) string {

@@ -241,7 +241,99 @@ type DNSConfig struct {
 	Data    struct {
 		Path string `json:"path"`
 	} `json:"data"`
-	Zone string `json:"zone,omitempty"`
+	Zone     string            `json:"zone,omitempty"`
+	Workload DNSWorkloadConfig `json:"workload,omitempty"`
+}
+
+// DNSWorkloadConfig controls how managed workloads discover orch DNS.
+// nameserver must be reachable by the workload on the standard DNS port (53);
+// resolv.conf-style resolvers do not support custom ports.
+type DNSWorkloadConfig struct {
+	Nameserver       string   `json:"nameserver,omitempty"`        // IP injected into container DNS config.
+	Search           []string `json:"search,omitempty"`            // Optional search domains; defaults to namespace/service/zone.
+	AdvertiseAddress string   `json:"advertise_address,omitempty"` // Address used for host-style runtimes' A records.
+}
+
+func (c DNSConfig) ZoneName() string {
+	z := strings.Trim(strings.ToLower(strings.TrimSpace(c.Zone)), ".")
+	if z == "" {
+		return "orch.local"
+	}
+	return z
+}
+
+// WorkloadNameserver returns the nameserver address to inject into container runtimes.
+// The returned value never includes a port because container resolvers query port 53.
+func (c DNSConfig) WorkloadNameserver() (string, bool) {
+	if ns, ok := normalizeDNSNameserver(c.Workload.Nameserver, true); ok {
+		return ns, true
+	}
+	return workloadNameserverFromListen(c.Listen)
+}
+
+func (c DNSConfig) WorkloadSearchDomainList(namespace string) *list.List[string] {
+	if len(c.Workload.Search) > 0 {
+		return normalizeDNSDomains(list.NewList(c.Workload.Search...))
+	}
+	ns := strings.Trim(strings.ToLower(strings.TrimSpace(namespace)), ".")
+	if ns == "" {
+		ns = "default"
+	}
+	zone := c.ZoneName()
+	return normalizeDNSDomains(list.NewList(
+		ns+".svc."+zone,
+		"svc."+zone,
+		zone,
+	))
+}
+
+func (c DNSConfig) WorkloadAdvertiseAddress() string {
+	return strings.TrimSpace(c.Workload.AdvertiseAddress)
+}
+
+func workloadNameserverFromListen(listen string) (string, bool) {
+	host, port, err := net.SplitHostPort(strings.TrimSpace(listen))
+	if err != nil || port != "53" {
+		return "", false
+	}
+	return normalizeDNSNameserver(host, false)
+}
+
+func normalizeDNSNameserver(raw string, allowLoopback bool) (string, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", false
+	}
+	if host, port, err := net.SplitHostPort(s); err == nil {
+		if port != "" && port != "53" {
+			return "", false
+		}
+		s = host
+	}
+	s = strings.Trim(strings.TrimSpace(s), "[]")
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return "", false
+	}
+	if !allowLoopback && (ip.IsLoopback() || ip.IsUnspecified()) {
+		return "", false
+	}
+	return ip.String(), true
+}
+
+func normalizeDNSDomains(domains *list.List[string]) *list.List[string] {
+	seen := set.NewSet[string]()
+	out := list.NewListWithCapacity[string](domains.Len())
+	domains.Range(func(_ int, domain string) bool {
+		d := strings.Trim(strings.ToLower(strings.TrimSpace(domain)), ".")
+		if d == "" || seen.Contains(d) {
+			return true
+		}
+		seen.Add(d)
+		out.Add(d)
+		return true
+	})
+	return out
 }
 
 type SchedulerConfig struct {

@@ -1,12 +1,14 @@
 # Project Status
 
-Snapshot date: May 7, 2026
+Snapshot date: May 8, 2026
 
 Implemented:
 
 - Runtime abstraction with providers for `docker`, `containerd`, Linux
   `firecracker`, local `process`, Linux `systemd`, and Windows
   `windows-service`.
+- The `containerd` provider targets the CRI sandbox path by default, including
+  workload DNS injection through CRI sandbox DNS config.
 - Runtime-neutral deploy spec: `run.artifact` for images/paths/URLs,
   `run.exec` for command/args, and typed `runtimeOptions` for `docker`,
   `containerd`, `firecracker`, `process`, `systemd`, and `windows-service`.
@@ -34,7 +36,8 @@ Implemented:
 
 In progress:
 
-- Runtime parity hardening (especially deeper containerd semantics).
+- Runtime parity hardening (especially containerd CRI status/recovery
+  semantics).
 - Provider parity hardening for `systemd` and `windows-service` (status,
   recovery, and service wrapper ergonomics).
 - Firecracker provider parity hardening (automatic TAP/bridge management,

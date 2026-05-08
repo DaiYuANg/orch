@@ -76,6 +76,12 @@ func (s *Service) Start(ctx context.Context) error {
 		return oopsx.B("dns").Wrapf(err, "seed zone record")
 	}
 	s.logger.Info("dns service started", "listen", s.cfg.Listen, "udp", server.UDPAddr(), "tcp", server.TCPAddr())
+	if ns, ok := s.WorkloadNameserver(); ok {
+		s.logger.Info("dns workload resolver configured",
+			"nameserver", ns,
+			"search", s.WorkloadSearchDomains("default").Values(),
+		)
+	}
 	return nil
 }
 

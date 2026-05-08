@@ -4,7 +4,7 @@
 
 - Go 1.22+
 - Docker (for docker runtime)
-- containerd (optional, Linux-only containerd runtime)
+- containerd with CRI plugin and CNI config (optional, Linux-only containerd runtime)
 - Firecracker binary, KVM, kernel image, rootfs image, and optional pre-created tap/bridge for firecracker runtime
 - Local executables on the host (for process runtime)
 - systemd on Linux or Windows Service Control Manager on Windows for native OS-service runtimes

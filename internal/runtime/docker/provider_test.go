@@ -3,6 +3,9 @@ package docker
 import (
 	"testing"
 
+	"github.com/arcgolabs/collectionx/list"
+	"github.com/docker/docker/api/types/container"
+
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
@@ -37,5 +40,33 @@ func TestContainerLabelsMergesDockerLabels(t *testing.T) {
 	}
 	if labels["orch.io/workload"] != "api" {
 		t.Fatalf("orch.io/workload label = %q", labels["orch.io/workload"])
+	}
+}
+
+type fakeWorkloadDNS struct{}
+
+func (fakeWorkloadDNS) WorkloadNameserver() (string, bool) {
+	return "172.17.0.1", true
+}
+
+func (fakeWorkloadDNS) WorkloadSearchDomains(namespace string) *list.List[string] {
+	return list.NewList(namespace+".svc.orch.local", "svc.orch.local", "orch.local")
+}
+
+func TestApplyWorkloadDNS(t *testing.T) {
+	hostCfg := &container.HostConfig{}
+	applyWorkloadDNS(hostCfg, fakeWorkloadDNS{}, "demo")
+
+	if len(hostCfg.DNS) != 1 || hostCfg.DNS[0] != "172.17.0.1" {
+		t.Fatalf("DNS = %#v", hostCfg.DNS)
+	}
+	wantSearch := []string{"demo.svc.orch.local", "svc.orch.local", "orch.local"}
+	if len(hostCfg.DNSSearch) != len(wantSearch) {
+		t.Fatalf("DNSSearch = %#v", hostCfg.DNSSearch)
+	}
+	for i := range wantSearch {
+		if hostCfg.DNSSearch[i] != wantSearch[i] {
+			t.Fatalf("DNSSearch = %#v", hostCfg.DNSSearch)
+		}
 	}
 }

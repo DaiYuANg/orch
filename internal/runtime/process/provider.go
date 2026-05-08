@@ -91,7 +91,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	}
 
 	if p.dns != nil {
-		if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, "127.0.0.1"); err != nil {
+		if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, p.dns.WorkloadAdvertiseAddress("127.0.0.1")); err != nil {
 			_ = cmd.Process.Kill()
 			closeLogs()
 			_ = p.removeState(meta, w.Name)

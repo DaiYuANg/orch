@@ -100,6 +100,9 @@ archives:
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
 
+release:
+  prerelease: auto
+
 snapshot:
   version_template: "{{ incpatch .Version }}-SNAPSHOT-{{.ShortCommit}}"
 

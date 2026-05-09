@@ -45,7 +45,6 @@ func (e *RaftStatusEndpoint) status(ctx context.Context, _ *EmptyInput) (*RaftSt
 		return nil, oopsx.B("api").Wrapf(err, "get raft status")
 	}
 	out := &RaftStatusOutput{}
-	out.Body.Enabled = status.Enabled
 	out.Body.Ready = status.Ready
 	out.Body.NodeID = status.NodeID
 	out.Body.State = status.State

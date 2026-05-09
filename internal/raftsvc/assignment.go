@@ -12,7 +12,7 @@ import (
 )
 
 // ApplyWorkloadAssignment records the latest scheduler decision/result for one workload.
-// Callers must target the Raft leader when Raft is enabled.
+// Callers must target the Raft leader.
 func (s *Service) ApplyWorkloadAssignment(assignment workloadmeta.Assignment) error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")

@@ -9,7 +9,6 @@ import (
 )
 
 type Status struct {
-	Enabled       bool
 	Ready         bool
 	NodeID        string
 	State         string
@@ -29,13 +28,8 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	}
 
 	status := Status{
-		Enabled: s.cfg.Raft.Enabled,
 		NodeID:  s.localID.String(),
 		Members: list.NewList[Member](),
-	}
-	if !s.cfg.Raft.Enabled {
-		status.State = "disabled"
-		return status, nil
 	}
 	if s.nh == nil {
 		status.State = "not_ready"

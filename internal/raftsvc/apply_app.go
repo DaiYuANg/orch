@@ -33,8 +33,8 @@ func (s *Service) GetDesiredDeployApp(meta deployv1.Metadata) (deployv1.App, boo
 	return s.fsm.getDeployApp(meta)
 }
 
-// ApplyDeployApp replicates a validated [deployv1.App] through Raft when enabled; the local FSM is updated on every peer after commit.
-// Callers must target the Raft leader when Raft is enabled.
+// ApplyDeployApp replicates a validated [deployv1.App] through Raft; the local FSM is updated on every peer after commit.
+// Callers must target the Raft leader.
 func (s *Service) ApplyDeployApp(app deployv1.App) error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")

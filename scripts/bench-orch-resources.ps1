@@ -372,7 +372,6 @@ try {
     $singleURL = "http://127.0.0.1:17601"
     $single = Start-OrchServer -Name "single" -DataDir $singleData -URL $singleURL -Arguments @(
         "--http-addr", "127.0.0.1:17601",
-        "--raft-enabled=true",
         "--raft-node-id", "bench-single",
         "--raft-bind", "127.0.0.1:7461",
         "--raft-advertise", "127.0.0.1:7461",
@@ -446,7 +445,6 @@ try {
         $nodeData = Join-Path $dataRoot $node.Name
         $server = Start-OrchServer -Name $node.Name -DataDir $nodeData -URL "http://$($node.HTTP)" -Arguments @(
             "--http-addr", $node.HTTP,
-            "--raft-enabled=true",
             "--raft-node-id", $node.Name,
             "--raft-bind", $node.Raft,
             "--raft-advertise", $node.Raft,

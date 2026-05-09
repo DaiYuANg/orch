@@ -424,8 +424,7 @@ type AuthConfig struct {
 
 // RaftConfig matches raft.node.id, raft.data.dir, raft.bind, raft.peers, etc.
 type RaftConfig struct {
-	Enabled bool `json:"enabled"`
-	Node    struct {
+	Node struct {
 		// ID forces this Raft/server identity (omit, "", or "auto" → resolved via nodeid hardware resolver).
 		ID string `json:"id"`
 	} `json:"node"`
@@ -436,17 +435,6 @@ type RaftConfig struct {
 	Data      struct {
 		Dir string `json:"dir"`
 	} `json:"data"`
-	// Deprecated: Dragonboat uses Data.Dir. These fields are kept so existing
-	// config files continue to load during the Raft engine migration.
-	Badger struct {
-		Dir string `json:"dir"`
-	} `json:"badger"`
-	Bolt struct {
-		Path string `json:"path"`
-	} `json:"bolt"`
-	Snapshot struct {
-		Dir string `json:"dir"`
-	} `json:"snapshot"`
 }
 
 // Load merges defaults, dotenv, optional files, env (ORCH_), then CLI flags when passed via [LoadFromCobra].
@@ -484,7 +472,6 @@ func Default() Config {
 	auth.JWT.Secret = "dev-secret-change-me"
 
 	var raft RaftConfig
-	raft.Enabled = true
 	// raft.Node.ID empty or "auto" → resolved from hardware at runtime ([nodeid.Resolve]).
 	raft.Node.ID = ""
 	raft.Bind = "127.0.0.1:7444"
@@ -492,9 +479,6 @@ func Default() Config {
 	raft.Peers = map[string]string{}
 	raft.Bootstrap = true
 	raft.Data.Dir = filepath.Join(root, "dragonboat")
-	raft.Badger.Dir = filepath.Join(root, "raft-sched")
-	raft.Bolt.Path = filepath.Join(root, "raft-meta.db")
-	raft.Snapshot.Dir = filepath.Join(root, "raft-snapshots")
 
 	return Config{
 		App: AppConfig{

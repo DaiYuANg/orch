@@ -47,7 +47,6 @@ func TestLeaderForwarderForwardsPostToConfiguredLeader(t *testing.T) {
 	forwarder := &LeaderForwarder{
 		cfg: cfg,
 		raft: fakeRaftStatus{status: raftsvc.Status{
-			Enabled:  true,
 			Ready:    true,
 			IsLeader: false,
 			LeaderID: "node-a",
@@ -79,7 +78,6 @@ func TestLeaderForwarderSkipsWhenLocalLeader(t *testing.T) {
 	forwarder := &LeaderForwarder{
 		cfg: config.Default(),
 		raft: fakeRaftStatus{status: raftsvc.Status{
-			Enabled:  true,
 			Ready:    true,
 			IsLeader: true,
 			LeaderID: "node-a",
@@ -99,7 +97,6 @@ func TestLeaderForwarderRequiresConfiguredLeaderAPI(t *testing.T) {
 	forwarder := &LeaderForwarder{
 		cfg: config.Default(),
 		raft: fakeRaftStatus{status: raftsvc.Status{
-			Enabled:  true,
 			Ready:    true,
 			IsLeader: false,
 			LeaderID: "node-a",

@@ -15,7 +15,6 @@ import (
 
 func TestListAppsAggregatesAssignmentStatus(t *testing.T) {
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	raft := raftsvc.New(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nodeid.Local{Value: "node-a"})
 	svc := &Service{raft: raft}
 	app := deployv1.App{
@@ -115,7 +114,6 @@ func TestListAppsAggregatesAssignmentStatus(t *testing.T) {
 
 func TestListAppsTreatsStaleAssignmentsAsPending(t *testing.T) {
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	raft := raftsvc.New(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nodeid.Local{Value: "node-a"})
 	svc := &Service{raft: raft}
 	app := deployv1.App{
@@ -159,7 +157,6 @@ func TestListAppsTreatsStaleAssignmentsAsPending(t *testing.T) {
 
 func TestListAppsTreatsMissingGenerationAsPending(t *testing.T) {
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	raft := raftsvc.New(cfg, slog.New(slog.NewTextHandler(io.Discard, nil)), nodeid.Local{Value: "node-a"})
 	svc := &Service{raft: raft}
 	app := deployv1.App{

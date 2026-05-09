@@ -197,6 +197,7 @@ function Start-OrchServer {
     param(
         [Parameter(Mandatory = $true)][string]$NodeID,
         [Parameter(Mandatory = $true)][string]$Addr,
+        [Parameter(Mandatory = $true)][string]$RaftAddr,
         [Parameter(Mandatory = $true)][string]$NodeDataDir,
         [Parameter(Mandatory = $true)][string]$Stdout,
         [Parameter(Mandatory = $true)][string]$Stderr,
@@ -206,8 +207,9 @@ function Start-OrchServer {
     $previous = Set-SmokeEnvironment @{
         ORCH_DATA_DIR                         = $NodeDataDir
         ORCH_HTTP_ADDR                        = $Addr
-        ORCH_RAFT_ENABLED                     = "false"
         ORCH_RAFT_NODE_ID                     = $NodeID
+        ORCH_RAFT_BIND                        = $RaftAddr
+        ORCH_RAFT_ADVERTISE                   = $RaftAddr
         ORCH_INGRESS_ENABLED                  = "false"
         ORCH_DNS_ENABLED                      = "false"
         ORCH_OBSERVABILITY_PROMETHEUS_ENABLED = "false"
@@ -215,7 +217,7 @@ function Start-OrchServer {
         ORCH_LOG_LEVEL                        = "info"
     }
     try {
-        $args = @("--http-addr", $Addr, "--raft-enabled=false", "--raft-node-id", $NodeID, "--ingress-enabled=false", "--dns-enabled=false", "--observability-prometheus-enabled=false", "--observability-otlp-enabled=false", "--log-level", "info")
+        $args = @("--http-addr", $Addr, "--raft-node-id", $NodeID, "--raft-bind", $RaftAddr, "--raft-advertise", $RaftAddr, "--raft-data-dir", (Join-Path $NodeDataDir "dragonboat"), "--ingress-enabled=false", "--dns-enabled=false", "--observability-prometheus-enabled=false", "--observability-otlp-enabled=false", "--log-level", "info")
         $args += $ExtraArgs
         $startArgs = @{
             FilePath               = $serverBin
@@ -267,6 +269,7 @@ try {
     $workerProcess = Start-OrchServer `
         -NodeID $workerNodeID `
         -Addr $WorkerAddr `
+        -RaftAddr "127.0.0.1:7482" `
         -NodeDataDir (Join-Path $dataDir "worker") `
         -Stdout $workerStdout `
         -Stderr $workerStderr
@@ -275,6 +278,7 @@ try {
     $schedulerProcess = Start-OrchServer `
         -NodeID $schedulerNodeID `
         -Addr $SchedulerAddr `
+        -RaftAddr "127.0.0.1:7481" `
         -NodeDataDir (Join-Path $dataDir "scheduler") `
         -Stdout $schedulerStdout `
         -Stderr $schedulerStderr `

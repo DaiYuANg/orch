@@ -5,10 +5,11 @@ package systemd
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/coreos/go-systemd/v22/dbus"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/runtime/runconfig"
@@ -28,11 +29,22 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	if err := os.WriteFile(unitPath, []byte(content), 0o644); err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "write unit %s", unitName)
 	}
-	if err := p.systemctl(ctx, "daemon-reload"); err != nil {
+	conn, err := dbus.NewSystemConnectionContext(ctx)
+	if err != nil {
+		_ = os.Remove(unitPath)
+		return oopsx.B("runtime", "systemd").Wrapf(err, "connect systemd dbus")
+	}
+	defer conn.Close()
+
+	if err := systemdReload(ctx, conn); err != nil {
 		_ = os.Remove(unitPath)
 		return err
 	}
-	if err := p.systemctl(ctx, "enable", "--now", unitName); err != nil {
+	if err := systemdEnable(ctx, conn, unitPath); err != nil {
+		p.cleanupUnit(ctx, unitName, unitPath)
+		return err
+	}
+	if err := systemdStart(ctx, conn, unitName); err != nil {
 		p.cleanupUnit(ctx, unitName, unitPath)
 		return err
 	}
@@ -75,13 +87,26 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 		return err
 	}
 
-	if err := p.systemctl(ctx, "disable", "--now", unitName); err != nil {
-		p.logger.Warn("systemd disable unit", "unit", unitName, "error", err)
+	conn, err := dbus.NewSystemConnectionContext(ctx)
+	if err != nil {
+		p.logger.Warn("systemd dbus connect", "error", err)
+	} else {
+		defer conn.Close()
+		if err := systemdStop(ctx, conn, unitName); err != nil {
+			p.logger.Warn("systemd stop unit", "unit", unitName, "error", err)
+		}
+		if err := systemdDisable(ctx, conn, unitPath); err != nil {
+			p.logger.Warn("systemd disable unit", "unit", unitName, "error", err)
+		}
 	}
 	if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "remove unit %s", unitName)
 	}
-	if err := p.systemctl(ctx, "daemon-reload"); err != nil {
+	if conn != nil {
+		if err := systemdReload(ctx, conn); err != nil {
+			p.logger.Warn("systemd daemon-reload", "error", err)
+		}
+	} else if err := reloadSystemdWithNewConnection(ctx); err != nil {
 		p.logger.Warn("systemd daemon-reload", "error", err)
 	}
 	if p.dns != nil {
@@ -97,26 +122,84 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 }
 
 func (p *Provider) cleanupUnit(ctx context.Context, unitName, unitPath string) {
-	if err := p.systemctl(ctx, "disable", "--now", unitName); err != nil {
-		p.logger.Warn("systemd cleanup disable unit", "unit", unitName, "error", err)
+	conn, err := dbus.NewSystemConnectionContext(ctx)
+	if err != nil {
+		p.logger.Warn("systemd cleanup dbus connect", "error", err)
+	} else {
+		defer conn.Close()
+		if err := systemdStop(ctx, conn, unitName); err != nil {
+			p.logger.Warn("systemd cleanup stop unit", "unit", unitName, "error", err)
+		}
+		if err := systemdDisable(ctx, conn, unitPath); err != nil {
+			p.logger.Warn("systemd cleanup disable unit", "unit", unitName, "error", err)
+		}
 	}
 	if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
 		p.logger.Warn("systemd cleanup remove unit", "unit", unitName, "error", err)
 	}
-	if err := p.systemctl(ctx, "daemon-reload"); err != nil {
+	if conn != nil {
+		if err := systemdReload(ctx, conn); err != nil {
+			p.logger.Warn("systemd cleanup daemon-reload", "error", err)
+		}
+	} else if err := reloadSystemdWithNewConnection(ctx); err != nil {
 		p.logger.Warn("systemd cleanup daemon-reload", "error", err)
 	}
 }
 
-func (p *Provider) systemctl(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "systemctl", args...)
-	out, err := cmd.CombinedOutput()
+func systemdStart(ctx context.Context, conn *dbus.Conn, unitName string) error {
+	ch := make(chan string, 1)
+	if _, err := conn.StartUnitContext(ctx, unitName, "replace", ch); err != nil {
+		return oopsx.B("runtime", "systemd").Wrapf(err, "start unit %s", unitName)
+	}
+	return waitSystemdJob(ctx, ch, "start", unitName)
+}
+
+func systemdStop(ctx context.Context, conn *dbus.Conn, unitName string) error {
+	ch := make(chan string, 1)
+	if _, err := conn.StopUnitContext(ctx, unitName, "replace", ch); err != nil {
+		return oopsx.B("runtime", "systemd").Wrapf(err, "stop unit %s", unitName)
+	}
+	return waitSystemdJob(ctx, ch, "stop", unitName)
+}
+
+func systemdEnable(ctx context.Context, conn *dbus.Conn, unitPath string) error {
+	if _, _, err := conn.EnableUnitFilesContext(ctx, []string{unitPath}, false, true); err != nil {
+		return oopsx.B("runtime", "systemd").Wrapf(err, "enable unit %s", filepath.Base(unitPath))
+	}
+	return nil
+}
+
+func systemdDisable(ctx context.Context, conn *dbus.Conn, unitPath string) error {
+	if _, err := conn.DisableUnitFilesContext(ctx, []string{unitPath}, false); err != nil {
+		return oopsx.B("runtime", "systemd").Wrapf(err, "disable unit %s", filepath.Base(unitPath))
+	}
+	return nil
+}
+
+func systemdReload(ctx context.Context, conn *dbus.Conn) error {
+	if err := conn.ReloadContext(ctx); err != nil {
+		return oopsx.B("runtime", "systemd").Wrapf(err, "daemon reload")
+	}
+	return nil
+}
+
+func reloadSystemdWithNewConnection(ctx context.Context) error {
+	conn, err := dbus.NewSystemConnectionContext(ctx)
 	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg != "" {
-			return oopsx.B("runtime", "systemd").Wrapf(err, "systemctl %s: %s", strings.Join(args, " "), msg)
+		return oopsx.B("runtime", "systemd").Wrapf(err, "connect systemd dbus")
+	}
+	defer conn.Close()
+	return systemdReload(ctx, conn)
+}
+
+func waitSystemdJob(ctx context.Context, ch <-chan string, action, unitName string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case result := <-ch:
+		if result != "done" {
+			return oopsx.B("runtime", "systemd").Errorf("%s unit %s: %s", action, unitName, result)
 		}
-		return oopsx.B("runtime", "systemd").Wrapf(err, "systemctl %s", strings.Join(args, " "))
 	}
 	return nil
 }

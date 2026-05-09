@@ -9,7 +9,7 @@ import (
 )
 
 // DefaultDataRoot returns the directory used for orch persistent state (DNS DB,
-// Raft logs/bolt/snapshots). Resolution order:
+// Dragonboat data, runtime state). Resolution order:
 //
 //  1. ORCH_DATA_DIR — explicit override (must already be in the process environment
 //     when defaults are applied; use exported shell vars or container env).

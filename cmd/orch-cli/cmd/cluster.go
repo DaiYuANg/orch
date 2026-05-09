@@ -1042,7 +1042,6 @@ func writeRaftStatusHuman(out *api.RaftStatusOutput) error {
 		memberCount = body.Members.Len()
 	}
 	rows := list.NewGrid[string](
-		[]string{"enabled", strconv.FormatBool(body.Enabled)},
 		[]string{"ready", strconv.FormatBool(body.Ready)},
 		[]string{"state", statusBadge(body.State)},
 		[]string{"role", role},

@@ -18,7 +18,6 @@ func TestAssignmentsEndpointHandle(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	raft := raftsvc.New(cfg, logger, nodeid.Local{Value: "node-a"})
 	meta := deployv1.Metadata{Name: "demo", Namespace: "default"}

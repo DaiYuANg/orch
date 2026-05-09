@@ -141,9 +141,6 @@ func (s *Service) dragonboatDataDir() string {
 	if dir := strings.TrimSpace(s.cfg.Raft.Data.Dir); dir != "" {
 		return dir
 	}
-	if dir := strings.TrimSpace(s.cfg.Raft.Badger.Dir); dir != "" {
-		return filepath.Join(filepath.Dir(dir), "dragonboat")
-	}
 	return filepath.Join(config.DefaultDataRoot(), "dragonboat")
 }
 
@@ -319,10 +316,6 @@ func (s *Service) startReplica(nh *dragonboat.NodeHost, replicaID uint64, raftAd
 
 // Start opens a Dragonboat NodeHost and starts the control-plane Raft shard replica.
 func (s *Service) Start(_ context.Context) error {
-	if !s.cfg.Raft.Enabled {
-		s.logger.Info("raft disabled by config")
-		return nil
-	}
 	if s.started.Load() {
 		return nil
 	}
@@ -388,7 +381,9 @@ func (s *Service) applyCommand(data []byte, timeout time.Duration, notLeaderMess
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")
 	}
-	if !s.cfg.Raft.Enabled || s.nh == nil {
+	if s.nh == nil {
+		// Tests can exercise the FSM without opening a Dragonboat NodeHost.
+		// Production startup always calls Start before serving control-plane APIs.
 		s.fsm.applyCommandPayload(data)
 		return nil
 	}
@@ -413,9 +408,6 @@ func withDefaultDeadline(ctx context.Context, timeout time.Duration) (context.Co
 
 // Stop shuts Dragonboat down.
 func (s *Service) Stop(_ context.Context) error {
-	if !s.cfg.Raft.Enabled {
-		return nil
-	}
 	if s.nh != nil {
 		s.nh.Close()
 		s.nh = nil

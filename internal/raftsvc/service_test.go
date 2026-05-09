@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/daiyuang/orch/internal/config"
+	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodeid"
+	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
 func testLogger() *slog.Logger {
@@ -100,8 +102,8 @@ func TestRaftStatusSingleNodeLeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !status.Enabled || !status.Ready || !status.IsLeader {
-		t.Fatalf("status readiness = enabled:%t ready:%t leader:%t", status.Enabled, status.Ready, status.IsLeader)
+	if !status.Ready || !status.IsLeader {
+		t.Fatalf("status readiness = ready:%t leader:%t", status.Ready, status.IsLeader)
 	}
 	if status.NodeID != "node-a" || status.LeaderID != "node-a" {
 		t.Fatalf("status ids = node:%q leader:%q", status.NodeID, status.LeaderID)
@@ -111,6 +113,57 @@ func TestRaftStatusSingleNodeLeader(t *testing.T) {
 	}
 	if status.Members == nil || status.Members.Len() != 1 {
 		t.Fatalf("status members = %#v", status.Members)
+	}
+}
+
+func TestRaftSingleNodeRestoresMetadataAfterRestart(t *testing.T) {
+	ctx := context.Background()
+	dataDir := filepath.Join(t.TempDir(), "dragonboat")
+	raftAddr := reserveTestRaftAddr(t)
+	meta := deployv1.Metadata{Name: "demo", Namespace: "default"}
+	app := deployv1.App{
+		Metadata: meta,
+		Workloads: []deployv1.Workload{{
+			Name:    "web",
+			Kind:    deployv1.WorkloadKindService,
+			Runtime: deployv1.RuntimeDocker,
+			Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "nginx"}},
+		}},
+	}
+	assignment := workloadmeta.Assignment{
+		Key:      workloadmeta.AssignmentKey(meta, "web"),
+		Metadata: meta,
+		Workload: "web",
+		Node:     "node-a",
+		Runtime:  deployv1.RuntimeDocker,
+		Artifact: "nginx",
+		Status:   workloadmeta.AssignmentStatusRunning,
+	}
+
+	first := newStartedTestRaftWithDataDir(t, "node-a", true, raftAddr, dataDir)
+	waitRaftLeader(t, first)
+	if err := first.ApplyDeployApp(app); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.ApplyWorkloadAssignment(assignment); err != nil {
+		t.Fatal(err)
+	}
+	stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	if err := first.Stop(stopCtx); err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	cancel()
+
+	second := newStartedTestRaftWithDataDir(t, "node-a", true, raftAddr, dataDir)
+	waitRaftLeader(t, second)
+	gotApp, ok := second.GetDesiredDeployApp(meta)
+	if !ok || gotApp.Metadata.Name != "demo" || len(gotApp.Workloads) != 1 {
+		t.Fatalf("restored app = %#v ok=%t", gotApp, ok)
+	}
+	gotAssignment, ok := second.GetWorkloadAssignment(assignment.Key)
+	if !ok || gotAssignment.Status != workloadmeta.AssignmentStatusRunning || gotAssignment.Node != "node-a" {
+		t.Fatalf("restored assignment = %#v ok=%t", gotAssignment, ok)
 	}
 }
 
@@ -141,12 +194,17 @@ func newStartedTestRaft(t testing.TB, id string, bootstrap bool) *Service {
 func newStartedTestRaftWithBind(t testing.TB, id string, bootstrap bool, bind string) *Service {
 	t.Helper()
 	tmp := t.TempDir()
+	return newStartedTestRaftWithDataDir(t, id, bootstrap, bind, filepath.Join(tmp, "dragonboat"))
+}
+
+func newStartedTestRaftWithDataDir(t testing.TB, id string, bootstrap bool, bind, dataDir string) *Service {
+	t.Helper()
 	cfg := config.Default()
 	cfg.Raft.Bind = bind
 	cfg.Raft.Advertise = ""
 	cfg.Raft.Bootstrap = bootstrap
 	cfg.Raft.Peers = map[string]string{}
-	cfg.Raft.Data.Dir = filepath.Join(tmp, "dragonboat")
+	cfg.Raft.Data.Dir = dataDir
 
 	svc := New(cfg, testLogger(), nodeid.Local{Value: id})
 	if err := svc.Start(context.Background()); err != nil {

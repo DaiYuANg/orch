@@ -244,15 +244,12 @@ function Start-RaftNode {
     try {
         $serverArgs = @(
             "--http-addr", $Node.HTTP,
-            "--raft-enabled=true",
             "--raft-node-id", $Node.ID,
             "--raft-bind", $Node.Raft,
             "--raft-advertise", $Node.Raft,
             "--raft-peers", $raftPeers,
             "--raft-bootstrap=true",
-            "--raft-badger-dir", (Join-Path $nodeData "raft-sched"),
-            "--raft-bolt-path", (Join-Path $nodeData "raft-meta.db"),
-            "--raft-snapshot-dir", (Join-Path $nodeData "raft-snapshots"),
+            "--raft-data-dir", (Join-Path $nodeData "dragonboat"),
             "--cluster-nodes", $clusterNodes,
             "--ingress-enabled=false",
             "--dns-enabled=false",

@@ -27,7 +27,7 @@ Snapshot date: March 4, 2026
 - [x] Raft FSM command apply (`set/delete`) with snapshot/restore implementation
 - [x] Raft-enabled registry mutating operations routed through consensus apply
 - [x] Leader-only deploy guard with replicated scheduling-assignment records
-- [x] Badger hot-cache integration for raft FSM read/write path
+- [x] Dragonboat-backed replicated FSM persistence path
 - [x] Leader-as-worker scheduling baseline with desired/worker assignment metadata
 - [x] Cross-node runtime dispatch baseline via worker API (`raft.node_api`) with leader fallback
 - [x] Placement control baseline via deployment migration API (`/tasks/{id}/migrate`)

@@ -1,19 +1,14 @@
 package firecracker
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/daiyuang/orch/internal/config"
@@ -32,9 +27,16 @@ const (
 )
 
 type Provider struct {
-	logger *slog.Logger
-	dns    *dnssvc.Service
-	root   string
+	logger    *slog.Logger
+	dns       *dnssvc.Service
+	root      string
+	runningMu sync.Mutex
+	running   map[string]runningVMM
+}
+
+type runningVMM struct {
+	pid  int
+	stop func() error
 }
 
 type state struct {
@@ -70,39 +72,12 @@ type networkConfig struct {
 	AllowMMDSRequests bool   `json:"allowMMDSRequests,omitempty"`
 }
 
-type machineConfigRequest struct {
-	VCPUCount  int `json:"vcpu_count"`
-	MemSizeMiB int `json:"mem_size_mib"`
-}
-
-type bootSourceRequest struct {
-	KernelImagePath string `json:"kernel_image_path"`
-	BootArgs        string `json:"boot_args,omitempty"`
-}
-
-type driveRequest struct {
-	DriveID      string `json:"drive_id"`
-	PathOnHost   string `json:"path_on_host"`
-	IsRootDevice bool   `json:"is_root_device"`
-	IsReadOnly   bool   `json:"is_read_only"`
-}
-
-type networkInterfaceRequest struct {
-	IfaceID           string `json:"iface_id"`
-	HostDevName       string `json:"host_dev_name"`
-	GuestMAC          string `json:"guest_mac,omitempty"`
-	AllowMMDSRequests bool   `json:"allow_mmds_requests,omitempty"`
-}
-
-type actionRequest struct {
-	ActionType string `json:"action_type"`
-}
-
 func NewProvider(logger *slog.Logger, dns *dnssvc.Service) *Provider {
 	return &Provider{
-		logger: logger,
-		dns:    dns,
-		root:   filepath.Join(config.DefaultDataRoot(), "runtime", "firecracker"),
+		logger:  logger,
+		dns:     dns,
+		root:    filepath.Join(config.DefaultDataRoot(), "runtime", "firecracker"),
+		running: make(map[string]runningVMM),
 	}
 }
 
@@ -184,93 +159,6 @@ func defaultBootArgsForRootfs(readOnly bool) string {
 	return defaultBootArgs + " rw"
 }
 
-func (p *Provider) configureMachine(ctx context.Context, cfg vmConfig) error {
-	if err := firecrackerPut(ctx, cfg.APISocket, "/machine-config", machineConfigRequest{
-		VCPUCount:  cfg.VCPUCount,
-		MemSizeMiB: cfg.MemSizeMiB,
-	}); err != nil {
-		return err
-	}
-	if err := firecrackerPut(ctx, cfg.APISocket, "/boot-source", bootSourceRequest{
-		KernelImagePath: cfg.KernelImage,
-		BootArgs:        cfg.BootArgs,
-	}); err != nil {
-		return err
-	}
-	if err := firecrackerPut(ctx, cfg.APISocket, "/drives/rootfs", driveRequest{
-		DriveID:      "rootfs",
-		PathOnHost:   cfg.RootfsPath,
-		IsRootDevice: true,
-		IsReadOnly:   cfg.RootfsReadOnly,
-	}); err != nil {
-		return err
-	}
-	if cfg.Network != nil {
-		if err := firecrackerPut(ctx, cfg.APISocket, "/network-interfaces/"+url.PathEscape(cfg.Network.InterfaceID), networkInterfaceRequest{
-			IfaceID:           cfg.Network.InterfaceID,
-			HostDevName:       cfg.Network.TapDeviceName,
-			GuestMAC:          cfg.Network.GuestMAC,
-			AllowMMDSRequests: cfg.Network.AllowMMDSRequests,
-		}); err != nil {
-			return err
-		}
-	}
-	return firecrackerPut(ctx, cfg.APISocket, "/actions", actionRequest{ActionType: "InstanceStart"})
-}
-
-func firecrackerPut(ctx context.Context, socketPath, apiPath string, body any) error {
-	b, err := json.Marshal(body)
-	if err != nil {
-		return oopsx.B("runtime", "firecracker").Wrapf(err, "encode api request %s", apiPath)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://firecracker"+apiPath, bytes.NewReader(b))
-	if err != nil {
-		return oopsx.B("runtime", "firecracker").Wrapf(err, "build api request %s", apiPath)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := firecrackerHTTPClient(socketPath).Do(req)
-	if err != nil {
-		return oopsx.B("runtime", "firecracker").Wrapf(err, "firecracker api %s", apiPath)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return oopsx.B("runtime", "firecracker").Errorf("firecracker api %s: status %d: %s", apiPath, resp.StatusCode, strings.TrimSpace(string(msg)))
-	}
-	return nil
-}
-
-func firecrackerHTTPClient(socketPath string) *http.Client {
-	return &http.Client{
-		Timeout: 5 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
-			},
-		},
-	}
-}
-
-func waitForSocket(ctx context.Context, socketPath string, timeout time.Duration) error {
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		if st, err := os.Stat(socketPath); err == nil && st.Mode()&os.ModeSocket != 0 {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-deadline.C:
-			return oopsx.B("runtime", "firecracker").Errorf("firecracker api socket did not appear: %s", socketPath)
-		case <-ticker.C:
-		}
-	}
-}
-
 func (p *Provider) openLogs(cfg vmConfig) (*os.File, *os.File, func(), error) {
 	stdout, err := openAppend(cfg.StdoutPath)
 	if err != nil {
@@ -340,6 +228,35 @@ func (p *Provider) removeStateIfPID(meta deployv1.Metadata, workloadName string,
 		return nil
 	}
 	return p.removeState(meta, workloadName)
+}
+
+func (p *Provider) trackRunningVMM(meta deployv1.Metadata, workloadName string, vm runningVMM) {
+	p.runningMu.Lock()
+	defer p.runningMu.Unlock()
+	if p.running == nil {
+		p.running = make(map[string]runningVMM)
+	}
+	p.running[p.runningKey(meta, workloadName)] = vm
+}
+
+func (p *Provider) untrackRunningVMM(meta deployv1.Metadata, workloadName string, pid int) {
+	p.runningMu.Lock()
+	defer p.runningMu.Unlock()
+	key := p.runningKey(meta, workloadName)
+	if vm, ok := p.running[key]; ok && vm.pid == pid {
+		delete(p.running, key)
+	}
+}
+
+func (p *Provider) runningVMM(meta deployv1.Metadata, workloadName string) (runningVMM, bool) {
+	p.runningMu.Lock()
+	defer p.runningMu.Unlock()
+	vm, ok := p.running[p.runningKey(meta, workloadName)]
+	return vm, ok
+}
+
+func (p *Provider) runningKey(meta deployv1.Metadata, workloadName string) string {
+	return p.nameBase(meta, workloadName)
 }
 
 func (p *Provider) statePath(meta deployv1.Metadata, workloadName string) string {

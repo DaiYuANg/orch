@@ -352,13 +352,6 @@ func overlayChangedFlags(cfg *Config, fs *pflag.FlagSet) error {
 		}
 		cfg.Auth.JWT.Secret = v
 	}
-	if flagChanged(fs, "raft-enabled") {
-		v, err := fs.GetBool("raft-enabled")
-		if err != nil {
-			return fmt.Errorf("cobra raft-enabled flag: %w", err)
-		}
-		cfg.Raft.Enabled = v
-	}
 	if flagChanged(fs, "raft-node-id") {
 		v, err := fs.GetString("raft-node-id")
 		if err != nil {
@@ -400,27 +393,6 @@ func overlayChangedFlags(cfg *Config, fs *pflag.FlagSet) error {
 			return fmt.Errorf("cobra raft-data-dir flag: %w", err)
 		}
 		cfg.Raft.Data.Dir = v
-	}
-	if flagChanged(fs, "raft-badger-dir") {
-		v, err := fs.GetString("raft-badger-dir")
-		if err != nil {
-			return fmt.Errorf("cobra raft-badger-dir flag: %w", err)
-		}
-		cfg.Raft.Badger.Dir = v
-	}
-	if flagChanged(fs, "raft-bolt-path") {
-		v, err := fs.GetString("raft-bolt-path")
-		if err != nil {
-			return fmt.Errorf("cobra raft-bolt-path flag: %w", err)
-		}
-		cfg.Raft.Bolt.Path = v
-	}
-	if flagChanged(fs, "raft-snapshot-dir") {
-		v, err := fs.GetString("raft-snapshot-dir")
-		if err != nil {
-			return fmt.Errorf("cobra raft-snapshot-dir flag: %w", err)
-		}
-		cfg.Raft.Snapshot.Dir = v
 	}
 	return nil
 }
@@ -464,9 +436,6 @@ func orchFlagToPath(name string) string {
 		"raft-peers":                                "raft.peers",
 		"raft-bootstrap":                            "raft.bootstrap",
 		"raft-data-dir":                             "raft.data.dir",
-		"raft-badger-dir":                           "raft.badger.dir",
-		"raft-bolt-path":                            "raft.bolt.path",
-		"raft-snapshot-dir":                         "raft.snapshot.dir",
 	}
 	if p, ok := explicit[name]; ok {
 		return p

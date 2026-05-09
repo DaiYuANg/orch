@@ -27,7 +27,7 @@ func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service) (*Servic
 	}
 
 	sc := cfg.Scheduler
-	if cfg.Raft.Enabled && sc.RaftLeaderOnly {
+	if sc.RaftLeaderOnly {
 		opts = append(opts, gocron.WithDistributedElector(newRaftElector(raft)))
 	}
 

@@ -52,7 +52,7 @@ func (f *LeaderForwarder) leaderBaseURL(ctx context.Context) (string, bool, erro
 	if err != nil {
 		return "", false, err
 	}
-	if !status.Enabled || !status.Ready || status.IsLeader {
+	if !status.Ready || status.IsLeader {
 		return "", false, nil
 	}
 	leaderID := strings.TrimSpace(status.LeaderID)

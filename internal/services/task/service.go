@@ -81,7 +81,7 @@ func (s *Service) reconcileAll(ctx context.Context) {
 	})
 }
 
-// SubmitDeploy validates the app and appends it to the replicated desired state (Raft when enabled).
+// SubmitDeploy validates the app and appends it to the replicated desired state.
 // Local container startup happens asynchronously via [Service.StartDeployReconcile] on each node.
 func (s *Service) SubmitDeploy(ctx context.Context, app *deployv1.App) error {
 	if app == nil {

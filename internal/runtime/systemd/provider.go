@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/coreos/go-systemd/v22/unit"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -91,42 +93,42 @@ func renderUnit(meta deployv1.Metadata, w deployv1.Workload, unitName string) (s
 		return "", oopsx.B("runtime", "systemd").Errorf("workload %q: run.exec.command or run.artifact.path is required", w.Name)
 	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "[Unit]\n")
-	fmt.Fprintf(&b, "Description=orch workload %s/%s/%s\n", workloadmeta.NamespaceOrDefault(meta.Namespace), meta.Name, w.Name)
-	fmt.Fprintf(&b, "After=network-online.target\n")
-	fmt.Fprintf(&b, "Wants=network-online.target\n\n")
-
-	fmt.Fprintf(&b, "[Service]\n")
-	fmt.Fprintf(&b, "Type=simple\n")
+	opts := []*unit.UnitOption{
+		unit.NewUnitOption("Unit", "Description", fmt.Sprintf("orch workload %s/%s/%s", workloadmeta.NamespaceOrDefault(meta.Namespace), meta.Name, w.Name)),
+		unit.NewUnitOption("Unit", "After", "network-online.target"),
+		unit.NewUnitOption("Unit", "Wants", "network-online.target"),
+		unit.NewUnitOption("Service", "Type", "simple"),
+	}
 	if id := strings.TrimSuffix(strings.TrimSpace(unitName), ".service"); id != "" {
-		fmt.Fprintf(&b, "SyslogIdentifier=%s\n", id)
+		opts = append(opts, unit.NewUnitOption("Service", "SyslogIdentifier", id))
 	}
 	if cwd := strings.TrimSpace(w.Run.Cwd); cwd != "" {
-		fmt.Fprintf(&b, "WorkingDirectory=%s\n", systemdQuote(cwd))
+		opts = append(opts, unit.NewUnitOption("Service", "WorkingDirectory", systemdQuote(cwd)))
 	}
 	if user := systemdUser(w); user != "" {
-		fmt.Fprintf(&b, "User=%s\n", user)
+		opts = append(opts, unit.NewUnitOption("Service", "User", user))
 	}
 	if group := systemdGroup(w); group != "" {
-		fmt.Fprintf(&b, "Group=%s\n", group)
+		opts = append(opts, unit.NewUnitOption("Service", "Group", group))
 	}
 	runconfig.Env(w.EnvList()).Range(func(_ int, env string) bool {
-		fmt.Fprintf(&b, "Environment=%s\n", systemdQuote(env))
+		opts = append(opts, unit.NewUnitOption("Service", "Environment", systemdQuote(env)))
 		return true
 	})
-	fmt.Fprintf(&b, "ExecStart=%s\n", systemdCommandLine(exe, args))
+	opts = append(opts, unit.NewUnitOption("Service", "ExecStart", systemdCommandLine(exe, args)))
 	if restart := systemdRestart(w); restart != "" {
-		fmt.Fprintf(&b, "Restart=%s\n", restart)
+		opts = append(opts, unit.NewUnitOption("Service", "Restart", restart))
 	}
 	if restartSec := systemdRestartSec(w); restartSec != "" {
-		fmt.Fprintf(&b, "RestartSec=%s\n", restartSec)
+		opts = append(opts, unit.NewUnitOption("Service", "RestartSec", restartSec))
 	}
+	opts = append(opts, unit.NewUnitOption("Install", "WantedBy", systemdWantedBy(w)))
 
-	fmt.Fprintf(&b, "\n[Install]\n")
-	fmt.Fprintf(&b, "WantedBy=%s\n", systemdWantedBy(w))
-
-	return b.String(), nil
+	b, err := io.ReadAll(unit.Serialize(opts))
+	if err != nil {
+		return "", oopsx.B("runtime", "systemd").Wrapf(err, "serialize unit %s", unitName)
+	}
+	return string(b), nil
 }
 
 func systemdUser(w deployv1.Workload) string {

@@ -56,14 +56,10 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.Bool("auth-enabled", def.Auth.Enabled, "config path auth.enabled")
 	fs.String("auth-jwt-secret", def.Auth.JWT.Secret, "config path auth.jwt.secret")
 
-	fs.Bool("raft-enabled", def.Raft.Enabled, "config path raft.enabled")
 	fs.String("raft-node-id", def.Raft.Node.ID, "config path raft.node.id (empty or 'auto': OS host id / hardware fingerprint)")
 	fs.String("raft-bind", def.Raft.Bind, "config path raft.bind")
 	fs.String("raft-advertise", def.Raft.Advertise, "config path raft.advertise (host:port advertised to other raft peers)")
 	fs.StringToString("raft-peers", def.Raft.Peers, "config path raft.peers (node_id=host:port, repeat or comma-separated static voters)")
 	fs.Bool("raft-bootstrap", def.Raft.Bootstrap, "config path raft.bootstrap (bootstrap a new cluster when no raft state exists)")
 	fs.String("raft-data-dir", def.Raft.Data.Dir, "config path raft.data.dir (Dragonboat NodeHost data)")
-	fs.String("raft-badger-dir", def.Raft.Badger.Dir, "deprecated config path raft.badger.dir")
-	fs.String("raft-bolt-path", def.Raft.Bolt.Path, "deprecated config path raft.bolt.path")
-	fs.String("raft-snapshot-dir", def.Raft.Snapshot.Dir, "deprecated config path raft.snapshot.dir")
 }

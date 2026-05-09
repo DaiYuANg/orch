@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -62,6 +63,21 @@ func (p *e2eRuntimeProvider) deployedCount() int {
 	return len(p.deployed)
 }
 
+func waitRaftLeader(t *testing.T, ctx context.Context, raft *raftsvc.Service) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		status, err := raft.Status(ctx)
+		if err == nil && status.Ready && status.IsLeader {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("raft did not become leader: status=%#v error=%v", status, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestDeploySourceDispatchesWorkerAndExposesState(t *testing.T) {
 	t.Parallel()
 
@@ -104,14 +120,26 @@ func TestDeploySourceDispatchesWorkerAndExposesState(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	cfg.Auth.Enabled = false
 	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
 	cfg.Observability.Prometheus.Enabled = false
 	cfg.Observability.OTLP.Enabled = false
+	cfg.Raft.Bind = "127.0.0.1:0"
+	cfg.Raft.Advertise = ""
+	cfg.Raft.Data.Dir = filepath.Join(t.TempDir(), "dragonboat")
 
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
+	if err := raft.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := raft.Stop(context.Background()); err != nil {
+			t.Logf("stop raft: %v", err)
+		}
+	})
+	waitRaftLeader(t, ctx, raft)
+
 	store := raftsvc.NewRaftCapacityStore(raft)
 	catalog := nodecapacity.NewCatalog(store)
 	if err := store.Upsert(ctx, nodecapacity.Snapshot{
@@ -159,7 +187,7 @@ func TestDeploySourceDispatchesWorkerAndExposesState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if raftStatus.Body.Enabled || raftStatus.Body.Ready || raftStatus.Body.State != "disabled" {
+	if !raftStatus.Body.Ready || !raftStatus.Body.IsLeader || raftStatus.Body.State != "Leader" {
 		t.Fatalf("raft status = %#v", raftStatus.Body)
 	}
 

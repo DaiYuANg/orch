@@ -100,7 +100,6 @@ func TestSubmitDeployReconcilesThroughPlacementAndRuntime(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
 	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
@@ -182,7 +181,6 @@ func TestSubmitDeployReconcilesWorkloadsInDependencyOrder(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
 	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
@@ -255,7 +253,6 @@ func TestSubmitDeployDispatchesRemoteWorker(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
@@ -367,7 +364,6 @@ func TestSubmitDeployDispatchesConfiguredPreferredWorkerWithoutCapacitySnapshot(
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
@@ -446,7 +442,6 @@ func TestSubmitDeployRecordsFailedAssignmentOnRemoteDispatchError(t *testing.T) 
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
@@ -532,7 +527,6 @@ func TestSubmitMigrateMovesWorkloadToTargetNode(t *testing.T) {
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	cfg.Cluster.Nodes = map[string]string{"node-b": worker.URL}
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
@@ -595,7 +589,6 @@ func TestSubmitFailoverMovesFailedWorkloadToLocalNode(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
 	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))
@@ -653,7 +646,6 @@ func TestSubmitRebalanceStartsUnassignedWorkloadWithoutStop(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := config.Default()
-	cfg.Raft.Enabled = false
 	local := nodeid.Local{Value: "node-a"}
 	raft := raftsvc.New(cfg, logger, local)
 	catalog := nodecapacity.NewCatalog(raftsvc.NewRaftCapacityStore(raft))

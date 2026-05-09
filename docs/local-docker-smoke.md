@@ -91,7 +91,7 @@ Stop-Process -Name orch-server
 
 The smoke server is intentionally single-node and low-risk:
 
-- Raft disabled
+- Dragonboat metadata runs as a single-node Raft group
 - Ingress disabled
 - DNS disabled
 - Prometheus and OTLP disabled

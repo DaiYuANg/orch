@@ -24,7 +24,7 @@ func (s *Service) ListMembers(ctx context.Context) (*list.List[Member], error) {
 	if s == nil {
 		return nil, oopsx.B("raft").Errorf("nil service")
 	}
-	if !s.cfg.Raft.Enabled || s.nh == nil {
+	if s.nh == nil {
 		return list.NewList[Member](), nil
 	}
 	queryCtx, cancel := withDefaultDeadline(ctx, 5*time.Second)
@@ -123,7 +123,7 @@ func (s *Service) ensureMembershipLeader() error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")
 	}
-	if !s.cfg.Raft.Enabled || s.nh == nil {
+	if s.nh == nil {
 		return oopsx.B("raft").Errorf("raft is not ready")
 	}
 	if !s.isLocalLeader() {

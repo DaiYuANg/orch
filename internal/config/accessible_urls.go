@@ -88,7 +88,7 @@ func dnsZoneFromConfig(d DNSConfig) string {
 
 // LogRaftReachablePaths logs Raft transport bind after the node has started.
 func LogRaftReachablePaths(logger *slog.Logger, cfg Config) {
-	if logger == nil || !cfg.Raft.Enabled {
+	if logger == nil {
 		return
 	}
 	bind := strings.TrimSpace(cfg.Raft.Bind)
@@ -106,7 +106,7 @@ func LogSchedulerReachableContext(logger *slog.Logger, cfg Config) {
 	}
 	logger.Info("lifecycle reachable paths", "component", "scheduler",
 		"heartbeat_interval", cfg.Scheduler.HeartbeatInterval,
-		"note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used")
+		"note", "in-process gocron; leader-only mode controlled by scheduler config")
 }
 
 func ingressReachabilityURLList(cfg Config) *list.List[string] {
@@ -130,7 +130,7 @@ func appendReachabilityDNS(attrs *list.List[any], cfg Config) {
 }
 
 func appendReachabilityRaft(attrs *list.List[any], cfg Config) {
-	if cfg.Raft.Enabled && strings.TrimSpace(cfg.Raft.Bind) != "" {
+	if strings.TrimSpace(cfg.Raft.Bind) != "" {
 		attrs.Add(slog.String("raft_transport", cfg.Raft.Bind))
 		if advertise := strings.TrimSpace(cfg.Raft.Advertise); advertise != "" {
 			attrs.Add(slog.String("raft_advertise", advertise))
@@ -141,7 +141,7 @@ func appendReachabilityRaft(attrs *list.List[any], cfg Config) {
 func appendReachabilityScheduler(attrs *list.List[any], cfg Config) {
 	attrs.Add(
 		slog.String("scheduler_heartbeat_interval", cfg.Scheduler.HeartbeatInterval),
-		slog.String("scheduler_note", "in-process gocron; leader-only mode controlled by scheduler config when Raft is used"),
+		slog.String("scheduler_note", "in-process gocron; leader-only mode controlled by scheduler config"),
 	)
 }
 

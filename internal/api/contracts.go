@@ -220,7 +220,6 @@ type RaftMemberItem struct {
 
 type RaftStatusOutput struct {
 	Body struct {
-		Enabled       bool                       `json:"enabled"`
 		Ready         bool                       `json:"ready"`
 		NodeID        string                     `json:"nodeId"`
 		State         string                     `json:"state"`

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
-	hraft "github.com/hashicorp/raft"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/pkg/oopsx"
@@ -51,14 +50,7 @@ func (s *Service) ApplyDeployApp(app deployv1.App) error {
 		return oopsx.B("raft").Wrapf(err, "marshal deploy app command")
 	}
 
-	if !s.cfg.Raft.Enabled || s.r == nil {
-		s.fsm.applyCommandPayload(b)
-		return nil
-	}
-	if s.r.State() != hraft.Leader {
-		return oopsx.B("raft").Errorf("not leader: send deploy to the raft leader node")
-	}
-	return s.r.Apply(b, 30*time.Second).Error()
+	return s.applyCommand(b, 30*time.Second, "not leader: send deploy to the raft leader node")
 }
 
 func (s *Service) ApplyDeleteDeployApp(meta deployv1.Metadata) error {
@@ -78,12 +70,5 @@ func (s *Service) ApplyDeleteDeployApp(meta deployv1.Metadata) error {
 	if err != nil {
 		return oopsx.B("raft").Wrapf(err, "marshal delete deploy app command")
 	}
-	if !s.cfg.Raft.Enabled || s.r == nil {
-		s.fsm.applyCommandPayload(b)
-		return nil
-	}
-	if s.r.State() != hraft.Leader {
-		return oopsx.B("raft").Errorf("not leader: send delete to the raft leader node")
-	}
-	return s.r.Apply(b, 30*time.Second).Error()
+	return s.applyCommand(b, 30*time.Second, "not leader: send delete to the raft leader node")
 }

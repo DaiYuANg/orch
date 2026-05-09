@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
-	hraft "github.com/hashicorp/raft"
 
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
@@ -51,14 +50,7 @@ func (s *Service) ApplyWorkloadAssignment(assignment workloadmeta.Assignment) er
 		return oopsx.B("raft").Wrapf(err, "marshal workload assignment command")
 	}
 
-	if !s.cfg.Raft.Enabled || s.r == nil {
-		s.fsm.applyCommandPayload(b)
-		return nil
-	}
-	if s.r.State() != hraft.Leader {
-		return oopsx.B("raft").Errorf("not leader: send workload assignment to the raft leader node")
-	}
-	return s.r.Apply(b, 5*time.Second).Error()
+	return s.applyCommand(b, 5*time.Second, "not leader: send workload assignment to the raft leader node")
 }
 
 // ListWorkloadAssignments returns a stable snapshot of scheduler assignment records.

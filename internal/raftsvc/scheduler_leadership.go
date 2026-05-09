@@ -3,8 +3,6 @@ package raftsvc
 import (
 	"context"
 
-	hraft "github.com/hashicorp/raft"
-
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -18,10 +16,10 @@ func (s *Service) SchedulerLeadership(ctx context.Context) error {
 	if !s.cfg.Raft.Enabled {
 		return nil
 	}
-	if s.r == nil {
+	if s.nh == nil {
 		return oopsx.B("raft").Errorf("orch raft: not ready")
 	}
-	if s.r.State() != hraft.Leader {
+	if !s.isLocalLeader() {
 		return oopsx.B("raft").Errorf("orch raft: not leader")
 	}
 	return nil

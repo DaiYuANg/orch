@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
-	hraft "github.com/hashicorp/raft"
 
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -25,23 +24,44 @@ func (s *Service) ListMembers(ctx context.Context) (*list.List[Member], error) {
 	if s == nil {
 		return nil, oopsx.B("raft").Errorf("nil service")
 	}
-	if !s.cfg.Raft.Enabled || s.r == nil {
+	if !s.cfg.Raft.Enabled || s.nh == nil {
 		return list.NewList[Member](), nil
 	}
-	future := s.r.GetConfiguration()
-	if err := future.Error(); err != nil {
-		return nil, oopsx.B("raft").Wrapf(err, "get raft configuration")
+	queryCtx, cancel := withDefaultDeadline(ctx, 5*time.Second)
+	defer cancel()
+	membership, err := s.nh.SyncGetShardMembership(queryCtx, controlShardID)
+	if err != nil {
+		return nil, oopsx.B("raft").Wrapf(err, "get raft membership")
 	}
-	servers := future.Configuration().Servers
-	sort.Slice(servers, func(i, j int) bool {
-		return strings.Compare(string(servers[i].ID), string(servers[j].ID)) < 0
+	replicaIDs := make([]uint64, 0, len(membership.Nodes)+len(membership.NonVotings)+len(membership.Witnesses))
+	for replicaID := range membership.Nodes {
+		replicaIDs = append(replicaIDs, replicaID)
+	}
+	for replicaID := range membership.NonVotings {
+		replicaIDs = append(replicaIDs, replicaID)
+	}
+	for replicaID := range membership.Witnesses {
+		replicaIDs = append(replicaIDs, replicaID)
+	}
+	sort.Slice(replicaIDs, func(i, j int) bool {
+		return strings.Compare(s.nodeIDForMember(replicaIDs[i], ""), s.nodeIDForMember(replicaIDs[j], "")) < 0
 	})
-	out := list.NewListWithCapacity[Member](len(servers))
-	for _, server := range servers {
+	out := list.NewListWithCapacity[Member](len(replicaIDs))
+	for _, replicaID := range replicaIDs {
+		address := membership.Nodes[replicaID]
+		suffrage := "Voter"
+		if v, ok := membership.NonVotings[replicaID]; ok {
+			address = v
+			suffrage = "NonVoter"
+		}
+		if v, ok := membership.Witnesses[replicaID]; ok {
+			address = v
+			suffrage = "Witness"
+		}
 		out.Add(Member{
-			ID:       string(server.ID),
-			Address:  string(server.Address),
-			Suffrage: server.Suffrage.String(),
+			ID:       s.nodeIDForMember(replicaID, address),
+			Address:  address,
+			Suffrage: suffrage,
 		})
 	}
 	return out, nil
@@ -62,9 +82,16 @@ func (s *Service) AddVoter(ctx context.Context, id, address string) error {
 	if err != nil {
 		return oopsx.B("raft").Wrapf(err, "validate member address")
 	}
-	if err := s.r.AddVoter(hraft.ServerID(id), hraft.ServerAddress(addr), 0, 30*time.Second).Error(); err != nil {
+	replicaID, err := replicaIDForNodeID(id)
+	if err != nil {
+		return err
+	}
+	queryCtx, cancel := withDefaultDeadline(ctx, 30*time.Second)
+	defer cancel()
+	if err := s.nh.SyncRequestAddReplica(queryCtx, controlShardID, replicaID, addr, 0); err != nil {
 		return oopsx.B("raft").Wrapf(err, "add voter %q", id)
 	}
+	s.rememberMember(id, replicaID, addr)
 	return nil
 }
 
@@ -79,9 +106,16 @@ func (s *Service) RemoveServer(ctx context.Context, id string) error {
 	if id == "" {
 		return oopsx.B("raft").Errorf("member id is required")
 	}
-	if err := s.r.RemoveServer(hraft.ServerID(id), 0, 30*time.Second).Error(); err != nil {
+	replicaID, err := replicaIDForNodeID(id)
+	if err != nil {
+		return err
+	}
+	queryCtx, cancel := withDefaultDeadline(ctx, 30*time.Second)
+	defer cancel()
+	if err := s.nh.SyncRequestDeleteReplica(queryCtx, controlShardID, replicaID, 0); err != nil {
 		return oopsx.B("raft").Wrapf(err, "remove server %q", id)
 	}
+	s.forgetMember(replicaID)
 	return nil
 }
 
@@ -89,10 +123,10 @@ func (s *Service) ensureMembershipLeader() error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")
 	}
-	if !s.cfg.Raft.Enabled || s.r == nil {
+	if !s.cfg.Raft.Enabled || s.nh == nil {
 		return oopsx.B("raft").Errorf("raft is not ready")
 	}
-	if s.r.State() != hraft.Leader {
+	if !s.isLocalLeader() {
 		return oopsx.B("raft").Errorf("not leader: send raft membership operation to the raft leader node")
 	}
 	return nil

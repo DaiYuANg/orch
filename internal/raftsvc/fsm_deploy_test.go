@@ -3,10 +3,7 @@ package raftsvc
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"testing"
-
-	hraft "github.com/hashicorp/raft"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/workloadmeta"
@@ -80,18 +77,13 @@ func TestFSMDeploySnapshotRoundTrip(t *testing.T) {
 	}
 	f.applyCommandPayload(b)
 
-	snap, err := f.Snapshot()
-	if err != nil {
+	var sink bytes.Buffer
+	if err := f.SaveSnapshot(&sink, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	sink := &memSnapSink{id: "t1"}
-	if err := snap.Persist(sink); err != nil {
-		t.Fatal(err)
-	}
-	snap.Release()
 
 	f2 := &schedulingFSM{}
-	if err := f2.Restore(io.NopCloser(bytes.NewReader(sink.Bytes()))); err != nil {
+	if err := f2.RecoverFromSnapshot(bytes.NewReader(sink.Bytes()), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	apps := f2.listDeployApps()
@@ -146,18 +138,13 @@ func TestFSMAssignmentSnapshotRoundTrip(t *testing.T) {
 	}
 	f.applyCommandPayload(b)
 
-	snap, err := f.Snapshot()
-	if err != nil {
+	var sink bytes.Buffer
+	if err := f.SaveSnapshot(&sink, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	sink := &memSnapSink{id: "assignments"}
-	if err := snap.Persist(sink); err != nil {
-		t.Fatal(err)
-	}
-	snap.Release()
 
 	f2 := &schedulingFSM{}
-	if err := f2.Restore(io.NopCloser(bytes.NewReader(sink.Bytes()))); err != nil {
+	if err := f2.RecoverFromSnapshot(bytes.NewReader(sink.Bytes()), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	got, ok := f2.getAssignment(workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload))
@@ -168,14 +155,3 @@ func TestFSMAssignmentSnapshotRoundTrip(t *testing.T) {
 		t.Fatalf("after restore = %#v", got)
 	}
 }
-
-type memSnapSink struct {
-	id string
-	bytes.Buffer
-}
-
-func (m *memSnapSink) ID() string    { return m.id }
-func (m *memSnapSink) Cancel() error { return nil }
-func (m *memSnapSink) Close() error  { return nil }
-
-var _ hraft.SnapshotSink = (*memSnapSink)(nil)

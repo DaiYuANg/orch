@@ -18,7 +18,7 @@ Current core stack:
 - HTTP server/API: `github.com/arcgolabs/httpx` (`fiber` adapter)
 - Ingress: `github.com/arcgolabs/vale` runtime/proxy (round-robin); optional **Let's Encrypt** via `ingress.tls` (`golang.org/x/crypto/acme/autocert`, TLS-ALPN-01).
 - CLI: `github.com/spf13/cobra`
-- Consensus path: `github.com/hashicorp/raft` over TCP transport with static peer bootstrap, basic membership commands, and follower write forwarding when `cluster.nodes` maps leader IDs to API URLs
+- Consensus path: `github.com/lni/dragonboat/v4` over TCP transport with static peer bootstrap, basic membership commands, and follower write forwarding when `cluster.nodes` maps leader IDs to API URLs
 
 ## Project Structure
 
@@ -43,7 +43,7 @@ internal/
   services/
     registry/            # workload registry
     task/                # deploy orchestration service
-  raftsvc/               # hashicorp/raft service boundary
+  raftsvc/               # Dragonboat-backed consensus service boundary
 ```
 
 ## Quick Start

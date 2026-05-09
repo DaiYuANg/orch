@@ -19,7 +19,7 @@ Implemented:
   migrate/failover/rebalance operations.
 - Registry-backed ingress route and endpoint management.
 - DNS record lifecycle tied to deploy/stop.
-- Raft-backed write-path coordination with TCP transport, static multi-node
+- Dragonboat-backed Raft write-path coordination with TCP transport, static multi-node
   bootstrap, local status visibility, basic add/remove voter membership
   operations, and follower forwarding for deploy lifecycle and membership writes
   when `cluster.nodes` maps leader IDs to API URLs.

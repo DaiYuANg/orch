@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/arcgolabs/collectionx/list"
-	hraft "github.com/hashicorp/raft"
+	sm "github.com/lni/dragonboat/v4/statemachine"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodecapacity"
@@ -42,15 +42,21 @@ func (f *schedulingFSM) setNotifyDeploy(fn func()) {
 	f.notifyDeploy = fn
 }
 
-func (f *schedulingFSM) Apply(l *hraft.Log) any {
+func (f *schedulingFSM) Update(entry sm.Entry) (sm.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.state.AppliedCommands++
-	if len(l.Data) == 0 {
-		return f.state.AppliedCommands
+	if len(entry.Cmd) == 0 {
+		return sm.Result{Value: f.state.AppliedCommands}, nil
 	}
-	f.applyPayloadLocked(l.Data)
-	return f.state.AppliedCommands
+	f.applyPayloadLocked(entry.Cmd)
+	return sm.Result{Value: f.state.AppliedCommands}, nil
+}
+
+func (f *schedulingFSM) Lookup(interface{}) (interface{}, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.state, nil
 }
 
 // applyCommandPayload applies a replicated (or local single-node) command without going through the Raft log reader.
@@ -207,21 +213,23 @@ func (f *schedulingFSM) getAssignment(key string) (workloadmeta.Assignment, bool
 	return a, ok
 }
 
-func (f *schedulingFSM) Snapshot() (hraft.FSMSnapshot, error) {
+func (f *schedulingFSM) SaveSnapshot(w io.Writer, _ sm.ISnapshotFileCollection, _ <-chan struct{}) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	st := f.state
-	return &schedulingSnapshot{payload: st}, nil
+	b, err := json.Marshal(f.state)
+	if err != nil {
+		return oopsx.B("raft").Wrapf(err, "snapshot marshal")
+	}
+	if _, err := w.Write(b); err != nil {
+		return oopsx.B("raft").Wrapf(err, "snapshot write")
+	}
+	return nil
 }
 
-func (f *schedulingFSM) Restore(rc io.ReadCloser) error {
-	data, err := io.ReadAll(rc)
-	closeErr := rc.Close()
+func (f *schedulingFSM) RecoverFromSnapshot(r io.Reader, _ []sm.SnapshotFile, _ <-chan struct{}) error {
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return oopsx.B("raft").Wrapf(err, "fsm restore read snapshot")
-	}
-	if closeErr != nil {
-		return oopsx.B("raft").Wrapf(closeErr, "fsm restore close reader")
 	}
 	var st fsmSnapshotState
 	if len(data) > 0 {
@@ -232,6 +240,10 @@ func (f *schedulingFSM) Restore(rc io.ReadCloser) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.state = st
+	return nil
+}
+
+func (f *schedulingFSM) Close() error {
 	return nil
 }
 
@@ -266,31 +278,3 @@ func (f *schedulingFSM) nodeCapacityIDs() *list.List[string] {
 	}
 	return out
 }
-
-type schedulingSnapshot struct {
-	payload fsmSnapshotState
-}
-
-func (s *schedulingSnapshot) Persist(sink hraft.SnapshotSink) error {
-	b, err := json.Marshal(s.payload)
-	if err != nil {
-		cancelErr := sink.Cancel()
-		if cancelErr != nil {
-			return oopsx.B("raft").Wrapf(err, "snapshot marshal (cancel: %v)", cancelErr)
-		}
-		return oopsx.B("raft").Wrapf(err, "snapshot marshal")
-	}
-	if _, err := sink.Write(b); err != nil {
-		cancelErr := sink.Cancel()
-		if cancelErr != nil {
-			return oopsx.B("raft").Wrapf(err, "snapshot write (cancel: %v)", cancelErr)
-		}
-		return oopsx.B("raft").Wrapf(err, "snapshot write")
-	}
-	if err := sink.Close(); err != nil {
-		return oopsx.B("raft").Wrapf(err, "snapshot close sink")
-	}
-	return nil
-}
-
-func (s *schedulingSnapshot) Release() {}

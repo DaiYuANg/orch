@@ -27,7 +27,7 @@ Non-goals for now:
 - Language: Go (1.22+).
 - CLI: `cobra`.
 - Deploy: canonical document is `internal/deploy/v1alpha1.App`. Compatibility layers are separate packages: `internal/deploy/orch` (.orch DSL), `internal/deploy/composeimport` (Docker Compose), `internal/deploy/loader` (manifest dispatch: .orch vs YAML).
-- Raft: `github.com/hashicorp/raft` integration path.
+- Raft: `github.com/lni/dragonboat/v4` integration path.
 - Tooling:
   - `task` (go-task) for daily developer commands.
   - `mdBook` for docs (`docs/`).

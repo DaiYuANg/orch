@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
-	hraft "github.com/hashicorp/raft"
 
 	"github.com/daiyuang/orch/internal/nodecapacity"
 )
@@ -41,14 +40,13 @@ func (r *raftCapacityStore) Upsert(ctx context.Context, snap nodecapacity.Snapsh
 		r.s.fsm.applyCommandPayload(b)
 		return nil
 	}
-	if r.s.r == nil {
+	if r.s.nh == nil {
 		return nil
 	}
-	if r.s.r.State() != hraft.Leader {
+	if !r.s.isLocalLeader() {
 		return nil
 	}
-	f := r.s.r.Apply(b, 5*time.Second)
-	return f.Error()
+	return r.s.applyCommand(b, 5*time.Second, "not leader: send node capacity to the raft leader node")
 }
 
 func (r *raftCapacityStore) Get(nodeID string) (nodecapacity.Snapshot, bool) {

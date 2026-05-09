@@ -62,7 +62,8 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	fs.String("raft-advertise", def.Raft.Advertise, "config path raft.advertise (host:port advertised to other raft peers)")
 	fs.StringToString("raft-peers", def.Raft.Peers, "config path raft.peers (node_id=host:port, repeat or comma-separated static voters)")
 	fs.Bool("raft-bootstrap", def.Raft.Bootstrap, "config path raft.bootstrap (bootstrap a new cluster when no raft state exists)")
-	fs.String("raft-badger-dir", def.Raft.Badger.Dir, "config path raft.badger.dir")
-	fs.String("raft-bolt-path", def.Raft.Bolt.Path, "config path raft.bolt.path")
-	fs.String("raft-snapshot-dir", def.Raft.Snapshot.Dir, "config path raft.snapshot.dir")
+	fs.String("raft-data-dir", def.Raft.Data.Dir, "config path raft.data.dir (Dragonboat NodeHost data)")
+	fs.String("raft-badger-dir", def.Raft.Badger.Dir, "deprecated config path raft.badger.dir")
+	fs.String("raft-bolt-path", def.Raft.Bolt.Path, "deprecated config path raft.bolt.path")
+	fs.String("raft-snapshot-dir", def.Raft.Snapshot.Dir, "deprecated config path raft.snapshot.dir")
 }

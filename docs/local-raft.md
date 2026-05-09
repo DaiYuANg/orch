@@ -1,7 +1,7 @@
 # Local Raft Cluster
 
-orch uses `github.com/hashicorp/raft` for replicated control-plane state. The
-server now uses a TCP Raft transport by default.
+orch uses `github.com/lni/dragonboat/v4` for replicated control-plane state.
+The server uses Dragonboat's TCP transport by default.
 
 ## Single node
 
@@ -36,7 +36,7 @@ raft:
 ```
 
 Node B and C use the same `raft.peers` map, different `http.addr`,
-`raft.node.id`, `raft.bind`, `raft.advertise`, and data paths.
+`raft.node.id`, `raft.bind`, `raft.advertise`, and `raft.data.dir` paths.
 
 Equivalent flags:
 
@@ -56,8 +56,15 @@ raft:
     id: node-d
   bind: "10.0.0.14:7444"
   advertise: "10.0.0.14:7444"
+  data:
+    dir: "/var/lib/orch/dragonboat-node-d"
   bootstrap: false
 ```
+
+With Dragonboat, adding a voter and starting the target server are coupled
+operational steps: the leader first commits the new replica membership, then
+the target server starts with `raft.bootstrap: false` and the same advertised
+address.
 
 Then send the membership write to any node whose config has `cluster.nodes`
 mapping the current leader ID to its HTTP API URL:
@@ -91,7 +98,9 @@ the deletion to replicate.
 
 ## Current limits
 
-Static bootstrap and basic add/remove voter operations are supported. Leader
-visibility is available through `orch raft status`. Follower forwarding depends
-on `cluster.nodes` containing the leader's HTTP URL. Non-voter learners and
-joint operational guardrails are still future work.
+Static bootstrap and basic add/remove voter operations are supported.
+Dragonboat replica IDs are derived from orch node IDs, while CLI/API output
+continues to expose the configured node IDs where known. Leader visibility is
+available through `orch raft status`. Follower forwarding depends on
+`cluster.nodes` containing the leader's HTTP URL. Non-voter learners and joint
+operational guardrails are still future work.

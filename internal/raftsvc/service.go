@@ -3,49 +3,55 @@ package raftsvc
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
+	"io"
 	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	hclog "github.com/hashicorp/go-hclog"
-
-	"github.com/arcgolabs/storx/badgerx"
-	"github.com/arcgolabs/storx/bboltx"
-	badger "github.com/dgraph-io/badger/v4"
-	hraft "github.com/hashicorp/raft"
-
 	"github.com/arcgolabs/collectionx/list"
+	dragonboat "github.com/lni/dragonboat/v4"
+	dbconfig "github.com/lni/dragonboat/v4/config"
+	sm "github.com/lni/dragonboat/v4/statemachine"
 
 	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/logging"
 	"github.com/daiyuang/orch/internal/nodeid"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
-// Service owns hashicorp raft backed by storx (Badger logs + bbolt stable metadata).
+const (
+	controlShardID uint64 = 1
+)
+
+// Service owns the Dragonboat NodeHost used for replicated control-plane state.
 type Service struct {
 	logger  *slog.Logger
 	cfg     config.Config
 	localID nodeid.Local
 
-	r              *hraft.Raft
+	nh             *dragonboat.NodeHost
 	fsm            *schedulingFSM
 	deploySignalCh chan struct{}
-	badgerDB       *badgerx.DB
-	bboltDB        *bboltx.DB
-	logStore       *storxBadgerLogStore
-	stable         *storxBoltStableStore
-	transport      hraft.Transport
+
+	localReplicaID uint64
+	localAddress   string
+
+	mu struct {
+		sync.RWMutex
+		replicaToNode map[uint64]string
+		addressToNode map[string]string
+	}
 
 	started atomic.Bool
 }
 
-// New constructs the service (Raft starts in Start).
+// New constructs the service (Dragonboat starts in Start).
 func New(cfg config.Config, logger *slog.Logger, local nodeid.Local) *Service {
 	ch := make(chan struct{}, 1)
 	fsm := &schedulingFSM{}
@@ -56,6 +62,8 @@ func New(cfg config.Config, logger *slog.Logger, local nodeid.Local) *Service {
 		fsm:            fsm,
 		deploySignalCh: ch,
 	}
+	s.mu.replicaToNode = map[uint64]string{}
+	s.mu.addressToNode = map[string]string{}
 	fsm.setNotifyDeploy(func() {
 		select {
 		case ch <- struct{}{}:
@@ -65,97 +73,18 @@ func New(cfg config.Config, logger *slog.Logger, local nodeid.Local) *Service {
 	return s
 }
 
-func warnRaftCleanup(logger *slog.Logger, cleaners ...func() error) {
-	for _, fn := range cleaners {
-		if fn == nil {
-			continue
-		}
-		if err := fn(); err != nil {
-			logger.Warn("raft startup cleanup", "error", err)
-		}
+func replicaIDForNodeID(id string) (uint64, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return 0, oopsx.B("raft").Errorf("raft node id is required")
 	}
-}
-
-type raftOpenedStores struct {
-	bgx       *badgerx.DB
-	bbolt     *bboltx.DB
-	logStore  *storxBadgerLogStore
-	stable    *storxBoltStableStore
-	snapStore hraft.SnapshotStore
-	raftHC    hclog.Logger
-}
-
-func (s *Service) openRaftStores() (*raftOpenedStores, error) {
-	raftDirs := list.NewList(
-		s.cfg.Raft.Badger.Dir,
-		filepath.Dir(s.cfg.Raft.Bolt.Path),
-		s.cfg.Raft.Snapshot.Dir,
-	)
-	var mkdirErr error
-	raftDirs.Range(func(_ int, dir string) bool {
-		if err := os.MkdirAll(dir, 0o750); err != nil {
-			mkdirErr = oopsx.B("raft").Wrapf(err, "raft mkdir %q", dir)
-			return false
-		}
-		return true
-	})
-	if mkdirErr != nil {
-		return nil, mkdirErr
+	h := fnv.New64a()
+	_, _ = io.WriteString(h, id)
+	n := h.Sum64()
+	if n == 0 {
+		n = 1
 	}
-
-	opts := badger.DefaultOptions(s.cfg.Raft.Badger.Dir)
-	opts.Logger = logging.Badger(s.logger.With(slog.String("engine", "badger"), slog.String("use", "raft-log")))
-
-	bgx, err := badgerx.Open(opts, badgerx.WithDBLogger(s.logger))
-	if err != nil {
-		return nil, oopsx.B("raft").Wrapf(err, "open raft badger (storx)")
-	}
-
-	bbolt, err := bboltx.Open(s.cfg.Raft.Bolt.Path, 0o600, nil, bboltx.WithDBLogger(s.logger))
-	if err != nil {
-		warnRaftCleanup(s.logger, func() error { return bgx.Close() })
-		return nil, oopsx.B("raft").Wrapf(err, "open raft bolt (storx)")
-	}
-
-	raftHC := logging.HCLogger(s.logger, "raft")
-	st := &raftOpenedStores{
-		bgx:      bgx,
-		bbolt:    bbolt,
-		logStore: newStorxBadgerLogStore(bgx),
-		stable:   newStorxBoltStableStore(bbolt),
-		raftHC:   raftHC,
-	}
-	st.snapStore, err = hraft.NewFileSnapshotStoreWithLogger(s.cfg.Raft.Snapshot.Dir, 3, raftHC)
-	if err != nil {
-		warnRaftCleanup(s.logger, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
-		return nil, oopsx.B("raft").Wrapf(err, "open raft snapshots")
-	}
-	return st, nil
-}
-
-func (s *Service) openRaftTransport(st *raftOpenedStores) (*hraft.NetworkTransport, hraft.ServerAddress, error) {
-	bindAddr := strings.TrimSpace(s.cfg.Raft.Bind)
-	if bindAddr == "" {
-		return nil, "", oopsx.B("raft").Errorf("raft.bind is required")
-	}
-
-	var advertise net.Addr
-	if raw := strings.TrimSpace(s.cfg.Raft.Advertise); raw != "" {
-		addr, err := net.ResolveTCPAddr("tcp", raw)
-		if err != nil {
-			return nil, "", oopsx.B("raft").Wrapf(err, "resolve raft.advertise %q", raw)
-		}
-		if addr.IP == nil || addr.IP.IsUnspecified() {
-			return nil, "", oopsx.B("raft").Errorf("raft.advertise must be a concrete host:port, got %q", raw)
-		}
-		advertise = addr
-	}
-
-	transport, err := hraft.NewTCPTransportWithLogger(bindAddr, advertise, 3, 10*time.Second, st.raftHC)
-	if err != nil {
-		return nil, "", oopsx.B("raft").Wrapf(err, "create raft tcp transport (set raft.advertise when raft.bind is 0.0.0.0/:port)")
-	}
-	return transport, transport.LocalAddr(), nil
+	return n, nil
 }
 
 func validateRaftPeerAddress(label, raw string) (string, error) {
@@ -176,9 +105,110 @@ func validateRaftPeerAddress(label, raw string) (string, error) {
 	return addr, nil
 }
 
-func (s *Service) bootstrapServerList(localID hraft.ServerID, localAddr hraft.ServerAddress) (*list.List[hraft.Server], error) {
-	localIDString := strings.TrimSpace(string(localID))
-	if localIDString == "" {
+func validateConcreteRaftAddress(label, raw string) (string, error) {
+	addr, err := validateRaftPeerAddress(label, raw)
+	if err != nil {
+		return "", err
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", err
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	if ip != nil && ip.IsUnspecified() {
+		return "", fmt.Errorf("%s must be a concrete host:port, got %q", label, raw)
+	}
+	return addr, nil
+}
+
+func resolveEphemeralTCPAddr(raw string) (string, error) {
+	_, port, err := net.SplitHostPort(strings.TrimSpace(raw))
+	if err != nil || port != "0" {
+		return raw, nil
+	}
+	ln, err := net.Listen("tcp", raw)
+	if err != nil {
+		return "", err
+	}
+	addr := ln.Addr().String()
+	if closeErr := ln.Close(); closeErr != nil {
+		return "", closeErr
+	}
+	return addr, nil
+}
+
+func (s *Service) dragonboatDataDir() string {
+	if dir := strings.TrimSpace(s.cfg.Raft.Data.Dir); dir != "" {
+		return dir
+	}
+	if dir := strings.TrimSpace(s.cfg.Raft.Badger.Dir); dir != "" {
+		return filepath.Join(filepath.Dir(dir), "dragonboat")
+	}
+	return filepath.Join(config.DefaultDataRoot(), "dragonboat")
+}
+
+func (s *Service) dragonboatAddresses() (listenAddr string, raftAddr string, err error) {
+	bindAddr := strings.TrimSpace(s.cfg.Raft.Bind)
+	if bindAddr == "" {
+		return "", "", oopsx.B("raft").Errorf("raft.bind is required")
+	}
+	bindAddr, err = validateRaftPeerAddress("raft.bind", bindAddr)
+	if err != nil {
+		return "", "", oopsx.B("raft").Wrapf(err, "validate raft bind")
+	}
+	listenAddr, err = resolveEphemeralTCPAddr(bindAddr)
+	if err != nil {
+		return "", "", oopsx.B("raft").Wrapf(err, "reserve raft bind address")
+	}
+	advertise := strings.TrimSpace(s.cfg.Raft.Advertise)
+	if advertise == "" {
+		raftAddr, err = validateConcreteRaftAddress("raft.bind", listenAddr)
+	} else {
+		raftAddr, err = validateConcreteRaftAddress("raft.advertise", advertise)
+	}
+	if err != nil {
+		return "", "", oopsx.B("raft").Wrapf(err, "validate raft address")
+	}
+	return listenAddr, raftAddr, nil
+}
+
+func (s *Service) rememberMember(id string, replicaID uint64, address string) {
+	id = strings.TrimSpace(id)
+	address = strings.TrimSpace(address)
+	if id == "" || replicaID == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mu.replicaToNode[replicaID] = id
+	if address != "" {
+		s.mu.addressToNode[address] = id
+	}
+}
+
+func (s *Service) forgetMember(replicaID uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.mu.replicaToNode, replicaID)
+}
+
+func (s *Service) nodeIDForMember(replicaID uint64, address string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if id, ok := s.mu.replicaToNode[replicaID]; ok && strings.TrimSpace(id) != "" {
+		return id
+	}
+	if id, ok := s.mu.addressToNode[strings.TrimSpace(address)]; ok && strings.TrimSpace(id) != "" {
+		return id
+	}
+	return fmt.Sprintf("replica-%d", replicaID)
+}
+
+func (s *Service) bootstrapReplicaTargets(localReplicaID uint64, localAddr string) (map[uint64]dragonboat.Target, error) {
+	targets := map[uint64]dragonboat.Target{}
+	seenIDs := map[uint64]string{}
+	localID := strings.TrimSpace(s.localID.String())
+	if localID == "" {
 		return nil, oopsx.B("raft").Errorf("raft local id is required")
 	}
 	peers := map[string]string{}
@@ -193,14 +223,14 @@ func (s *Service) bootstrapServerList(localID hraft.ServerID, localAddr hraft.Se
 		}
 		peers[id] = addr
 	}
-	if configured, ok := peers[localIDString]; ok && configured != string(localAddr) {
+	if configured, ok := peers[localID]; ok && configured != localAddr {
 		s.logger.Warn("raft peer address for local node differs from transport advertise address; using transport address",
-			"node_id", localIDString,
+			"node_id", localID,
 			"configured", configured,
 			"transport", localAddr,
 		)
 	}
-	peers[localIDString] = string(localAddr)
+	peers[localID] = localAddr
 
 	ids := make([]string, 0, len(peers))
 	for id := range peers {
@@ -208,46 +238,86 @@ func (s *Service) bootstrapServerList(localID hraft.ServerID, localAddr hraft.Se
 	}
 	sort.Strings(ids)
 
-	servers := list.NewListWithCapacity[hraft.Server](len(ids))
 	for _, id := range ids {
-		servers.Add(hraft.Server{
-			Suffrage: hraft.Voter,
-			ID:       hraft.ServerID(id),
-			Address:  hraft.ServerAddress(peers[id]),
+		replicaID, err := replicaIDForNodeID(id)
+		if err != nil {
+			return nil, err
+		}
+		if prev, exists := seenIDs[replicaID]; exists && prev != id {
+			return nil, oopsx.B("raft").Errorf("raft node ids %q and %q resolve to the same dragonboat replica id %d", prev, id, replicaID)
+		}
+		seenIDs[replicaID] = id
+		targets[replicaID] = dragonboat.Target(peers[id])
+		s.rememberMember(id, replicaID, peers[id])
+	}
+	if _, ok := targets[localReplicaID]; !ok {
+		targets[localReplicaID] = dragonboat.Target(localAddr)
+		s.rememberMember(localID, localReplicaID, localAddr)
+	}
+	return targets, nil
+}
+
+// bootstrapServerList is kept as a small testable compatibility helper around
+// the configured static peers used to bootstrap Dragonboat's initial members.
+func (s *Service) bootstrapServerList(localID string, localAddr string) (*list.List[Member], error) {
+	replicaID, err := replicaIDForNodeID(localID)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.bootstrapReplicaTargets(replicaID, localAddr)
+	if err != nil {
+		return nil, err
+	}
+	members := list.NewListWithCapacity[Member](len(targets))
+	for rid, target := range targets {
+		addr := string(target)
+		members.Add(Member{
+			ID:       s.nodeIDForMember(rid, addr),
+			Address:  addr,
+			Suffrage: "Voter",
 		})
 	}
-	return servers, nil
+	members.Sort(func(a, b Member) int {
+		return strings.Compare(a.ID, b.ID)
+	})
+	return members, nil
 }
 
-func (s *Service) maybeBootstrapRaft(
-	hrCfg *hraft.Config,
-	st *raftOpenedStores,
-	localAddr hraft.ServerAddress,
-	transport hraft.Transport,
-	hasState bool,
-) error {
-	if hasState {
-		return nil
+func (s *Service) dragonboatReplicaConfig(replicaID uint64) dbconfig.Config {
+	return dbconfig.Config{
+		ReplicaID:          replicaID,
+		ShardID:            controlShardID,
+		CheckQuorum:        true,
+		PreVote:            true,
+		HeartbeatRTT:       1,
+		ElectionRTT:        10,
+		SnapshotEntries:    10_000,
+		CompactionOverhead: 1_000,
+		WaitReady:          true,
 	}
-	if !s.cfg.Raft.Bootstrap {
-		s.logger.Info("raft bootstrap skipped by config", "node_id", hrCfg.LocalID, "local_addr", localAddr)
-		return nil
-	}
-	bootstrapServers, err := s.bootstrapServerList(hrCfg.LocalID, localAddr)
-	if err != nil {
-		return err
-	}
-	configuration := hraft.Configuration{
-		Servers: bootstrapServers.Values(),
-	}
-	if bootstrapErr := hraft.BootstrapCluster(hrCfg, st.logStore, st.stable, st.snapStore, transport, configuration); bootstrapErr != nil {
-		return oopsx.B("raft").Wrapf(bootstrapErr, "raft BootstrapCluster")
-	}
-	return nil
 }
 
-// Start opens storx engines and, if needed, bootstraps the configured voter set
-// before constructing the Raft instance.
+func (s *Service) startReplica(nh *dragonboat.NodeHost, replicaID uint64, raftAddr string) error {
+	hasNodeInfo := nh.HasNodeInfo(controlShardID, replicaID)
+	initialMembers := map[uint64]dragonboat.Target{}
+	join := false
+	if !hasNodeInfo {
+		if s.cfg.Raft.Bootstrap {
+			var err error
+			initialMembers, err = s.bootstrapReplicaTargets(replicaID, raftAddr)
+			if err != nil {
+				return err
+			}
+		} else {
+			join = true
+		}
+	}
+	return nh.StartReplica(initialMembers, join, func(shardID, rid uint64) sm.IStateMachine {
+		return s.fsm
+	}, s.dragonboatReplicaConfig(replicaID))
+}
+
+// Start opens a Dragonboat NodeHost and starts the control-plane Raft shard replica.
 func (s *Service) Start(_ context.Context) error {
 	if !s.cfg.Raft.Enabled {
 		s.logger.Info("raft disabled by config")
@@ -257,111 +327,99 @@ func (s *Service) Start(_ context.Context) error {
 		return nil
 	}
 
-	st, err := s.openRaftStores()
+	replicaID, err := replicaIDForNodeID(s.localID.String())
 	if err != nil {
 		return err
 	}
-	bgx, bbolt := st.bgx, st.bbolt
-	logStore, stable, snapStore := st.logStore, st.stable, st.snapStore
-
-	transport, localAddr, err := s.openRaftTransport(st)
+	listenAddr, raftAddr, err := s.dragonboatAddresses()
 	if err != nil {
-		warnRaftCleanup(s.logger, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
 		return err
 	}
 
-	hrCfg := hraft.DefaultConfig()
-	hrCfg.LocalID = hraft.ServerID(s.localID.String())
-	hrCfg.Logger = st.raftHC
+	dataDir := s.dragonboatDataDir()
+	if err := os.MkdirAll(dataDir, 0o750); err != nil {
+		return oopsx.B("raft").Wrapf(err, "dragonboat mkdir %q", dataDir)
+	}
 
-	hasState, err := hraft.HasExistingState(logStore, stable, snapStore)
+	nh, err := dragonboat.NewNodeHost(dbconfig.NodeHostConfig{
+		WALDir:         filepath.Join(dataDir, "wal"),
+		NodeHostDir:    filepath.Join(dataDir, "nodehost"),
+		RTTMillisecond: 100,
+		RaftAddress:    raftAddr,
+		ListenAddress:  listenAddr,
+	})
 	if err != nil {
-		warnRaftCleanup(s.logger, func() error { return transport.Close() }, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
-		return oopsx.B("raft").Wrapf(err, "raft HasExistingState")
+		return oopsx.B("raft").Wrapf(err, "dragonboat.NewNodeHost")
 	}
 
-	if bootstrapErr := s.maybeBootstrapRaft(hrCfg, st, localAddr, transport, hasState); bootstrapErr != nil {
-		warnRaftCleanup(s.logger, func() error { return transport.Close() }, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
-		return bootstrapErr
+	s.localReplicaID = replicaID
+	s.localAddress = raftAddr
+	s.rememberMember(s.localID.String(), replicaID, raftAddr)
+
+	if err := s.startReplica(nh, replicaID, raftAddr); err != nil {
+		nh.Close()
+		return oopsx.B("raft").Wrapf(err, "dragonboat StartReplica")
 	}
 
-	node, err := hraft.NewRaft(hrCfg, s.fsm, logStore, stable, snapStore, transport)
-	if err != nil {
-		warnRaftCleanup(s.logger, func() error { return transport.Close() }, func() error { return bbolt.Close() }, func() error { return bgx.Close() })
-		return oopsx.B("raft").Wrapf(err, "raft.NewRaft")
-	}
-
-	s.badgerDB = bgx
-	s.bboltDB = bbolt
-	s.logStore = logStore
-	s.stable = stable
-	s.transport = transport
-	s.r = node
+	s.nh = nh
 	s.started.Store(true)
 
 	s.logger.Info("raft started",
-		"node_id", hrCfg.LocalID,
-		"bind", s.cfg.Raft.Bind,
-		"advertise", localAddr,
+		"engine", "dragonboat",
+		"node_id", s.localID.String(),
+		"replica_id", replicaID,
+		"bind", listenAddr,
+		"advertise", raftAddr,
 		"configured_peers", len(s.cfg.Raft.Peers),
-		"badger_dir", s.cfg.Raft.Badger.Dir,
-		"bolt_path", s.cfg.Raft.Bolt.Path,
-		"snapshot_dir", s.cfg.Raft.Snapshot.Dir,
+		"data_dir", dataDir,
 	)
 	return nil
 }
 
-func (s *Service) shutdownRaftInstance() {
-	if s.r == nil {
-		return
+func (s *Service) isLocalLeader() bool {
+	if s == nil || s.nh == nil || s.localReplicaID == 0 {
+		return false
 	}
-	if err := s.r.Shutdown().Error(); err != nil {
-		s.logger.Warn("raft shutdown", "error", err)
-	}
-	s.r = nil
+	leaderID, _, ready, err := s.nh.GetLeaderID(controlShardID)
+	return err == nil && ready && leaderID == s.localReplicaID
 }
 
-func (s *Service) closeRaftTransportSilently() {
-	if s.transport == nil {
-		return
+func (s *Service) applyCommand(data []byte, timeout time.Duration, notLeaderMessage string) error {
+	if s == nil {
+		return oopsx.B("raft").Errorf("nil service")
 	}
-	if closer, ok := s.transport.(interface{ Close() error }); ok {
-		if err := closer.Close(); err != nil {
-			s.logger.Warn("close raft transport", "error", err)
-		}
+	if !s.cfg.Raft.Enabled || s.nh == nil {
+		s.fsm.applyCommandPayload(data)
+		return nil
 	}
-	s.transport = nil
+	if !s.isLocalLeader() {
+		return oopsx.B("raft").Errorf("%s", notLeaderMessage)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	_, err := s.nh.SyncPropose(ctx, s.nh.GetNoOPSession(controlShardID), data)
+	if err != nil {
+		return oopsx.B("raft").Wrapf(err, "dragonboat propose")
+	}
+	return nil
 }
 
-func (s *Service) closeRaftStorageSilently() {
-	if s.badgerDB != nil {
-		if err := s.badgerDB.Close(); err != nil {
-			s.logger.Warn("close raft badger", "error", err)
-		}
-		s.badgerDB = nil
+func withDefaultDeadline(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
 	}
-	if s.bboltDB != nil {
-		if err := s.bboltDB.Close(); err != nil {
-			s.logger.Warn("close raft bolt", "error", err)
-		}
-		s.bboltDB = nil
-	}
+	return context.WithTimeout(ctx, timeout)
 }
 
-func (s *Service) clearRaftReferences() {
-	s.logStore = nil
-	s.stable = nil
-}
-
-// Stop shuts Raft down then closes embedded databases.
+// Stop shuts Dragonboat down.
 func (s *Service) Stop(_ context.Context) error {
 	if !s.cfg.Raft.Enabled {
 		return nil
 	}
-	s.shutdownRaftInstance()
-	s.closeRaftTransportSilently()
-	s.closeRaftStorageSilently()
-	s.clearRaftReferences()
+	if s.nh != nil {
+		s.nh.Close()
+		s.nh = nil
+	}
 	if s.started.Load() {
 		s.started.Store(false)
 		s.logger.Info("raft stopped")

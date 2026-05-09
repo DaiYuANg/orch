@@ -4,12 +4,10 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
-
-	hraft "github.com/hashicorp/raft"
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/nodeid"
@@ -27,7 +25,7 @@ func TestBootstrapServerListIncludesStaticPeers(t *testing.T) {
 	}
 	svc := New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
 
-	servers, err := svc.bootstrapServerList(hraft.ServerID("node-a"), hraft.ServerAddress("10.0.0.11:7444"))
+	servers, err := svc.bootstrapServerList("node-a", "10.0.0.11:7444")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +49,7 @@ func TestBootstrapServerListOverridesLocalPeerAddress(t *testing.T) {
 	}
 	svc := New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
 
-	servers, err := svc.bootstrapServerList(hraft.ServerID("node-a"), hraft.ServerAddress("10.0.0.11:7444"))
+	servers, err := svc.bootstrapServerList("node-a", "10.0.0.11:7444")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +68,7 @@ func TestBootstrapServerListRejectsPeerWithoutHost(t *testing.T) {
 	cfg.Raft.Peers = map[string]string{"node-b": ":7444"}
 	svc := New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
 
-	if _, err := svc.bootstrapServerList(hraft.ServerID("node-a"), hraft.ServerAddress("10.0.0.11:7444")); err == nil {
+	if _, err := svc.bootstrapServerList("node-a", "10.0.0.11:7444"); err == nil {
 		t.Fatal("expected invalid peer error")
 	}
 }
@@ -78,7 +76,7 @@ func TestBootstrapServerListRejectsPeerWithoutHost(t *testing.T) {
 func TestRaftMembershipSingleNode(t *testing.T) {
 	ctx := context.Background()
 	svc := newStartedTestRaft(t, "node-a", true)
-	waitRaftState(t, svc, hraft.Leader)
+	waitRaftLeader(t, svc)
 
 	members, err := svc.ListMembers(ctx)
 	if err != nil {
@@ -88,7 +86,7 @@ func TestRaftMembershipSingleNode(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("members len = %d, want 1: %#v", len(got), got)
 	}
-	if got[0].ID != "node-a" || got[0].Address == "" || got[0].Suffrage != hraft.Voter.String() {
+	if got[0].ID != "node-a" || got[0].Address == "" || got[0].Suffrage != "Voter" {
 		t.Fatalf("member = %#v", got[0])
 	}
 }
@@ -96,7 +94,7 @@ func TestRaftMembershipSingleNode(t *testing.T) {
 func TestRaftStatusSingleNodeLeader(t *testing.T) {
 	ctx := context.Background()
 	svc := newStartedTestRaft(t, "node-a", true)
-	waitRaftState(t, svc, hraft.Leader)
+	waitRaftLeader(t, svc)
 
 	status, err := svc.Status(ctx)
 	if err != nil {
@@ -108,7 +106,7 @@ func TestRaftStatusSingleNodeLeader(t *testing.T) {
 	if status.NodeID != "node-a" || status.LeaderID != "node-a" {
 		t.Fatalf("status ids = node:%q leader:%q", status.NodeID, status.LeaderID)
 	}
-	if status.State != hraft.Leader.String() || status.LocalAddress == "" || status.LeaderAddress == "" {
+	if status.State != "Leader" || status.LocalAddress == "" || status.LeaderAddress == "" {
 		t.Fatalf("status = %#v", status)
 	}
 	if status.Members == nil || status.Members.Len() != 1 {
@@ -119,17 +117,15 @@ func TestRaftStatusSingleNodeLeader(t *testing.T) {
 func TestRaftAddAndRemoveVoter(t *testing.T) {
 	ctx := context.Background()
 	leader := newStartedTestRaft(t, "node-a", true)
-	waitRaftState(t, leader, hraft.Leader)
+	waitRaftLeader(t, leader)
 
-	follower := newStartedTestRaft(t, "node-b", false)
-	followerAddr := string(follower.transport.LocalAddr())
-	if strings.TrimSpace(followerAddr) == "" {
-		t.Fatal("follower raft address is empty")
-	}
+	followerAddr := reserveTestRaftAddr(t)
 
 	if err := leader.AddVoter(ctx, "node-b", followerAddr); err != nil {
 		t.Fatal(err)
 	}
+	follower := newStartedTestRaftWithBind(t, "node-b", false, followerAddr)
+	_ = follower
 	waitRaftMember(t, leader, "node-b", true)
 
 	if err := leader.RemoveServer(ctx, "node-b"); err != nil {
@@ -139,16 +135,18 @@ func TestRaftAddAndRemoveVoter(t *testing.T) {
 }
 
 func newStartedTestRaft(t *testing.T, id string, bootstrap bool) *Service {
+	return newStartedTestRaftWithBind(t, id, bootstrap, "127.0.0.1:0")
+}
+
+func newStartedTestRaftWithBind(t *testing.T, id string, bootstrap bool, bind string) *Service {
 	t.Helper()
 	tmp := t.TempDir()
 	cfg := config.Default()
-	cfg.Raft.Bind = "127.0.0.1:0"
+	cfg.Raft.Bind = bind
 	cfg.Raft.Advertise = ""
 	cfg.Raft.Bootstrap = bootstrap
 	cfg.Raft.Peers = map[string]string{}
-	cfg.Raft.Badger.Dir = filepath.Join(tmp, "badger")
-	cfg.Raft.Bolt.Path = filepath.Join(tmp, "raft-meta.db")
-	cfg.Raft.Snapshot.Dir = filepath.Join(tmp, "snapshots")
+	cfg.Raft.Data.Dir = filepath.Join(tmp, "dragonboat")
 
 	svc := New(cfg, testLogger(), nodeid.Local{Value: id})
 	if err := svc.Start(context.Background()); err != nil {
@@ -164,18 +162,29 @@ func newStartedTestRaft(t *testing.T, id string, bootstrap bool) *Service {
 	return svc
 }
 
-func waitRaftState(t *testing.T, svc *Service, want hraft.RaftState) {
+func reserveTestRaftAddr(t *testing.T) string {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return addr
+}
+
+func waitRaftLeader(t *testing.T, svc *Service) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
 	for {
-		if svc.r != nil && svc.r.State() == want {
+		if svc.isLocalLeader() {
 			return
 		}
 		if time.Now().After(deadline) {
-			if svc.r == nil {
-				t.Fatalf("raft did not reach %s: raft nil", want)
-			}
-			t.Fatalf("raft state = %s, want %s", svc.r.State(), want)
+			status, _ := svc.Status(context.Background())
+			t.Fatalf("raft did not reach leader: %#v", status)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

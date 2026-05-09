@@ -422,7 +422,7 @@ type AuthConfig struct {
 	} `json:"jwt"`
 }
 
-// RaftConfig matches raft.node.id, raft.badger.dir, raft.bolt.path, raft.snapshot.dir, etc.
+// RaftConfig matches raft.node.id, raft.data.dir, raft.bind, raft.peers, etc.
 type RaftConfig struct {
 	Enabled bool `json:"enabled"`
 	Node    struct {
@@ -433,7 +433,12 @@ type RaftConfig struct {
 	Advertise string            `json:"advertise,omitempty"`
 	Peers     map[string]string `json:"peers,omitempty"`
 	Bootstrap bool              `json:"bootstrap,omitempty"`
-	Badger    struct {
+	Data      struct {
+		Dir string `json:"dir"`
+	} `json:"data"`
+	// Deprecated: Dragonboat uses Data.Dir. These fields are kept so existing
+	// config files continue to load during the Raft engine migration.
+	Badger struct {
 		Dir string `json:"dir"`
 	} `json:"badger"`
 	Bolt struct {
@@ -486,6 +491,7 @@ func Default() Config {
 	raft.Advertise = ""
 	raft.Peers = map[string]string{}
 	raft.Bootstrap = true
+	raft.Data.Dir = filepath.Join(root, "dragonboat")
 	raft.Badger.Dir = filepath.Join(root, "raft-sched")
 	raft.Bolt.Path = filepath.Join(root, "raft-meta.db")
 	raft.Snapshot.Dir = filepath.Join(root, "raft-snapshots")

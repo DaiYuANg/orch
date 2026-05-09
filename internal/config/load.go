@@ -394,6 +394,13 @@ func overlayChangedFlags(cfg *Config, fs *pflag.FlagSet) error {
 		}
 		cfg.Raft.Bootstrap = v
 	}
+	if flagChanged(fs, "raft-data-dir") {
+		v, err := fs.GetString("raft-data-dir")
+		if err != nil {
+			return fmt.Errorf("cobra raft-data-dir flag: %w", err)
+		}
+		cfg.Raft.Data.Dir = v
+	}
 	if flagChanged(fs, "raft-badger-dir") {
 		v, err := fs.GetString("raft-badger-dir")
 		if err != nil {
@@ -456,6 +463,7 @@ func orchFlagToPath(name string) string {
 		"raft-advertise":                            "raft.advertise",
 		"raft-peers":                                "raft.peers",
 		"raft-bootstrap":                            "raft.bootstrap",
+		"raft-data-dir":                             "raft.data.dir",
 		"raft-badger-dir":                           "raft.badger.dir",
 		"raft-bolt-path":                            "raft.bolt.path",
 		"raft-snapshot-dir":                         "raft.snapshot.dir",

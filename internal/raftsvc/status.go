@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/arcgolabs/collectionx/list"
-	hraft "github.com/hashicorp/raft"
 
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -38,35 +37,50 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		status.State = "disabled"
 		return status, nil
 	}
-	if s.r == nil {
+	if s.nh == nil {
 		status.State = "not_ready"
 		return status, nil
 	}
 
-	localAddress := ""
-	if s.transport != nil {
-		localAddress = string(s.transport.LocalAddr())
+	localAddress := s.localAddress
+	leaderReplicaID, _, leaderReady, err := s.nh.GetLeaderID(controlShardID)
+	if err != nil {
+		status.Ready = true
+		status.State = "unknown"
+		status.LocalAddress = localAddress
+		return status, nil
 	}
-	state := s.r.State()
-	leaderAddress, leaderID := s.r.LeaderWithID()
-	if state == hraft.Leader {
-		if leaderID == "" {
-			leaderID = hraft.ServerID(status.NodeID)
-		}
-		if leaderAddress == "" {
-			leaderAddress = hraft.ServerAddress(localAddress)
-		}
+	isLeader := leaderReady && leaderReplicaID == s.localReplicaID
+	state := "Follower"
+	if isLeader {
+		state = "Leader"
+	} else if !leaderReady {
+		state = "Unknown"
 	}
 
 	members, err := s.ListMembers(ctx)
 	if err != nil {
-		return Status{}, err
+		members = list.NewList[Member]()
 	}
+	leaderAddress := ""
+	members.Range(func(_ int, member Member) bool {
+		if member.ID == s.nodeIDForMember(leaderReplicaID, member.Address) {
+			leaderAddress = member.Address
+			return false
+		}
+		return true
+	})
+	if isLeader && leaderAddress == "" {
+		leaderAddress = localAddress
+	}
+
 	status.Ready = true
-	status.State = state.String()
-	status.IsLeader = state == hraft.Leader
-	status.LeaderID = string(leaderID)
-	status.LeaderAddress = string(leaderAddress)
+	status.State = state
+	status.IsLeader = isLeader
+	if leaderReady {
+		status.LeaderID = s.nodeIDForMember(leaderReplicaID, leaderAddress)
+	}
+	status.LeaderAddress = leaderAddress
 	status.LocalAddress = localAddress
 	status.Members = members
 	return status, nil

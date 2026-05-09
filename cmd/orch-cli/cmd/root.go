@@ -62,6 +62,7 @@ func init() {
 	rootCmd.AddCommand(newWorkloadsCmd())
 	rootCmd.AddCommand(newAssignmentsCmd())
 	rootCmd.AddCommand(newHostinfoCmd())
+	rootCmd.AddCommand(newDiagnosticsCmd())
 	rootCmd.AddCommand(newRaftCmd())
 	rootCmd.AddCommand(newReadyCmd())
 	rootCmd.AddCommand(newWaitCmd())

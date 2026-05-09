@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/daiyuang/orch/internal/config"
@@ -31,6 +32,11 @@ type Service struct {
 	local      nodeid.Local
 	raft       *raftsvc.Service
 	dispatcher WorkerDispatcher
+
+	reconcileMu     sync.Mutex
+	reconcileCancel context.CancelFunc
+	reconcileRun    uint64
+	reconcileWG     sync.WaitGroup
 }
 
 func NewService(logger *slog.Logger, metricService *metrics.Service, runtimeManager *runtime.Manager, registryService *registry.Service, cfg config.Config, bundle Bundle) *Service {
@@ -58,17 +64,84 @@ func (s *Service) StartDeployReconcile(ctx context.Context) {
 	if ch == nil {
 		return
 	}
+	s.reconcileMu.Lock()
+	if s.reconcileCancel != nil {
+		s.reconcileMu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	s.reconcileRun++
+	runID := s.reconcileRun
+	s.reconcileCancel = cancel
+	s.reconcileWG.Add(1)
+	s.reconcileMu.Unlock()
 	go func() {
-		s.reconcileAll(ctx)
+		defer s.reconcileWG.Done()
+		defer func() {
+			s.reconcileMu.Lock()
+			if s.reconcileRun == runID {
+				s.reconcileCancel = nil
+			}
+			s.reconcileMu.Unlock()
+		}()
+		if err := s.raft.WaitLocalLeader(ctx); err != nil {
+			if ctx.Err() == nil {
+				s.logger.Warn("deploy reconcile waiting for raft leader stopped", "error", err)
+			}
+			return
+		}
+		reconcilePending := func() bool {
+			s.reconcileAll(ctx)
+			for {
+				select {
+				case <-ctx.Done():
+					return false
+				case <-ch:
+					s.reconcileAll(ctx)
+				default:
+					return true
+				}
+			}
+		}
+		if !reconcilePending() {
+			return
+		}
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ch:
-				s.reconcileAll(ctx)
+				if !reconcilePending() {
+					return
+				}
 			}
 		}
 	}()
+}
+
+func (s *Service) StopDeployReconcile(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.reconcileMu.Lock()
+	cancel := s.reconcileCancel
+	s.reconcileCancel = nil
+	s.reconcileMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		s.reconcileWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return oopsx.B("task").Wrapf(ctx.Err(), "stop deploy reconcile")
+	}
 }
 
 func (s *Service) reconcileAll(ctx context.Context) {

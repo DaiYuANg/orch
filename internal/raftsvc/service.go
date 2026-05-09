@@ -379,6 +379,32 @@ func (s *Service) isLocalLeader() bool {
 	return err == nil && ready && leaderID == s.localReplicaID
 }
 
+// WaitLocalLeader blocks until this node is the local Raft leader.
+// If Dragonboat is not started, it returns immediately so FSM-only tests keep using the local apply path.
+func (s *Service) WaitLocalLeader(ctx context.Context) error {
+	if s == nil {
+		return oopsx.B("raft").Errorf("nil service")
+	}
+	if s.nh == nil {
+		return nil
+	}
+	if s.isLocalLeader() {
+		return nil
+	}
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if s.isLocalLeader() {
+				return nil
+			}
+		}
+	}
+}
+
 func (s *Service) applyCommand(data []byte, timeout time.Duration, notLeaderMessage string) error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")

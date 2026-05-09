@@ -6,6 +6,7 @@ import (
 
 	"github.com/arcgolabs/dix"
 
+	"github.com/daiyuang/orch/internal/lifecycleplan"
 	"github.com/daiyuang/orch/internal/nodecapacity"
 	"github.com/daiyuang/orch/internal/nodeid"
 )
@@ -26,7 +27,7 @@ func Module() dix.Module {
 	return dix.NewModule(
 		"scheduler",
 		dix.Providers(
-			dix.ProviderErr3(New),
+			dix.ProviderErr3(New, dix.Eager()),
 			dix.Provider4(newStartDeps),
 		),
 		dix.Hooks(
@@ -46,7 +47,7 @@ func Module() dix.Module {
 				}
 				d.Logger.Info("lifecycle", "phase", "started", "component", "scheduler")
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookScheduler), dix.LifecyclePriority(lifecycleplan.PriorityWorkload), dix.LifecycleParallel(), dix.LifecycleTimeout(lifecycleplan.TimeoutStart)),
 			dix.OnStop2(func(ctx context.Context, logger *slog.Logger, s *Service) error {
 				logger.Info("lifecycle", "phase", "stopping", "component", "scheduler")
 				if err := s.Stop(ctx); err != nil {
@@ -55,7 +56,7 @@ func Module() dix.Module {
 				}
 				logger.Info("lifecycle", "phase", "stopped", "component", "scheduler")
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookScheduler), dix.LifecyclePriority(lifecycleplan.PriorityWorkload), dix.LifecycleParallel(), dix.LifecycleTimeout(lifecycleplan.TimeoutStop)),
 		),
 	)
 }

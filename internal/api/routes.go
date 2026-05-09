@@ -5,6 +5,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/deploy/loader"
+	"github.com/daiyuang/orch/internal/dixdiag"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/services/registry"
@@ -13,11 +14,16 @@ import (
 
 // Register wires all HTTP [httpx.Endpoint] modules in one place. Each module owns its Prefix and handlers;
 // route paths use "" to bind to that prefix root (see per-type EndpointSpec).
-func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.Service, taskSvc *task.Service, loaderSvc *loader.Loader, dnsSvc *dnssvc.Service, raftSvc *raftsvc.Service) {
+func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.Service, taskSvc *task.Service, loaderSvc *loader.Loader, dnsSvc *dnssvc.Service, raftSvc *raftsvc.Service, dixdiagSvcs ...*dixdiag.Service) {
+	var dixdiagSvc *dixdiag.Service
+	if len(dixdiagSvcs) > 0 {
+		dixdiagSvc = dixdiagSvcs[0]
+	}
 	leader := NewLeaderForwarder(cfg, raftSvc)
 	rt.RegisterOnly(
-		NewHealthEndpoint(),
-		NewReadyEndpoint(cfg, raftSvc),
+		NewHealthEndpoint(dixdiagSvc),
+		NewReadyEndpoint(cfg, raftSvc, dixdiagSvc),
+		NewDiagnosticsEndpoint(dixdiagSvc),
 		NewHostinfoEndpoint(),
 		NewAppsEndpoint(taskSvc),
 		NewWorkloadsEndpoint(registrySvc),

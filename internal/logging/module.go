@@ -8,6 +8,7 @@ import (
 	"github.com/arcgolabs/logx"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/lifecycleplan"
 )
 
 func Module() dix.Module {
@@ -16,17 +17,17 @@ func Module() dix.Module {
 		dix.Providers(
 			dix.ProviderErr1(func(cfg config.Config) (*slog.Logger, error) {
 				return New(cfg.Log)
-			}),
+			}, dix.Eager()),
 		),
 		dix.Hooks(
 			dix.OnStart(func(_ context.Context, logger *slog.Logger) error {
 				slog.SetDefault(logger)
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookLogging), dix.LifecyclePriority(lifecycleplan.PriorityLogging), dix.LifecycleTimeout(lifecycleplan.TimeoutShort)),
 			dix.OnStop(func(_ context.Context, logger *slog.Logger) error {
 				logger.Info("lifecycle", "phase", "closing_log_sink", "component", "logging")
 				return logx.Close(logger)
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookLogging), dix.LifecyclePriority(lifecycleplan.PriorityLogging), dix.LifecycleTimeout(lifecycleplan.TimeoutShutdown)),
 		),
 	)
 }

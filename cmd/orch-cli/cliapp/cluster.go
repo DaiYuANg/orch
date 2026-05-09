@@ -29,9 +29,9 @@ func ConnFromGlobals(serverURL, token string) Conn {
 func NewClusterApp(conn Conn) *dix.App {
 	return dix.New(
 		"orch-cli-cluster",
-		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom0(logger),
-		dix.WithModules(
+		dix.Modules(
+			buildmeta.Module(),
+			moduleLogger(),
 			moduleConn(conn),
 			moduleClusterClient(),
 			orch.Module(),
@@ -44,7 +44,7 @@ func moduleConn(c Conn) dix.Module {
 	return dix.NewModule(
 		"cli-conn",
 		dix.Providers(
-			dix.Provider0(func() Conn { return c }),
+			dix.Value(c),
 		),
 	)
 }
@@ -83,11 +83,11 @@ func RunCluster(ctx context.Context, conn Conn, fn func(ctx context.Context, c *
 		}
 	}()
 
-	c, err := dix.ResolveAs[*apiclient.Client](rt.Container())
+	c, err := dix.ResolveAsContext[*apiclient.Client](ctx, rt.Container())
 	if err != nil {
 		return oopsx.B("cli").Wrapf(err, "resolve HTTP client")
 	}
-	deploy, err := dix.ResolveAs[*loader.Loader](rt.Container())
+	deploy, err := dix.ResolveAsContext[*loader.Loader](ctx, rt.Container())
 	if err != nil {
 		return oopsx.B("cli").Wrapf(err, "resolve deploy loader")
 	}

@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/arcgolabs/dix"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/lifecycleplan"
 	"github.com/daiyuang/orch/internal/nodecapacity"
 	"github.com/daiyuang/orch/internal/placement"
 	"github.com/daiyuang/orch/internal/raftsvc"
@@ -26,13 +28,22 @@ func Module() dix.Module {
 			}),
 			dix.Provider5(task.NewBundle),
 			dix.Provider1(registry.NewService),
-			dix.Provider6(task.NewService),
+			dix.Provider6(task.NewService, dix.Eager()),
 		),
 		dix.Hooks(
 			dix.OnStart(func(ctx context.Context, tasks *task.Service) error {
-				tasks.StartDeployReconcile(ctx)
+				tasks.StartDeployReconcile(context.WithoutCancel(ctx))
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookTaskReconcile), dix.LifecyclePriority(lifecycleplan.PriorityWorkload), dix.LifecycleTimeout(lifecycleplan.TimeoutReady)),
+			dix.OnStop2(func(ctx context.Context, logger *slog.Logger, tasks *task.Service) error {
+				logger.Info("lifecycle", "phase", "stopping", "component", "task-reconcile")
+				if err := tasks.StopDeployReconcile(ctx); err != nil {
+					logger.Warn("lifecycle", "phase", "stop_failed", "component", "task-reconcile", "error", err)
+					return err
+				}
+				logger.Info("lifecycle", "phase", "stopped", "component", "task-reconcile")
+				return nil
+			}, dix.LifecycleName(lifecycleplan.HookTaskReconcile), dix.LifecyclePriority(lifecycleplan.PriorityWorkload), dix.LifecycleTimeout(lifecycleplan.TimeoutStop)),
 		),
 	)
 }

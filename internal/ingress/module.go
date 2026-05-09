@@ -7,18 +7,19 @@ import (
 	"github.com/arcgolabs/dix"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/lifecycleplan"
 )
 
 // Module wires ingress: arcgolabs/vale reverse proxy/LB and optional Let's Encrypt autocert on HTTPS listeners.
 // *ingress.Service for lifecycle and DI. Data-plane path routes are compiled from desired deploy apps
 // (ingresses) and workload DNS registrations, not from static config.
 //
-// Register this module after raft and dns so start order remains: raft → dns → ingress → …
+// Lifecycle priorities keep ingress after raft and before workload reconciliation.
 func Module() dix.Module {
 	return dix.NewModule(
 		"ingress",
 		dix.Providers(
-			dix.Provider4(New),
+			dix.Provider4(New, dix.Eager()),
 		),
 		dix.Invokes(
 			dix.Invoke3(func(logger *slog.Logger, cfg config.Config, _ *Service) {
@@ -47,7 +48,7 @@ func Module() dix.Module {
 				}
 				logger.Info("lifecycle", "phase", "started", "component", "ingress")
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookIngress), dix.LifecyclePriority(lifecycleplan.PriorityNetwork), dix.LifecycleParallel(), dix.LifecycleTimeout(lifecycleplan.TimeoutStart)),
 			dix.OnStop2(func(ctx context.Context, logger *slog.Logger, s *Service) error {
 				logger.Info("lifecycle", "phase", "stopping", "component", "ingress")
 				if err := s.Stop(ctx); err != nil {
@@ -56,7 +57,7 @@ func Module() dix.Module {
 				}
 				logger.Info("lifecycle", "phase", "stopped", "component", "ingress")
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookIngress), dix.LifecyclePriority(lifecycleplan.PriorityNetwork), dix.LifecycleParallel(), dix.LifecycleTimeout(lifecycleplan.TimeoutStop)),
 		),
 	)
 }

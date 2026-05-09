@@ -94,6 +94,15 @@ func (c *Client) Hostinfo(ctx context.Context) (*api.HostinfoOutput, error) {
 	return &out, nil
 }
 
+// Diagnostics calls GET /api/v1/diagnostics.
+func (c *Client) Diagnostics(ctx context.Context) (*api.DiagnosticsOutput, error) {
+	var out api.DiagnosticsOutput
+	if err := c.get(ctx, api.PathV1Diagnostics, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListWorkloads calls GET /api/v1/workloads.
 func (c *Client) ListWorkloads(ctx context.Context) (*api.ListWorkloadsOutput, error) {
 	var out api.ListWorkloadsOutput

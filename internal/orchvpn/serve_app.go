@@ -1,8 +1,6 @@
 package orchvpn
 
 import (
-	"log/slog"
-
 	"github.com/arcgolabs/dix"
 
 	"github.com/daiyuang/orch/internal/buildmeta"
@@ -15,9 +13,8 @@ import (
 func NewServeApp(svcCfg ServerConfig, cfg config.Config) *dix.App {
 	return dix.New(
 		"orch-vpn-serve",
-		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom1(func(logger *slog.Logger) *slog.Logger { return logger }),
-		dix.WithModules(
+		dix.Modules(
+			buildmeta.Module(),
 			config.Static(cfg),
 			logging.Module(),
 			serveModule(svcCfg),
@@ -29,7 +26,7 @@ func serveModule(svcCfg ServerConfig) dix.Module {
 	return dix.NewModule(
 		"orch-vpn-serve",
 		dix.Providers(
-			dix.Provider0(func() ServerConfig { return svcCfg }),
+			dix.Value(svcCfg),
 			dix.Provider2(NewServerDaemonService),
 		),
 	)

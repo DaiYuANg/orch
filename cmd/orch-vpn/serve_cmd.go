@@ -38,7 +38,7 @@ func newServeCmd() *cobra.Command {
 				}
 			}()
 
-			svc, err := dix.ResolveAs[*orchvpn.ServerDaemonService](rt.Container())
+			svc, err := dix.ResolveAsContext[*orchvpn.ServerDaemonService](cmd.Context(), rt.Container())
 			if err != nil {
 				return fmt.Errorf("resolve serve daemon: %w", err)
 			}

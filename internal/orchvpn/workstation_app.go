@@ -2,7 +2,6 @@ package orchvpn
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/arcgolabs/dix"
 
@@ -18,9 +17,8 @@ import (
 func NewWorkstationApp(conn WorkstationConn, cfg config.Config) *dix.App {
 	return dix.New(
 		"orch-vpn-workstation",
-		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom1(func(logger *slog.Logger) *slog.Logger { return logger }),
-		dix.WithModules(
+		dix.Modules(
+			buildmeta.Module(),
 			config.Static(cfg),
 			logging.Module(),
 			workstationModule(conn),
@@ -32,7 +30,7 @@ func workstationModule(conn WorkstationConn) dix.Module {
 	return dix.NewModule(
 		"orch-vpn-ws",
 		dix.Providers(
-			dix.Provider0(func() WorkstationConn { return conn }),
+			dix.Value(conn),
 			dix.ProviderErr1(func(c WorkstationConn) (ClientConfig, error) {
 				return c.ClientConfig()
 			}),

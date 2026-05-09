@@ -17,7 +17,7 @@ require (
 	github.com/arcgolabs/collectionx/mapping v0.8.0
 	github.com/arcgolabs/collectionx/set v0.8.0
 	github.com/arcgolabs/configx v0.3.2
-	github.com/arcgolabs/dix v0.8.0
+	github.com/arcgolabs/dix v0.10.0
 	github.com/arcgolabs/dnsx/dnsserver v0.1.3
 	github.com/arcgolabs/httpx v0.1.5
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.5
@@ -200,6 +200,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/panjf2000/ants/v2 v2.12.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

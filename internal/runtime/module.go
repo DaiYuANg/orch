@@ -34,10 +34,10 @@ func Module() dix.Module {
 				windowsServiceProvider *runtimewindowsservice.Provider,
 			) providerList {
 				return providerList{dockerProvider, containerdProvider, firecrackerProvider, processProvider, systemdProvider, windowsServiceProvider}
-			}),
+			}, dix.Eager()),
 			dix.Provider2(func(logger *slog.Logger, providers providerList) *Manager {
 				return NewManager(logger, providers...)
-			}),
+			}, dix.Eager()),
 		),
 	)
 }

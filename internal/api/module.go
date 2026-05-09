@@ -5,6 +5,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/deploy/loader"
+	"github.com/daiyuang/orch/internal/dixdiag"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/httpserver"
 	"github.com/daiyuang/orch/internal/raftsvc"
@@ -45,7 +46,11 @@ func Module() dix.Module {
 				if err != nil {
 					return err
 				}
-				Register(server.Runtime(), cfg, registrySvc, taskSvc, loaderSvc, dnsSvc, raftSvc)
+				dixdiagSvc, err := dix.ResolveAs[*dixdiag.Service](c)
+				if err != nil {
+					return err
+				}
+				Register(server.Runtime(), cfg, registrySvc, taskSvc, loaderSvc, dnsSvc, raftSvc, dixdiagSvc)
 				server.LogRegisteredRoutes()
 				return nil
 			}),

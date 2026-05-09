@@ -6,6 +6,7 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/dixdiag"
 	"github.com/daiyuang/orch/internal/hostinfo"
 	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
 )
@@ -16,8 +17,10 @@ type EmptyInput struct{}
 // HealthOutput is the response body envelope for GET PathHealth.
 type HealthOutput struct {
 	Body struct {
-		Status    string `json:"status"`
-		Timestamp string `json:"timestamp"`
+		Healthy   bool                       `json:"healthy"`
+		Status    string                     `json:"status"`
+		Timestamp string                     `json:"timestamp"`
+		Checks    *list.List[ReadyCheckItem] `json:"checks,omitempty"`
 	} `json:"body"`
 }
 
@@ -41,6 +44,10 @@ type ReadyOutput struct {
 // HostinfoOutput is the response body envelope for GET PathV1Hostinfo.
 type HostinfoOutput struct {
 	Body hostinfo.Report `json:"body"`
+}
+
+type DiagnosticsOutput struct {
+	Body dixdiag.Snapshot `json:"body"`
 }
 
 // WorkloadItem is the public API representation of a runtime registry record.

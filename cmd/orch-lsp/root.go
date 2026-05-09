@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/arcgolabs/dix"
@@ -47,9 +46,8 @@ func (r *lspRunner) preRun(cmd *cobra.Command, _ []string) error {
 
 	r.app = dix.New(
 		"orch-lsp",
-		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom1(func(logger *slog.Logger) *slog.Logger { return logger }),
-		dix.WithModules(
+		dix.Modules(
+			buildmeta.Module(),
 			config.Static(cfg),
 			logging.Module(),
 			orch.Module(),

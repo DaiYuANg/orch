@@ -5,13 +5,15 @@ import (
 	"log/slog"
 
 	"github.com/arcgolabs/dix"
+
+	"github.com/daiyuang/orch/internal/lifecycleplan"
 )
 
 func Module() dix.Module {
 	return dix.NewModule(
 		"raft",
 		dix.Providers(
-			dix.Provider3(New),
+			dix.Provider3(New, dix.Eager()),
 		),
 		dix.Hooks(
 			dix.OnStart2(func(ctx context.Context, logger *slog.Logger, s *Service) error {
@@ -22,7 +24,7 @@ func Module() dix.Module {
 				}
 				logger.Info("lifecycle", "phase", "started", "component", "raft")
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookRaft), dix.LifecyclePriority(lifecycleplan.PriorityRaft), dix.LifecycleTimeout(lifecycleplan.TimeoutStart)),
 			dix.OnStop2(func(ctx context.Context, logger *slog.Logger, s *Service) error {
 				logger.Info("lifecycle", "phase", "stopping", "component", "raft")
 				if err := s.Stop(ctx); err != nil {
@@ -31,7 +33,7 @@ func Module() dix.Module {
 				}
 				logger.Info("lifecycle", "phase", "stopped", "component", "raft")
 				return nil
-			}),
+			}, dix.LifecycleName(lifecycleplan.HookRaft), dix.LifecyclePriority(lifecycleplan.PriorityRaft), dix.LifecycleTimeout(lifecycleplan.TimeoutStop)),
 		),
 	)
 }

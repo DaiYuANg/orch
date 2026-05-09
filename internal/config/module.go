@@ -7,7 +7,7 @@ func Static(cfg Config) dix.Module {
 	return dix.NewModule(
 		"config",
 		dix.Providers(
-			dix.Provider0(func() Config { return cfg }),
+			dix.Value(cfg),
 		),
 	)
 }

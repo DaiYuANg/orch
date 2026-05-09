@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/arcgolabs/dix"
@@ -14,9 +13,11 @@ import (
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/deploy/loader"
 	"github.com/daiyuang/orch/internal/deploy/orch"
+	"github.com/daiyuang/orch/internal/dixdiag"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/httpserver"
 	"github.com/daiyuang/orch/internal/ingress"
+	"github.com/daiyuang/orch/internal/lifecycleplan"
 	"github.com/daiyuang/orch/internal/logging"
 	"github.com/daiyuang/orch/internal/metrics"
 	"github.com/daiyuang/orch/internal/nodeid"
@@ -63,9 +64,10 @@ func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 
 	srv.app = dix.New(
 		"orch-server",
-		dix.WithVersion(buildmeta.Version()),
-		dix.WithLoggerFrom1(func(logger *slog.Logger) *slog.Logger { return logger }),
-		dix.WithModules(
+		dix.LifecycleConcurrency(lifecycleplan.Concurrency),
+		dix.RecentEvents(lifecycleplan.RecentEventCapacity),
+		dix.Modules(
+			buildmeta.Module(),
 			config.Static(cfg),
 			logging.Module(),
 			orch.Module(),
@@ -73,6 +75,7 @@ func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 			nodeid.Module(),
 			observability.Module(),
 			metrics.Module(),
+			dixdiag.Module(),
 			securityauth.Module(),
 			dnssvc.Module(),
 			orchvpn.GatewayModule(),
@@ -95,6 +98,12 @@ func (srv *serverRunner) run(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("start orch-server: %w", err)
 	}
+	if diag, resolveErr := dix.ResolveAsContext[*dixdiag.Service](ctx, rt.Container()); resolveErr != nil {
+		rt.Logger().Warn("dix diagnostics service unavailable", "error", resolveErr)
+	} else {
+		diag.Attach(rt)
+	}
+	logDixRuntimeDiagnostics(rt)
 	rt.Logger().Info("orch-server ready (control plane running; Ctrl+C to stop)")
 
 	<-ctx.Done()
@@ -106,4 +115,34 @@ func (srv *serverRunner) run(cmd *cobra.Command, _ []string) error {
 		rt.Logger().Warn("orch-server graceful stop error", "error", err)
 	}
 	return nil
+}
+
+func logDixRuntimeDiagnostics(rt *dix.Runtime) {
+	if rt == nil || rt.Logger() == nil {
+		return
+	}
+
+	summary := rt.LifecycleSummary()
+	events := rt.RecentEvents()
+	var buildDuration time.Duration
+	var startDuration time.Duration
+	events.Range(func(_ int, record dix.EventRecord) bool {
+		switch event := record.Event.(type) {
+		case dix.BuildEvent:
+			buildDuration = event.Duration
+		case dix.StartEvent:
+			startDuration = event.Duration
+		}
+		return true
+	})
+
+	rt.Logger().Info("dix runtime diagnostics",
+		"lifecycle_start_hooks", summary.StartHooks,
+		"lifecycle_stop_hooks", summary.StopHooks,
+		"lifecycle_concurrency", summary.Concurrency,
+		"recent_event_capacity", lifecycleplan.RecentEventCapacity,
+		"recent_events", events.Len(),
+		"build_duration", buildDuration,
+		"start_duration", startDuration,
+	)
 }

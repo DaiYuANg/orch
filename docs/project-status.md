@@ -19,6 +19,10 @@ Implemented:
   migrate/failover/rebalance operations.
 - Control-plane readiness API and CLI gate (`/api/ready`, `orch ready --wait`)
   backed by Raft leader discovery and write-routing checks.
+- dix lifecycle diagnostics are enabled for the server: recent framework events
+  are retained in memory, startup logs include build/start durations, and
+  build/start/stop/provider/resolve/lifecycle-hook durations are exported
+  through the existing observability backend.
 - Runtime-local workload inspection API/CLI for supported providers
   (`describe workload`, `logs`), with Docker/process/Firecracker status/logs and
   fallback status for providers that have not implemented runtime-local status.

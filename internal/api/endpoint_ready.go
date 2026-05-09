@@ -8,6 +8,7 @@ import (
 	"github.com/arcgolabs/httpx"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/dixdiag"
 	"github.com/daiyuang/orch/internal/raftsvc"
 )
 
@@ -15,10 +16,11 @@ import (
 type ReadyEndpoint struct {
 	cfg  config.Config
 	raft *raftsvc.Service
+	diag *dixdiag.Service
 }
 
-func NewReadyEndpoint(cfg config.Config, raft *raftsvc.Service) *ReadyEndpoint {
-	return &ReadyEndpoint{cfg: cfg, raft: raft}
+func NewReadyEndpoint(cfg config.Config, raft *raftsvc.Service, diag *dixdiag.Service) *ReadyEndpoint {
+	return &ReadyEndpoint{cfg: cfg, raft: raft, diag: diag}
 }
 
 func (e *ReadyEndpoint) EndpointSpec() httpx.EndpointSpec {
@@ -68,7 +70,14 @@ func (e *ReadyEndpoint) handle(ctx context.Context, _ *EmptyInput) (*ReadyOutput
 		}
 	}
 
-	ready := raftReady && writeReady
+	dixReady := true
+	if e != nil && e.diag != nil {
+		report := e.diag.CheckReadiness(ctx)
+		dixReady = report.Healthy()
+		addDixHealthItems(checks, "dix/", report)
+	}
+
+	ready := raftReady && writeReady && dixReady
 	out := &ReadyOutput{}
 	out.Body.Ready = ready
 	out.Body.Status = readyStatus(ready)

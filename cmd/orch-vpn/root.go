@@ -50,7 +50,7 @@ func newRootCmd() *cobra.Command {
 			}
 		}()
 
-		d, err := dix.ResolveAs[*orchvpn.WorkstationDaemon](rt.Container())
+		d, err := dix.ResolveAsContext[*orchvpn.WorkstationDaemon](cmd.Context(), rt.Container())
 		if err != nil {
 			return fmt.Errorf("resolve workstation daemon: %w", err)
 		}

@@ -86,3 +86,4 @@ data
 .orch-dns-smoke/
 .orch-worker-dispatch-smoke/
 .orch-raft-smoke/
+.orch-resource-bench/

@@ -73,6 +73,13 @@ tasks:
     vars:
       CLI_ARGS: '{{default "" .CLI_ARGS}}'
 
+  bench:resources:
+    desc: "Measure orch-server resource usage for idle, cluster, and scheduling scenarios"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/bench-orch-resources.ps1 {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
   dsl-parse:
     desc: "Parse deploy YAML into canonical model"
     requires:

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
@@ -255,16 +257,15 @@ func waitReady(ctx context.Context, c *apiclient.Client, timeout time.Duration, 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	spinner := startStatusSpinner(progress, "waiting for control plane readiness")
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
 
 	var last *api.ReadyOutput
 	var lastErr error
-	for {
+	out, err := backoff.Retry(waitCtx, func() (*api.ReadyOutput, error) {
 		out, err := c.Ready(waitCtx)
 		if err != nil {
 			lastErr = err
 			updateStatusSpinner(spinner, "waiting for control plane readiness last_error="+err.Error())
+			return nil, err
 		} else {
 			last = out
 			updateStatusSpinner(spinner, "waiting for control plane readiness status="+out.Body.Status)
@@ -273,17 +274,16 @@ func waitReady(ctx context.Context, c *apiclient.Client, timeout time.Duration, 
 				return out, nil
 			}
 		}
-
-		select {
-		case <-waitCtx.Done():
-			failWatchSpinner(spinner, "control plane readiness timed out")
-			if lastErr != nil {
-				return last, oopsx.B("cli").Wrapf(lastErr, "wait ready timed out after %s", timeout)
-			}
-			return last, oopsx.B("cli").Errorf("wait ready timed out after %s", timeout)
-		case <-ticker.C:
-		}
+		return nil, errWaitPending
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)))
+	if err == nil {
+		return out, nil
 	}
+	failWatchSpinner(spinner, "control plane readiness timed out")
+	if lastErr != nil && !errors.Is(err, errWaitPending) {
+		return last, oopsx.B("cli").Wrapf(lastErr, "wait ready timed out after %s", timeout)
+	}
+	return last, oopsx.B("cli").Errorf("wait ready timed out after %s", timeout)
 }
 
 func waitAppStatus(ctx context.Context, c *apiclient.Client, namespace, name, target string, timeout time.Duration, progress bool) (*api.GetAppOutput, error) {
@@ -297,16 +297,16 @@ func waitAppStatus(ctx context.Context, c *apiclient.Client, namespace, name, ta
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	spinner := startStatusSpinner(progress, "waiting for app "+name+" status="+target)
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
 
 	var last *api.GetAppOutput
 	var lastErr error
-	for {
+	var permanentErr error
+	out, err := backoff.Retry(waitCtx, func() (*api.GetAppOutput, error) {
 		out, err := c.GetApp(waitCtx, namespace, name)
 		if err != nil {
 			lastErr = err
 			updateStatusSpinner(spinner, "waiting for app "+name+" last_error="+err.Error())
+			return nil, err
 		} else {
 			last = out
 			status := strings.ToLower(strings.TrimSpace(out.Body.Status))
@@ -317,20 +317,23 @@ func waitAppStatus(ctx context.Context, c *apiclient.Client, namespace, name, ta
 			}
 			if status == "failed" && target != "failed" {
 				failWatchSpinner(spinner, "app "+name+" failed")
-				return out, oopsx.B("cli").Errorf("app %s reached failed status: %s", name, nonEmpty(out.Body.LastError))
+				permanentErr = oopsx.B("cli").Errorf("app %s reached failed status: %s", name, nonEmpty(out.Body.LastError))
+				return nil, backoff.Permanent(permanentErr)
 			}
 		}
-
-		select {
-		case <-waitCtx.Done():
-			failWatchSpinner(spinner, "wait app timed out")
-			if lastErr != nil {
-				return last, oopsx.B("cli").Wrapf(lastErr, "wait app timed out after %s", timeout)
-			}
-			return last, oopsx.B("cli").Errorf("wait app timed out after %s", timeout)
-		case <-ticker.C:
-		}
+		return nil, errWaitPending
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)))
+	if err == nil {
+		return out, nil
 	}
+	if permanentErr != nil {
+		return last, permanentErr
+	}
+	failWatchSpinner(spinner, "wait app timed out")
+	if lastErr != nil && !errors.Is(err, errWaitPending) {
+		return last, oopsx.B("cli").Wrapf(lastErr, "wait app timed out after %s", timeout)
+	}
+	return last, oopsx.B("cli").Errorf("wait app timed out after %s", timeout)
 }
 
 func startStatusSpinner(progress bool, text string) *pterm.SpinnerPrinter {

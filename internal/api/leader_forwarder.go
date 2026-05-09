@@ -1,13 +1,13 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	clientcodec "github.com/arcgolabs/clientx/codec"
+	clientxhttp "github.com/arcgolabs/clientx/http"
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/raftsvc"
@@ -21,18 +21,14 @@ type raftStatusProvider interface {
 // LeaderForwarder forwards write requests received by a Raft follower to the
 // current leader's HTTP API when cluster.nodes contains the leader node ID.
 type LeaderForwarder struct {
-	cfg    config.Config
-	raft   raftStatusProvider
-	client *http.Client
+	cfg  config.Config
+	raft raftStatusProvider
 }
 
 func NewLeaderForwarder(cfg config.Config, raft raftStatusProvider) *LeaderForwarder {
 	return &LeaderForwarder{
 		cfg:  cfg,
 		raft: raft,
-		client: &http.Client{
-			Timeout: 60 * time.Second,
-		},
 	}
 }
 
@@ -72,45 +68,38 @@ func (f *LeaderForwarder) forwardJSON(ctx context.Context, method, path string, 
 		return ok, err
 	}
 
-	var reader io.Reader
+	var opts []clientxhttp.Option
+	if tok := strings.TrimSpace(f.cfg.Cluster.WorkerToken); tok != "" {
+		opts = append(opts, clientxhttp.WithHeader("Authorization", "Bearer "+tok))
+	}
+	client, err := clientxhttp.New(clientxhttp.Config{
+		BaseURL: strings.TrimRight(baseURL, "/"),
+		Timeout: 60 * time.Second,
+	}, opts...)
+	if err != nil {
+		return true, oopsx.B("api", "raft").Wrapf(err, "create leader HTTP client")
+	}
+	defer func() { _ = client.Close() }()
+
+	req := client.R()
 	if body != nil {
-		raw, err := json.Marshal(body)
+		raw, err := clientcodec.JSON.Marshal(body)
 		if err != nil {
 			return true, oopsx.B("api", "raft").Wrapf(err, "encode forwarded request")
 		}
-		reader = bytes.NewReader(raw)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(baseURL, "/")+path, reader)
-	if err != nil {
-		return true, oopsx.B("api", "raft").Wrapf(err, "build forwarded request")
-	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if tok := strings.TrimSpace(f.cfg.Cluster.WorkerToken); tok != "" {
-		req.Header.Set("Authorization", "Bearer "+tok)
+		req.SetHeader("Content-Type", "application/json").SetBody(raw)
 	}
 
-	client := f.client
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
+	resp, err := client.Execute(ctx, req, method, path)
 	if err != nil {
 		return true, oopsx.B("api", "raft").Wrapf(err, "forward request to raft leader")
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return true, oopsx.B("api", "raft").Wrapf(err, "read forwarded response")
+	if !resp.IsSuccess() {
+		msg := strings.TrimSpace(string(resp.Bytes()))
+		return true, oopsx.B("api", "raft").Errorf("forwarded request failed: %s: %s", resp.Status(), msg)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		msg := strings.TrimSpace(string(respBody))
-		return true, oopsx.B("api", "raft").Errorf("forwarded request failed: %s: %s", resp.Status, msg)
-	}
-	if out != nil && len(respBody) > 0 {
-		if err := json.Unmarshal(respBody, out); err != nil {
+	if out != nil && len(resp.Bytes()) > 0 {
+		if err := clientcodec.JSON.Unmarshal(resp.Bytes(), out); err != nil {
 			return true, oopsx.B("api", "raft").Wrapf(err, "decode forwarded response")
 		}
 	}

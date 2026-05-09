@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
@@ -759,44 +761,47 @@ func watchDeployment(ctx context.Context, c *apiclient.Client, app *deployv1.App
 	defer cancel()
 
 	spinner := startWatchSpinner(progress, expectedKeys.Len())
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
 
 	var last *deploySnapshot
 	var lastErr error
-	for {
+	var permanentErr error
+	snapshot, err := backoff.Retry(waitCtx, func() (*deploySnapshot, error) {
 		snapshot, err := readDeploySnapshot(waitCtx, c, expectedKeys, expectedNames)
 		if err != nil {
 			lastErr = err
 			updateWatchSpinner(spinner, last, expectedKeys.Len(), err)
+			return nil, err
 		} else {
 			last = snapshot
 			updateWatchSpinner(spinner, snapshot, expectedKeys.Len(), nil)
 			switch {
 			case snapshot.FailedAssignment != nil:
 				failWatchSpinner(spinner, fmt.Sprintf("workload failed key=%s", snapshot.FailedAssignment.Key))
-				return snapshot, oopsx.B("cli").Errorf("workload %s failed on node %s: %s",
+				permanentErr = oopsx.B("cli").Errorf("workload %s failed on node %s: %s",
 					snapshot.FailedAssignment.Key,
 					nonEmpty(snapshot.FailedAssignment.Node),
 					nonEmpty(snapshot.FailedAssignment.Error),
 				)
+				return nil, backoff.Permanent(permanentErr)
 			case snapshot.RunningAssignments == snapshot.Total && snapshot.RunningWorkloads == snapshot.Total:
 				successWatchSpinner(spinner, fmt.Sprintf("workloads running assignments=%d/%d runtime=%d/%d",
 					snapshot.RunningAssignments, snapshot.Total, snapshot.RunningWorkloads, snapshot.Total))
 				return snapshot, nil
 			}
 		}
-
-		select {
-		case <-waitCtx.Done():
-			failWatchSpinner(spinner, watchStatusText(last, expectedKeys.Len(), "timed out"))
-			if lastErr != nil {
-				return last, oopsx.B("cli").Wrapf(lastErr, "wait for deploy status timed out after %s", timeout)
-			}
-			return last, oopsx.B("cli").Errorf("wait for deploy status timed out after %s: %s", timeout, watchStatusText(last, expectedKeys.Len(), ""))
-		case <-ticker.C:
-		}
+		return nil, errWaitPending
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)))
+	if err == nil {
+		return snapshot, nil
 	}
+	if permanentErr != nil {
+		return last, permanentErr
+	}
+	failWatchSpinner(spinner, watchStatusText(last, expectedKeys.Len(), "timed out"))
+	if lastErr != nil && !errors.Is(err, errWaitPending) {
+		return last, oopsx.B("cli").Wrapf(lastErr, "wait for deploy status timed out after %s", timeout)
+	}
+	return last, oopsx.B("cli").Errorf("wait for deploy status timed out after %s: %s", timeout, watchStatusText(last, expectedKeys.Len(), ""))
 }
 
 func expectedDeployWorkloads(app *deployv1.App) (*set.Set[string], *set.Set[string]) {

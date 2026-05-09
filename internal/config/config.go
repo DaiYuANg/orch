@@ -41,9 +41,8 @@ type HTTPConfig struct {
 // ObservabilityConfig matches koanf paths like observability.prometheus.enabled (env ORCH_OBSERVABILITY_PROMETHEUS_ENABLED).
 type ObservabilityConfig struct {
 	Prometheus struct {
-		Enabled         bool   `json:"enabled"`
-		Path            string `json:"path"`
-		NativeHistogram bool   `json:"native_histogram"` // classic + Prometheus native histogram on request duration (scrapers need native support)
+		Enabled bool   `json:"enabled"`
+		Path    string `json:"path"`
 	} `json:"prometheus"`
 	// OTLP exports traces and metrics via OpenTelemetry (grpc default :4317, http default http://localhost:4318).
 	OTLP struct {
@@ -465,7 +464,6 @@ func Default() Config {
 	var obs ObservabilityConfig
 	obs.Prometheus.Enabled = true
 	obs.Prometheus.Path = "/metrics"
-	obs.Prometheus.NativeHistogram = true
 
 	var auth AuthConfig
 	auth.Enabled = false

@@ -114,13 +114,6 @@ func overlayChangedFlags(cfg *Config, fs *pflag.FlagSet) error {
 		}
 		cfg.Observability.Prometheus.Path = v
 	}
-	if flagChanged(fs, "observability-prometheus-native-histogram") {
-		v, err := fs.GetBool("observability-prometheus-native-histogram")
-		if err != nil {
-			return fmt.Errorf("cobra observability-prometheus-native-histogram flag: %w", err)
-		}
-		cfg.Observability.Prometheus.NativeHistogram = v
-	}
 	if flagChanged(fs, "observability-otlp-enabled") {
 		v, err := fs.GetBool("observability-otlp-enabled")
 		if err != nil {
@@ -407,35 +400,34 @@ func flagChanged(fs *pflag.FlagSet, name string) bool {
 func orchFlagToPath(name string) string {
 	name = strings.TrimSpace(name)
 	explicit := map[string]string{
-		"scheduler-heartbeat-interval":              "scheduler.heartbeat_interval",
-		"scheduler-resource-refresh-interval":       "scheduler.resource_refresh_interval",
-		"scheduler-raft-leader-only":                "scheduler.raft_leader_only",
-		"scheduler-max-concurrent-jobs":             "scheduler.max_concurrent_jobs",
-		"scheduler-concurrent-jobs-mode":            "scheduler.concurrent_jobs_mode",
-		"cluster-nodes":                             "cluster.nodes",
-		"cluster-worker-token":                      "cluster.worker_token",
-		"ingress-listen":                            "ingress.listen",
-		"observability-prometheus-enabled":          "observability.prometheus.enabled",
-		"observability-prometheus-path":             "observability.prometheus.path",
-		"observability-prometheus-native-histogram": "observability.prometheus.native_histogram",
-		"observability-otlp-enabled":                "observability.otlp.enabled",
-		"observability-otlp-protocol":               "observability.otlp.protocol",
-		"observability-otlp-endpoint":               "observability.otlp.endpoint",
-		"observability-otlp-insecure":               "observability.otlp.insecure",
-		"observability-otlp-service-name":           "observability.otlp.service_name",
-		"dns-data-path":                             "dns.data.path",
-		"dns-workload-nameserver":                   "dns.workload.nameserver",
-		"dns-workload-search":                       "dns.workload.search",
-		"dns-workload-upstream":                     "dns.workload.upstream",
-		"dns-workload-advertise-address":            "dns.workload.advertise_address",
-		"orch-vpn-enabled":                          "orch_vpn.enabled",
-		"orch-vpn-tunnel-listen-udp":                "orch_vpn.tunnel_listen_udp",
-		"auth-jwt-secret":                           "auth.jwt.secret",
-		"raft-node-id":                              "raft.node.id",
-		"raft-advertise":                            "raft.advertise",
-		"raft-peers":                                "raft.peers",
-		"raft-bootstrap":                            "raft.bootstrap",
-		"raft-data-dir":                             "raft.data.dir",
+		"scheduler-heartbeat-interval":        "scheduler.heartbeat_interval",
+		"scheduler-resource-refresh-interval": "scheduler.resource_refresh_interval",
+		"scheduler-raft-leader-only":          "scheduler.raft_leader_only",
+		"scheduler-max-concurrent-jobs":       "scheduler.max_concurrent_jobs",
+		"scheduler-concurrent-jobs-mode":      "scheduler.concurrent_jobs_mode",
+		"cluster-nodes":                       "cluster.nodes",
+		"cluster-worker-token":                "cluster.worker_token",
+		"ingress-listen":                      "ingress.listen",
+		"observability-prometheus-enabled":    "observability.prometheus.enabled",
+		"observability-prometheus-path":       "observability.prometheus.path",
+		"observability-otlp-enabled":          "observability.otlp.enabled",
+		"observability-otlp-protocol":         "observability.otlp.protocol",
+		"observability-otlp-endpoint":         "observability.otlp.endpoint",
+		"observability-otlp-insecure":         "observability.otlp.insecure",
+		"observability-otlp-service-name":     "observability.otlp.service_name",
+		"dns-data-path":                       "dns.data.path",
+		"dns-workload-nameserver":             "dns.workload.nameserver",
+		"dns-workload-search":                 "dns.workload.search",
+		"dns-workload-upstream":               "dns.workload.upstream",
+		"dns-workload-advertise-address":      "dns.workload.advertise_address",
+		"orch-vpn-enabled":                    "orch_vpn.enabled",
+		"orch-vpn-tunnel-listen-udp":          "orch_vpn.tunnel_listen_udp",
+		"auth-jwt-secret":                     "auth.jwt.secret",
+		"raft-node-id":                        "raft.node.id",
+		"raft-advertise":                      "raft.advertise",
+		"raft-peers":                          "raft.peers",
+		"raft-bootstrap":                      "raft.bootstrap",
+		"raft-data-dir":                       "raft.data.dir",
 	}
 	if p, ok := explicit[name]; ok {
 		return p

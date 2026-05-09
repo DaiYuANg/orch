@@ -4,6 +4,7 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
+	"github.com/cenkalti/backoff/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -29,6 +31,8 @@ const (
 	criSandboxIPDelay    = 50 * time.Millisecond
 	criStopTimeout       = int64(10)
 )
+
+var errSandboxIPPending = errors.New("sandbox ip pending")
 
 func containerdSocket() string {
 	if v := strings.TrimSpace(os.Getenv("CONTAINERD_ADDRESS")); v != "" {
@@ -218,22 +222,23 @@ func ensureNoExistingWorkload(ctx context.Context, runtime runtimeapi.RuntimeSer
 }
 
 func waitSandboxIP(ctx context.Context, runtime runtimeapi.RuntimeServiceClient, sandboxID string) (string, error) {
-	var lastErr error
-	for i := 0; i < criSandboxIPAttempts; i++ {
+	ip, err := backoff.Retry(ctx, func() (string, error) {
 		status, err := runtime.PodSandboxStatus(ctx, &runtimeapi.PodSandboxStatusRequest{PodSandboxId: sandboxID})
-		if err == nil {
-			if ip := strings.TrimSpace(status.GetStatus().GetNetwork().GetIp()); ip != "" {
-				return ip, nil
-			}
-		} else {
-			lastErr = err
+		if err != nil {
+			return "", err
 		}
-		time.Sleep(criSandboxIPDelay)
+		if ip := strings.TrimSpace(status.GetStatus().GetNetwork().GetIp()); ip != "" {
+			return ip, nil
+		}
+		return "", errSandboxIPPending
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(criSandboxIPDelay)), backoff.WithMaxTries(criSandboxIPAttempts))
+	if err == nil {
+		return ip, nil
 	}
-	if lastErr != nil {
-		return "", oopsx.B("runtime", "containerd").Wrapf(lastErr, "containerd CRI sandbox status")
+	if errors.Is(err, errSandboxIPPending) {
+		return "", oopsx.B("runtime", "containerd").Errorf("timeout waiting for sandbox ip")
 	}
-	return "", oopsx.B("runtime", "containerd").Errorf("timeout waiting for sandbox ip")
+	return "", oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI sandbox status")
 }
 
 func cleanupCRIWorkload(ctx context.Context, runtime runtimeapi.RuntimeServiceClient, containerID, sandboxID string) {

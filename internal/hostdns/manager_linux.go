@@ -6,9 +6,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/coreos/go-systemd/v22/dbus"
 )
 
 const linuxResolvedDropInPath = "/etc/systemd/resolved.conf.d/orch.conf"
@@ -26,16 +27,13 @@ func (m *linuxManager) Install(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	if _, err := exec.LookPath("systemctl"); err != nil {
-		return fmt.Errorf("systemctl is required for systemd-resolved host DNS install: %w", err)
-	}
 	if err := os.MkdirAll(filepath.Dir(m.path), 0o755); err != nil {
 		return fmt.Errorf("create resolved drop-in dir: %w", err)
 	}
 	if err := os.WriteFile(m.path, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", m.path, err)
 	}
-	if err := runCommand(ctx, "systemctl", "restart", "systemd-resolved"); err != nil {
+	if err := restartSystemdResolved(ctx); err != nil {
 		return fmt.Errorf("restart systemd-resolved: %w", err)
 	}
 	return nil
@@ -45,10 +43,8 @@ func (m *linuxManager) Uninstall(ctx context.Context, _ Config) error {
 	if err := os.Remove(m.path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove %s: %w", m.path, err)
 	}
-	if _, err := exec.LookPath("systemctl"); err == nil {
-		if err := runCommand(ctx, "systemctl", "restart", "systemd-resolved"); err != nil {
-			return fmt.Errorf("restart systemd-resolved: %w", err)
-		}
+	if err := restartSystemdResolved(ctx); err != nil {
+		return fmt.Errorf("restart systemd-resolved: %w", err)
 	}
 	return nil
 }
@@ -86,11 +82,24 @@ func linuxResolvedDropIn(cfg Config) (string, error) {
 	})
 }
 
-func runCommand(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
+func restartSystemdResolved(ctx context.Context) error {
+	conn, err := dbus.NewSystemConnectionContext(ctx)
 	if err != nil {
-		return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("connect systemd dbus: %w", err)
+	}
+	defer conn.Close()
+
+	ch := make(chan string, 1)
+	if _, err := conn.RestartUnitContext(ctx, "systemd-resolved.service", "replace", ch); err != nil {
+		return fmt.Errorf("restart unit: %w", err)
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case result := <-ch:
+		if strings.TrimSpace(result) != "done" {
+			return fmt.Errorf("restart unit: %s", result)
+		}
 	}
 	return nil
 }

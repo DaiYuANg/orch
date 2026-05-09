@@ -13,7 +13,6 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 
 	fs.Bool("observability-prometheus-enabled", def.Observability.Prometheus.Enabled, "config path observability.prometheus.enabled")
 	fs.String("observability-prometheus-path", def.Observability.Prometheus.Path, "config path observability.prometheus.path")
-	fs.Bool("observability-prometheus-native-histogram", def.Observability.Prometheus.NativeHistogram, "config path observability.prometheus.native_histogram")
 
 	fs.Bool("observability-otlp-enabled", def.Observability.OTLP.Enabled, "config path observability.otlp.enabled")
 	fs.String("observability-otlp-protocol", def.Observability.OTLP.Protocol, "config path observability.otlp.protocol (grpc or http)")

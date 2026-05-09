@@ -51,7 +51,6 @@ func TestLeaderForwarderForwardsPostToConfiguredLeader(t *testing.T) {
 			IsLeader: false,
 			LeaderID: "node-a",
 		}},
-		client: leader.Client(),
 	}
 
 	var out struct {

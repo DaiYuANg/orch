@@ -164,6 +164,8 @@ func newDescribeCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	cmd.AddCommand(newDescribeAppCmd())
+	cmd.AddCommand(newDescribeNodeCmd())
+	cmd.AddCommand(newDescribeWorkloadCmd())
 	return cmd
 }
 

@@ -4,6 +4,7 @@ package api
 const (
 	BasePath = "/api"
 
+	PathReady              = BasePath + "/ready"
 	PathHealth             = BasePath + "/health"
 	PathV1Hostinfo         = BasePath + "/v1/hostinfo"
 	PathV1Apps             = BasePath + "/v1/apps"

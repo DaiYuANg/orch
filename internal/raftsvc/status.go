@@ -16,6 +16,7 @@ type Status struct {
 	LeaderID      string
 	LeaderAddress string
 	LocalAddress  string
+	Message       string
 	Members       *list.List[Member]
 }
 
@@ -33,15 +34,16 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	}
 	if s.nh == nil {
 		status.State = "not_ready"
+		status.Message = "dragonboat nodehost is not started"
 		return status, nil
 	}
 
 	localAddress := s.localAddress
 	leaderReplicaID, _, leaderReady, err := s.nh.GetLeaderID(controlShardID)
 	if err != nil {
-		status.Ready = true
 		status.State = "unknown"
 		status.LocalAddress = localAddress
+		status.Message = err.Error()
 		return status, nil
 	}
 	isLeader := leaderReady && leaderReplicaID == s.localReplicaID
@@ -68,11 +70,13 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		leaderAddress = localAddress
 	}
 
-	status.Ready = true
+	status.Ready = leaderReady
 	status.State = state
 	status.IsLeader = isLeader
 	if leaderReady {
 		status.LeaderID = s.nodeIDForMember(leaderReplicaID, leaderAddress)
+	} else {
+		status.Message = "raft leader is not ready"
 	}
 	status.LeaderAddress = leaderAddress
 	status.LocalAddress = localAddress

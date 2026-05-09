@@ -390,7 +390,7 @@ func (s *Service) applyCommand(data []byte, timeout time.Duration, notLeaderMess
 		return nil
 	}
 	if !s.isLocalLeader() {
-		return oopsx.B("raft").Errorf("%s", notLeaderMessage)
+		return s.notLeaderError(notLeaderMessage)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -399,6 +399,24 @@ func (s *Service) applyCommand(data []byte, timeout time.Duration, notLeaderMess
 		return oopsx.B("raft").Wrapf(err, "dragonboat propose")
 	}
 	return nil
+}
+
+func (s *Service) notLeaderError(message string) error {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		message = "raft local node is not leader"
+	}
+	if s == nil || s.nh == nil {
+		return oopsx.B("raft").Errorf("%s: raft is not ready", message)
+	}
+	leaderID, _, ready, err := s.nh.GetLeaderID(controlShardID)
+	if err != nil {
+		return oopsx.B("raft").Wrapf(err, "%s: read raft leader", message)
+	}
+	if !ready || leaderID == 0 {
+		return oopsx.B("raft").Errorf("%s: raft leader is not ready", message)
+	}
+	return oopsx.B("raft").Errorf("%s: local node is follower, leader=%s", message, s.nodeIDForMember(leaderID, ""))
 }
 
 func withDefaultDeadline(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

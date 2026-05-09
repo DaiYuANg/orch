@@ -43,6 +43,12 @@ high port:
 go run ./cmd/orch-server --ingress-listen :18080
 ```
 
+Wait until the control plane has elected a Raft leader and can accept writes:
+
+```bash
+go run ./cmd/orch-cli ready --wait --timeout 30s
+```
+
 To let Docker workloads resolve orch service names through the internal DNS,
 run the DNS listener on port 53 at an address reachable from the Docker network
 and pass that same IP as the workload nameserver. For the default Linux bridge,
@@ -67,8 +73,12 @@ Deploy and wait:
 
 ```bash
 go run ./cmd/orch-cli apply --file examples/fullstack-docker.orch --watch
+go run ./cmd/orch-cli wait app fullstack -n demo --for running --timeout 2m
 go run ./cmd/orch-cli get workloads
 go run ./cmd/orch-cli get assignments
+go run ./cmd/orch-cli describe workload backend --app fullstack -n demo
+go run ./cmd/orch-cli logs backend --app fullstack -n demo --tail 100
+go run ./cmd/orch-cli events
 ```
 
 Replace these placeholder images before running a real deploy:
@@ -78,7 +88,7 @@ ghcr.io/acme/fullstack-backend:latest
 ghcr.io/acme/fullstack-frontend:latest
 ```
 
-## DSL Shape
+## Compact DSL Shape
 
 The example uses the short authoring form. App-level Docker defaults are
 inherited by shorthand workloads, `service` and `stateful` imply workload kind,
@@ -151,6 +161,16 @@ ingress public {
 
 Use `endpoint = "name"` inside `path` when the workload has multiple HTTP
 endpoints or when routing to a non-default endpoint name.
+
+The intended rule for new `.orch` files is to keep the authoring surface
+application-first:
+
+- Put cross-workload topology at the workload level with `depends_on`.
+- Put runtime-wide defaults once at the app level, for example `docker.network`.
+- Use compact helpers like `http(8080)`, `tcp(5432)`, `resources = "500m/512Mi"`,
+  and map-style `env = { ... }`.
+- Drop to the verbose canonical `workload { run { ... } }` form only when a
+  runtime-specific option has no compact helper yet.
 
 ## Current Docker Provider Boundaries
 

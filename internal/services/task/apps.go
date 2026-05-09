@@ -49,6 +49,29 @@ type AppWorkloadView struct {
 	UpdatedAt  time.Time
 }
 
+func (s *Service) DesiredWorkload(meta deployv1.Metadata, workloadName string) (deployv1.Workload, bool) {
+	if s == nil || s.raft == nil {
+		return deployv1.Workload{}, false
+	}
+	app, ok := s.raft.GetDesiredDeployApp(meta)
+	if !ok {
+		return deployv1.Workload{}, false
+	}
+	name := strings.TrimSpace(workloadName)
+	workloads := appWorkloadsForView(app)
+	var out deployv1.Workload
+	found := false
+	workloads.Range(func(_ int, workload deployv1.Workload) bool {
+		if strings.TrimSpace(workload.Name) != name {
+			return true
+		}
+		out = workload
+		found = true
+		return false
+	})
+	return out, found
+}
+
 func (s *Service) ListApps() *list.List[AppView] {
 	if s == nil || s.raft == nil {
 		return list.NewList[AppView]()

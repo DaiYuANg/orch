@@ -17,9 +17,11 @@ func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.S
 	leader := NewLeaderForwarder(cfg, raftSvc)
 	rt.RegisterOnly(
 		NewHealthEndpoint(),
+		NewReadyEndpoint(cfg, raftSvc),
 		NewHostinfoEndpoint(),
 		NewAppsEndpoint(taskSvc),
 		NewWorkloadsEndpoint(registrySvc),
+		NewWorkloadRuntimeEndpoint(taskSvc),
 		NewAssignmentsEndpoint(taskSvc),
 		NewOrchVPNBootstrapEndpoint(cfg, dnsSvc),
 		NewRaftStatusEndpoint(cfg, raftSvc, cfg.Auth.Enabled),

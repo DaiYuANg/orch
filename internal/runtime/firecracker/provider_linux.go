@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -128,6 +131,28 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	}
 	p.logger.Info("firecracker workload stopped", "workload", workloadName, "pid", st.PID)
 	return nil
+}
+
+func (p *Provider) Status(_ context.Context, meta deployv1.Metadata, workloadName string) (runtimeinfo.Status, error) {
+	st, err := p.readState(meta, workloadName)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return runtimeinfo.Status{Name: strings.TrimSpace(workloadName), Runtime: deployv1.RuntimeFirecracker, Status: "stopped"}, nil
+		}
+		return runtimeinfo.Status{}, err
+	}
+	status := "stopped"
+	if st.PID > 0 && processAlive(st.PID) {
+		status = "running"
+	}
+	return runtimeinfo.Status{
+		Name:      strings.TrimSpace(workloadName),
+		Runtime:   deployv1.RuntimeFirecracker,
+		Status:    status,
+		NativeID:  strconv.Itoa(st.PID),
+		StartedAt: st.StartedAt,
+		UpdatedAt: time.Now().UTC(),
+	}, nil
 }
 
 func (p *Provider) ensureNoLiveState(meta deployv1.Metadata, workloadName string) error {

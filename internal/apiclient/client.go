@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,6 +76,15 @@ func (c *Client) Health(ctx context.Context) (*api.HealthOutput, error) {
 	return &out, nil
 }
 
+// Ready calls GET /api/ready.
+func (c *Client) Ready(ctx context.Context) (*api.ReadyOutput, error) {
+	var out api.ReadyOutput
+	if err := c.get(ctx, api.PathReady, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Hostinfo calls GET /api/v1/hostinfo.
 func (c *Client) Hostinfo(ctx context.Context) (*api.HostinfoOutput, error) {
 	var out api.HostinfoOutput
@@ -121,6 +131,35 @@ func (c *Client) GetApp(ctx context.Context, namespace, name string) (*api.GetAp
 	}
 	path := api.PathV1Apps + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name)
 	var out api.GetAppOutput
+	if err := c.get(ctx, path, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) WorkloadRuntimeStatus(ctx context.Context, namespace, app, workload string) (*api.WorkloadRuntimeStatusOutput, error) {
+	namespace, app, workload, err := normalizeWorkloadPath(namespace, app, workload)
+	if err != nil {
+		return nil, err
+	}
+	path := api.PathV1Workloads + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(app) + "/" + url.PathEscape(workload) + "/status"
+	var out api.WorkloadRuntimeStatusOutput
+	if err := c.get(ctx, path, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) WorkloadLogs(ctx context.Context, namespace, app, workload string, tail int) (*api.WorkloadLogsOutput, error) {
+	namespace, app, workload, err := normalizeWorkloadPath(namespace, app, workload)
+	if err != nil {
+		return nil, err
+	}
+	path := api.PathV1Workloads + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(app) + "/" + url.PathEscape(workload) + "/logs"
+	if tail > 0 {
+		path += "?tail=" + url.QueryEscape(strconv.Itoa(tail))
+	}
+	var out api.WorkloadLogsOutput
 	if err := c.get(ctx, path, &out.Body); err != nil {
 		return nil, err
 	}
@@ -248,6 +287,22 @@ const (
 	taskOperationFailover  = "failover"
 	taskOperationRebalance = "rebalance"
 )
+
+func normalizeWorkloadPath(namespace, app, workload string) (string, string, string, error) {
+	app = strings.TrimSpace(app)
+	workload = strings.TrimSpace(workload)
+	if app == "" {
+		return "", "", "", oopsx.B("cli", "apiclient").Errorf("empty app name")
+	}
+	if workload == "" {
+		return "", "", "", oopsx.B("cli", "apiclient").Errorf("empty workload name")
+	}
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		namespace = "default"
+	}
+	return namespace, app, workload, nil
+}
 
 func (c *Client) deployOperation(ctx context.Context, basePath, operation, namespace, name, targetNode string, workloads []string) (*api.DeployOperationOutput, error) {
 	name = strings.TrimSpace(name)

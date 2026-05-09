@@ -1,6 +1,6 @@
 # Project Status
 
-Snapshot date: May 8, 2026
+Snapshot date: May 9, 2026
 
 Implemented:
 
@@ -17,6 +17,13 @@ Implemented:
   `containerd`, `firecracker`, `process`, `systemd`, and `windows-service`.
 - Task APIs: deploy/list, app start/stop/restart/delete, and baseline
   migrate/failover/rebalance operations.
+- Control-plane readiness API and CLI gate (`/api/ready`, `orch ready --wait`)
+  backed by Raft leader discovery and write-routing checks.
+- Runtime-local workload inspection API/CLI for supported providers
+  (`describe workload`, `logs`), with Docker/process/Firecracker status/logs and
+  fallback status for providers that have not implemented runtime-local status.
+- CLI operation helpers for `wait app`, recent assignment `events`, and
+  `describe node`.
 - Registry-backed ingress route and endpoint management.
 - DNS record lifecycle tied to deploy/stop.
 - Dragonboat-backed Raft write-path coordination with TCP transport, static multi-node

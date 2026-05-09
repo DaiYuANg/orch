@@ -101,24 +101,12 @@ function Wait-OrchHealth {
     throw "Timed out waiting for orch-server health at $serverURL"
 }
 
-function Wait-RaftLeader {
+function Wait-OrchReady {
     param([System.Diagnostics.Process]$Process)
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    while ((Get-Date) -lt $deadline) {
-        if ($Process.HasExited) {
-            throw "orch-server exited early with code $($Process.ExitCode). See $serverStdout and $serverStderr"
-        }
-        try {
-            $status = (Invoke-CLIJson @("--server", $serverURL, "raft", "status", "--json"))[0]
-            if ([bool](Get-JSONProperty -Object $status -Name "ready" -Default $false) -and [bool](Get-JSONProperty -Object $status -Name "isLeader" -Default $false)) {
-                return
-            }
-        }
-        catch {
-        }
-        Start-Sleep -Milliseconds 500
+    if ($Process.HasExited) {
+        throw "orch-server exited early with code $($Process.ExitCode). See $serverStdout and $serverStderr"
     }
-    throw "Timed out waiting for single-node Raft leader at $serverURL"
+    Invoke-Checked $cliBin @("--server", $serverURL, "ready", "--wait", "--timeout", "$($TimeoutSeconds)s")
 }
 
 function Wait-SmokeState {
@@ -246,9 +234,10 @@ try {
     $previousEnv = Set-SmokeEnvironment
     $serverProcess = Start-Process @startArgs
     Wait-OrchHealth $serverProcess
-    Wait-RaftLeader $serverProcess
+    Wait-OrchReady $serverProcess
 
     Invoke-Checked $cliBin @("--server", $serverURL, "apply", "--file", $manifestPath, "--watch", "--timeout", "$($TimeoutSeconds)s")
+    Invoke-Checked $cliBin @("--server", $serverURL, "wait", "app", $workloadName, "-n", "default", "--for", "running", "--timeout", "$($TimeoutSeconds)s")
     Wait-SmokeState
 
     Write-Host ""
@@ -260,13 +249,18 @@ try {
     Write-Host ""
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
     Invoke-Checked $cliBin @("--server", $serverURL, "describe", "app", $workloadName, "-n", "default")
+    Invoke-Checked $cliBin @("--server", $serverURL, "describe", "node", $nodeID)
+    Invoke-Checked $cliBin @("--server", $serverURL, "describe", "workload", $workloadName, "--app", $workloadName, "-n", "default")
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
+    Invoke-Checked $cliBin @("--server", $serverURL, "events")
+    Invoke-Checked $cliBin @("--server", $serverURL, "logs", $workloadName, "--app", $workloadName, "-n", "default", "--tail", "20")
 
     if (-not $KeepContainer) {
         Write-Host ""
         Write-Host "Starting already-running smoke app..."
         Invoke-Checked $cliBin @("--server", $serverURL, "start", "app", $workloadName, "-n", "default")
+        Invoke-Checked $cliBin @("--server", $serverURL, "wait", "app", $workloadName, "-n", "default", "--for", "running", "--timeout", "$($TimeoutSeconds)s")
         Wait-SmokeState
         Write-Host "Repeated smoke start completed."
         Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
@@ -276,6 +270,7 @@ try {
         Write-Host ""
         Write-Host "Stopping smoke app..."
         Invoke-Checked $cliBin @("--server", $serverURL, "stop", "app", $workloadName, "-n", "default")
+        Invoke-Checked $cliBin @("--server", $serverURL, "wait", "app", $workloadName, "-n", "default", "--for", "stopped", "--timeout", "$($TimeoutSeconds)s")
         Wait-SmokeStopped
         Wait-SmokeContainerRemoved
         Write-Host "Smoke stop completed."
@@ -286,6 +281,7 @@ try {
         Write-Host ""
         Write-Host "Starting smoke app after stop..."
         Invoke-Checked $cliBin @("--server", $serverURL, "start", "app", $workloadName, "-n", "default")
+        Invoke-Checked $cliBin @("--server", $serverURL, "wait", "app", $workloadName, "-n", "default", "--for", "running", "--timeout", "$($TimeoutSeconds)s")
         Wait-SmokeState
         Write-Host "Smoke start completed."
         Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
@@ -295,6 +291,7 @@ try {
         Write-Host ""
         Write-Host "Restarting smoke app..."
         Invoke-Checked $cliBin @("--server", $serverURL, "restart", "app", $workloadName, "-n", "default")
+        Invoke-Checked $cliBin @("--server", $serverURL, "wait", "app", $workloadName, "-n", "default", "--for", "running", "--timeout", "$($TimeoutSeconds)s")
         Wait-SmokeState
         Write-Host "Smoke restart completed."
         Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")

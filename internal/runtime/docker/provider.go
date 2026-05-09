@@ -1,10 +1,13 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
+	"strconv"
 	"strings"
+	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
@@ -18,8 +21,10 @@ import (
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/runtime/runconfig"
+	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 type Provider struct {
@@ -33,6 +38,14 @@ func NewProvider(logger *slog.Logger, dns *dnssvc.Service) *Provider {
 
 func (p *Provider) Kind() deployv1.RuntimeKind {
 	return deployv1.RuntimeDocker
+}
+
+func workloadContainerFilters(meta deployv1.Metadata, workloadName string) filters.Args {
+	return filters.NewArgs(
+		filters.Arg("label", "orch.io/app="+strings.TrimSpace(meta.Name)),
+		filters.Arg("label", "orch.io/namespace="+workloadmeta.NamespaceOrDefault(meta.Namespace)),
+		filters.Arg("label", "orch.io/workload="+strings.TrimSpace(workloadName)),
+	)
 }
 
 func primaryIPv4(ns *container.NetworkSettings) string {
@@ -269,12 +282,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	}()
 
 	ns := workloadmeta.NamespaceOrDefault(meta.Namespace)
-	fl := filters.NewArgs(
-		filters.Arg("label", "orch.io/app="+strings.TrimSpace(meta.Name)),
-		filters.Arg("label", "orch.io/namespace="+ns),
-		filters.Arg("label", "orch.io/workload="+strings.TrimSpace(workloadName)),
-	)
-	list, err := cli.ContainerList(ctx, container.ListOptions{All: true, Filters: fl})
+	list, err := cli.ContainerList(ctx, container.ListOptions{All: true, Filters: workloadContainerFilters(meta, workloadName)})
 	if err != nil {
 		return oopsx.B("runtime", "docker").Wrapf(err, "docker list containers")
 	}
@@ -294,4 +302,91 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	}
 	p.logger.Info("docker workload stopped", "workload", workloadName, "container", id)
 	return nil
+}
+
+func (p *Provider) Status(ctx context.Context, meta deployv1.Metadata, workloadName string) (runtimeinfo.Status, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return runtimeinfo.Status{}, oopsx.B("runtime", "docker").Wrapf(err, "docker client")
+	}
+	defer func() {
+		if closeErr := cli.Close(); closeErr != nil {
+			p.logger.Warn("docker client close", "error", closeErr)
+		}
+	}()
+
+	containers, err := cli.ContainerList(ctx, container.ListOptions{All: true, Filters: workloadContainerFilters(meta, workloadName)})
+	if err != nil {
+		return runtimeinfo.Status{}, oopsx.B("runtime", "docker").Wrapf(err, "docker list containers")
+	}
+	out := runtimeinfo.Status{Name: strings.TrimSpace(workloadName), Runtime: deployv1.RuntimeDocker, Status: "stopped"}
+	if len(containers) == 0 {
+		return out, nil
+	}
+	inspect, err := cli.ContainerInspect(ctx, containers[0].ID)
+	if err != nil {
+		return runtimeinfo.Status{}, oopsx.B("runtime", "docker").Wrapf(err, "docker inspect container")
+	}
+	out.NativeID = inspect.ID
+	if inspect.State != nil {
+		out.Status = strings.TrimSpace(inspect.State.Status)
+		if inspect.State.Running {
+			out.Status = "running"
+		}
+		if startedAt := strings.TrimSpace(inspect.State.StartedAt); startedAt != "" {
+			if parsed, parseErr := time.Parse(time.RFC3339Nano, startedAt); parseErr == nil {
+				out.StartedAt = parsed
+			}
+		}
+		out.Message = strings.TrimSpace(inspect.State.Error)
+	}
+	out.UpdatedAt = time.Now().UTC()
+	return out, nil
+}
+
+func (p *Provider) Logs(ctx context.Context, meta deployv1.Metadata, workloadName string, opts runtimeinfo.LogOptions) (runtimeinfo.LogResult, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "docker").Wrapf(err, "docker client")
+	}
+	defer func() {
+		if closeErr := cli.Close(); closeErr != nil {
+			p.logger.Warn("docker client close", "error", closeErr)
+		}
+	}()
+
+	containers, err := cli.ContainerList(ctx, container.ListOptions{All: true, Filters: workloadContainerFilters(meta, workloadName)})
+	if err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "docker").Wrapf(err, "docker list containers")
+	}
+	if len(containers) == 0 {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "docker").Errorf("docker container for workload %q not found", workloadName)
+	}
+	reader, err := cli.ContainerLogs(ctx, containers[0].ID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Tail:       strconv.Itoa(runtimeinfo.NormalizeTailLines(opts.Tail)),
+	})
+	if err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "docker").Wrapf(err, "docker logs")
+	}
+	defer reader.Close()
+
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "docker").Wrapf(err, "docker logs decode")
+	}
+	content := stdout.String()
+	if s := stderr.String(); s != "" {
+		if content != "" && !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+		content += s
+	}
+	return runtimeinfo.LogResult{
+		Name:    strings.TrimSpace(workloadName),
+		Runtime: deployv1.RuntimeDocker,
+		Source:  containers[0].ID,
+		Content: content,
+	}, nil
 }

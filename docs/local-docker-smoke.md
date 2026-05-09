@@ -3,7 +3,7 @@
 This smoke test exercises the full local deploy path:
 
 ```text
-orch-server -> orch-cli apply --watch -> Docker runtime -> orch-cli get apps / describe app / get workloads / get assignments -> orch-cli start app -> orch-cli stop app -> orch-cli start app -> orch-cli restart app -> orch-cli delete app
+orch-server -> orch-cli ready --wait -> orch-cli apply --watch -> orch-cli wait app -> Docker runtime -> orch-cli describe workload / logs / events -> orch-cli start app -> orch-cli stop app -> orch-cli start app -> orch-cli restart app -> orch-cli delete app
 ```
 
 ## Prerequisites
@@ -32,18 +32,23 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-smoke.ps1
 ```
 
 The script builds local binaries under `.orch-smoke/bin`, starts `orch-server` on
-`http://127.0.0.1:17443`, deploys `examples/local-docker-smoke.yaml`, waits
-until both views report the workload as running, stops the app, starts it again
-from retained desired state, restarts it, then deletes the app. The first
-`start` intentionally runs while the app is already running to verify start is
-idempotent. Stop and delete wait until the workload disappears and the assignment
-is marked `stopped`:
+`http://127.0.0.1:17443`, waits for `orch ready --wait`, deploys
+`examples/local-docker-smoke.yaml`, waits until the app and both runtime views
+report the workload as running, exercises `describe workload`, `logs`, and
+`events`, stops the app, starts it again from retained desired state, restarts
+it, then deletes the app. The first `start` intentionally runs while the app is
+already running to verify start is idempotent. Stop and delete wait until the
+workload disappears and the assignment is marked `stopped`:
 
 ```powershell
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 ready --wait
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 get apps
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 describe app smoke -n default
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 describe workload smoke --app smoke -n default
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 get workloads
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 get assignments
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 events
+.orch-smoke/bin/orch --server http://127.0.0.1:17443 logs smoke --app smoke -n default --tail 20
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 start app smoke -n default
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 stop app smoke -n default
 .orch-smoke/bin/orch --server http://127.0.0.1:17443 start app smoke -n default

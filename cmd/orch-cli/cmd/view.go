@@ -92,7 +92,7 @@ func statusBadge(status string) string {
 	switch normalized {
 	case "ok", "ready", "running", "accepted":
 		return viewOKStyle.Render(label)
-	case "assigned", "partial", "pending", "starting", "stopped":
+	case "assigned", "partial", "pending", "starting", "stopped", "not_ready":
 		return viewWarnStyle.Render(label)
 	case "failed", "error", "unhealthy":
 		return viewErrorStyle.Render(label)

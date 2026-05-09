@@ -3,10 +3,12 @@ package runtime
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/arcgolabs/collectionx/mapping"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -14,6 +16,18 @@ type Provider interface {
 	Kind() deployv1.RuntimeKind
 	Deploy(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload) error
 	Stop(ctx context.Context, meta deployv1.Metadata, workloadName string) error
+}
+
+type Status = runtimeinfo.Status
+type LogOptions = runtimeinfo.LogOptions
+type LogResult = runtimeinfo.LogResult
+
+type StatusProvider interface {
+	Status(ctx context.Context, meta deployv1.Metadata, workloadName string) (Status, error)
+}
+
+type LogsProvider interface {
+	Logs(ctx context.Context, meta deployv1.Metadata, workloadName string, opts LogOptions) (LogResult, error)
 }
 
 type Manager struct {
@@ -54,4 +68,56 @@ func (m *Manager) Stop(ctx context.Context, runtime deployv1.RuntimeKind, meta d
 		return oopsx.B("runtime").Wrapf(err, "stop workload %s", workloadName)
 	}
 	return nil
+}
+
+func (m *Manager) Status(ctx context.Context, runtime deployv1.RuntimeKind, meta deployv1.Metadata, workloadName string) (Status, error) {
+	p, ok := m.providers.Get(runtime)
+	if !ok {
+		return Status{}, oopsx.B("runtime").Errorf("runtime provider not registered: %s", runtime)
+	}
+	statusProvider, ok := p.(StatusProvider)
+	if !ok {
+		return Status{
+			Name:    strings.TrimSpace(workloadName),
+			Runtime: runtime,
+			Status:  "unknown",
+			Message: "runtime status is not implemented for provider " + string(runtime),
+		}, nil
+	}
+	st, err := statusProvider.Status(ctx, meta, workloadName)
+	if err != nil {
+		return Status{}, oopsx.B("runtime").Wrapf(err, "status workload %s", workloadName)
+	}
+	if st.Name == "" {
+		st.Name = strings.TrimSpace(workloadName)
+	}
+	if st.Runtime == "" {
+		st.Runtime = runtime
+	}
+	if st.Status == "" {
+		st.Status = "unknown"
+	}
+	return st, nil
+}
+
+func (m *Manager) Logs(ctx context.Context, runtime deployv1.RuntimeKind, meta deployv1.Metadata, workloadName string, opts LogOptions) (LogResult, error) {
+	p, ok := m.providers.Get(runtime)
+	if !ok {
+		return LogResult{}, oopsx.B("runtime").Errorf("runtime provider not registered: %s", runtime)
+	}
+	logsProvider, ok := p.(LogsProvider)
+	if !ok {
+		return LogResult{}, oopsx.B("runtime").Errorf("runtime logs are not implemented for provider %s", runtime)
+	}
+	out, err := logsProvider.Logs(ctx, meta, workloadName, opts)
+	if err != nil {
+		return LogResult{}, oopsx.B("runtime").Wrapf(err, "logs workload %s", workloadName)
+	}
+	if out.Name == "" {
+		out.Name = strings.TrimSpace(workloadName)
+	}
+	if out.Runtime == "" {
+		out.Runtime = runtime
+	}
+	return out, nil
 }

@@ -55,6 +55,7 @@ func (e *RaftStatusEndpoint) status(ctx context.Context, _ *EmptyInput) (*RaftSt
 		out.Body.LeaderAPIURL = leaderAPIURL
 	}
 	out.Body.LocalAddress = status.LocalAddress
+	out.Body.Message = status.Message
 	out.Body.Members = list.MapList(status.Members, func(_ int, member raftsvc.Member) RaftMemberItem {
 		return raftMemberItem(member)
 	})

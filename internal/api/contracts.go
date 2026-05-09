@@ -7,6 +7,7 @@ import (
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/hostinfo"
+	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
 )
 
 // EmptyInput is the request shape for handlers with no parameters or body.
@@ -17,6 +18,23 @@ type HealthOutput struct {
 	Body struct {
 		Status    string `json:"status"`
 		Timestamp string `json:"timestamp"`
+	} `json:"body"`
+}
+
+type ReadyCheckItem struct {
+	Name   string `json:"name"`
+	Ready  bool   `json:"ready"`
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// ReadyOutput is the response body envelope for GET PathReady.
+type ReadyOutput struct {
+	Body struct {
+		Ready     bool                       `json:"ready"`
+		Status    string                     `json:"status"`
+		Timestamp string                     `json:"timestamp"`
+		Checks    *list.List[ReadyCheckItem] `json:"checks"`
 	} `json:"body"`
 }
 
@@ -109,6 +127,27 @@ type GetAppInput struct {
 
 type GetAppOutput struct {
 	Body AppDetailItem `json:"body"`
+}
+
+type WorkloadRuntimeInput struct {
+	Namespace string `path:"namespace"`
+	App       string `path:"app"`
+	Workload  string `path:"workload"`
+}
+
+type WorkloadLogsInput struct {
+	Namespace string `path:"namespace"`
+	App       string `path:"app"`
+	Workload  string `path:"workload"`
+	Tail      int    `query:"tail,omitempty"`
+}
+
+type WorkloadRuntimeStatusOutput struct {
+	Body runtimeinfo.Status `json:"body"`
+}
+
+type WorkloadLogsOutput struct {
+	Body runtimeinfo.LogResult `json:"body"`
 }
 
 // DeployInput is the request body envelope for POST PathV1Deploy.
@@ -228,6 +267,7 @@ type RaftStatusOutput struct {
 		LeaderAddress string                     `json:"leaderAddress,omitempty"`
 		LeaderAPIURL  string                     `json:"leaderApiUrl,omitempty"`
 		LocalAddress  string                     `json:"localAddress,omitempty"`
+		Message       string                     `json:"message,omitempty"`
 		Members       *list.List[RaftMemberItem] `json:"members"`
 	} `json:"body"`
 }

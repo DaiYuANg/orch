@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/runtime/runconfig"
+	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -133,6 +135,55 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	}
 	p.logger.Info("process workload stopped", "workload", workloadName, "pid", st.PID)
 	return nil
+}
+
+func (p *Provider) Status(_ context.Context, meta deployv1.Metadata, workloadName string) (runtimeinfo.Status, error) {
+	st, err := p.readState(meta, workloadName)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return runtimeinfo.Status{Name: strings.TrimSpace(workloadName), Runtime: deployv1.RuntimeProcess, Status: "stopped"}, nil
+		}
+		return runtimeinfo.Status{}, err
+	}
+	status := "stopped"
+	if st.PID > 0 && processAlive(st.PID) {
+		status = "running"
+	}
+	return runtimeinfo.Status{
+		Name:      strings.TrimSpace(workloadName),
+		Runtime:   deployv1.RuntimeProcess,
+		Status:    status,
+		NativeID:  strconv.Itoa(st.PID),
+		StartedAt: st.StartedAt,
+		UpdatedAt: time.Now().UTC(),
+	}, nil
+}
+
+func (p *Provider) Logs(_ context.Context, meta deployv1.Metadata, workloadName string, opts runtimeinfo.LogOptions) (runtimeinfo.LogResult, error) {
+	base := p.nameBase(meta, workloadName)
+	stdoutPath := filepath.Join(p.rootOrDefault(), "logs", base+".stdout.log")
+	stderrPath := filepath.Join(p.rootOrDefault(), "logs", base+".stderr.log")
+	stdout, err := runtimeinfo.ReadTailFile(stdoutPath, opts.Tail)
+	if err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "process").Wrapf(err, "read stdout log")
+	}
+	stderr, err := runtimeinfo.ReadTailFile(stderrPath, opts.Tail)
+	if err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "process").Wrapf(err, "read stderr log")
+	}
+	content := stdout
+	if stderr != "" {
+		if content != "" && !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+		content += stderr
+	}
+	return runtimeinfo.LogResult{
+		Name:    strings.TrimSpace(workloadName),
+		Runtime: deployv1.RuntimeProcess,
+		Source:  filepath.Join(p.rootOrDefault(), "logs"),
+		Content: content,
+	}, nil
 }
 
 func (p *Provider) ensureNoLiveState(meta deployv1.Metadata, workloadName string) error {

@@ -1,6 +1,7 @@
 package firecracker
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/dnssvc"
 	"github.com/daiyuang/orch/internal/runtime/runconfig"
+	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -83,6 +85,32 @@ func NewProvider(logger *slog.Logger, dns *dnssvc.Service) *Provider {
 
 func (p *Provider) Kind() deployv1.RuntimeKind {
 	return deployv1.RuntimeFirecracker
+}
+
+func (p *Provider) Logs(_ context.Context, meta deployv1.Metadata, workloadName string, opts runtimeinfo.LogOptions) (runtimeinfo.LogResult, error) {
+	base := p.nameBase(meta, workloadName)
+	logDir := filepath.Join(p.rootOrDefault(), "logs")
+	stdout, err := runtimeinfo.ReadTailFile(filepath.Join(logDir, base+".stdout.log"), opts.Tail)
+	if err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "firecracker").Wrapf(err, "read stdout log")
+	}
+	stderr, err := runtimeinfo.ReadTailFile(filepath.Join(logDir, base+".stderr.log"), opts.Tail)
+	if err != nil {
+		return runtimeinfo.LogResult{}, oopsx.B("runtime", "firecracker").Wrapf(err, "read stderr log")
+	}
+	content := stdout
+	if stderr != "" {
+		if content != "" && !strings.HasSuffix(content, "\n") {
+			content += "\n"
+		}
+		content += stderr
+	}
+	return runtimeinfo.LogResult{
+		Name:    strings.TrimSpace(workloadName),
+		Runtime: deployv1.RuntimeFirecracker,
+		Source:  logDir,
+		Content: content,
+	}, nil
 }
 
 func (p *Provider) buildConfig(meta deployv1.Metadata, w deployv1.Workload) (vmConfig, error) {

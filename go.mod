@@ -23,8 +23,8 @@ require (
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.5
 	github.com/arcgolabs/logx v0.1.2
 	github.com/arcgolabs/observabilityx v0.4.0
-	github.com/arcgolabs/plano v0.7.1
-	github.com/arcgolabs/plano/lsp v0.0.0-20260507041422-0364f76c1fa6
+	github.com/arcgolabs/plano v0.8.0
+	github.com/arcgolabs/plano/lsp v0.8.0
 	github.com/arcgolabs/vale v0.1.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/compose-spec/compose-go/v2 v2.10.2
@@ -54,7 +54,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	golang.org/x/crypto v0.50.0
-	golang.org/x/sys v0.43.0
+	golang.org/x/sys v0.44.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	google.golang.org/grpc v1.80.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -83,7 +83,6 @@ require (
 	github.com/arcgolabs/dnsx/dnsclient v0.1.3 // indirect
 	github.com/arcgolabs/httpx/adapter/std v0.1.5 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
-	github.com/arcgolabs/plano/examples/builddsl v0.0.0-20260507041422-0364f76c1fa6 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/bboltx v0.5.0 // indirect
 	github.com/arcgolabs/storx/codec v0.1.0 // indirect
@@ -222,8 +221,8 @@ require (
 	github.com/samber/slog-zerolog/v2 v2.9.2 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
-	github.com/segmentio/asm v1.1.3 // indirect
-	github.com/segmentio/encoding v0.3.4 // indirect
+	github.com/segmentio/asm v1.2.1 // indirect
+	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
@@ -259,7 +258,7 @@ require (
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/term v0.42.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.44.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect

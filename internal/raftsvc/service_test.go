@@ -134,11 +134,11 @@ func TestRaftAddAndRemoveVoter(t *testing.T) {
 	waitRaftMember(t, leader, "node-b", false)
 }
 
-func newStartedTestRaft(t *testing.T, id string, bootstrap bool) *Service {
+func newStartedTestRaft(t testing.TB, id string, bootstrap bool) *Service {
 	return newStartedTestRaftWithBind(t, id, bootstrap, "127.0.0.1:0")
 }
 
-func newStartedTestRaftWithBind(t *testing.T, id string, bootstrap bool, bind string) *Service {
+func newStartedTestRaftWithBind(t testing.TB, id string, bootstrap bool, bind string) *Service {
 	t.Helper()
 	tmp := t.TempDir()
 	cfg := config.Default()
@@ -175,7 +175,7 @@ func reserveTestRaftAddr(t *testing.T) string {
 	return addr
 }
 
-func waitRaftLeader(t *testing.T, svc *Service) {
+func waitRaftLeader(t testing.TB, svc *Service) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
@@ -190,7 +190,7 @@ func waitRaftLeader(t *testing.T, svc *Service) {
 	}
 }
 
-func waitRaftMember(t *testing.T, svc *Service, id string, want bool) {
+func waitRaftMember(t testing.TB, svc *Service, id string, want bool) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

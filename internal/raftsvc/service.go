@@ -21,6 +21,7 @@ import (
 	sm "github.com/lni/dragonboat/v4/statemachine"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/logging"
 	"github.com/daiyuang/orch/internal/nodeid"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -53,6 +54,7 @@ type Service struct {
 
 // New constructs the service (Dragonboat starts in Start).
 func New(cfg config.Config, logger *slog.Logger, local nodeid.Local) *Service {
+	logging.InstallDragonboatLogger(logger)
 	ch := make(chan struct{}, 1)
 	fsm := &schedulingFSM{}
 	s := &Service{

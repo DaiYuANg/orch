@@ -75,6 +75,19 @@ function Invoke-CLIJson {
     return @($parsed)
 }
 
+function Get-JSONProperty {
+    param(
+        [Parameter(Mandatory = $true)]$Object,
+        [Parameter(Mandatory = $true)][string]$Name,
+        $Default = $null
+    )
+    $prop = $Object.PSObject.Properties[$Name]
+    if ($null -eq $prop) {
+        return $Default
+    }
+    return $prop.Value
+}
+
 function Test-IPv4 {
     param([string]$Value)
     return $Value -match '^\d{1,3}(\.\d{1,3}){3}$'
@@ -118,6 +131,26 @@ function Wait-OrchHealth {
         Start-Sleep -Milliseconds 500
     }
     throw "Timed out waiting for orch-server health at $serverURL"
+}
+
+function Wait-RaftLeader {
+    param([System.Diagnostics.Process]$Process)
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) {
+            throw "orch-server exited early with code $($Process.ExitCode). See $serverStdout and $serverStderr"
+        }
+        try {
+            $status = (Invoke-CLIJson @("--server", $serverURL, "raft", "status", "--json"))[0]
+            if ([bool](Get-JSONProperty -Object $status -Name "ready" -Default $false) -and [bool](Get-JSONProperty -Object $status -Name "isLeader" -Default $false)) {
+                return
+            }
+        }
+        catch {
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "Timed out waiting for single-node Raft leader at $serverURL"
 }
 
 function Wait-DNSWorkloadsRunning {
@@ -228,7 +261,6 @@ function Set-SmokeEnvironment {
     $vars = [ordered]@{
         ORCH_DATA_DIR                         = $dataDir
         ORCH_HTTP_ADDR                        = $ServerAddr
-        ORCH_RAFT_ENABLED                     = "false"
         ORCH_RAFT_NODE_ID                     = $nodeID
         ORCH_INGRESS_ENABLED                  = "false"
         ORCH_DNS_ENABLED                      = "true"
@@ -293,6 +325,7 @@ try {
     $previousEnv = Set-SmokeEnvironment $resolvedNameserver
     $serverProcess = Start-Process @startArgs
     Wait-OrchHealth $serverProcess
+    Wait-RaftLeader $serverProcess
 
     Write-Host "DNS listen:          $DNSListen"
     Write-Host "Workload nameserver: $resolvedNameserver"

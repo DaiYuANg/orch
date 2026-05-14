@@ -12,6 +12,7 @@ func BindOrchFlags(fs *pflag.FlagSet, def Config) {
 	bindDNSFlags(fs, def)
 	bindSchedulerFlags(fs, def)
 	bindClusterFlags(fs, def)
+	bindGossipFlags(fs, def)
 	bindRaftFlags(fs, def)
 }
 
@@ -71,6 +72,17 @@ func bindClusterFlags(fs *pflag.FlagSet, def Config) {
 	fs.String(clusterWorkerTokenFlag(), def.Cluster.WorkerToken, "config path cluster.worker_"+tokenConfigWord()+" (bearer credential for worker dispatch)")
 	fs.Bool("auth-enabled", def.Auth.Enabled, "config path auth.enabled")
 	fs.String(authJWTSecretFlag(), def.Auth.JWT.Secret, "config path auth.jwt."+secretConfigWord())
+}
+
+func bindGossipFlags(fs *pflag.FlagSet, def Config) {
+	fs.Bool("gossip-enabled", def.Gossip.Enabled, "config path gossip.enabled")
+	fs.String("gossip-bind", def.Gossip.Bind, "config path gossip.bind (host:port for memberlist gossip)")
+	fs.String("gossip-advertise", def.Gossip.Advertise, "config path gossip.advertise (host:port advertised to gossip peers)")
+	fs.StringSlice("gossip-seeds", def.Gossip.Seeds, "config path gossip.seeds (seed gossip addresses)")
+	fs.String("gossip-secret-key", def.Gossip.SecretKey, "config path gossip.secret_key (16/24/32 byte gossip encryption key)")
+	fs.String("gossip-api-url", def.Gossip.APIURL, "config path gossip.api_url (control API base URL advertised in gossip metadata)")
+	fs.Bool("gossip-auto-join-raft", def.Gossip.AutoJoinRaft, "config path gossip.auto_join_raft")
+	fs.String("gossip-reconcile-interval", def.Gossip.ReconcileInterval, "config path gossip.reconcile_interval")
 }
 
 func bindRaftFlags(fs *pflag.FlagSet, def Config) {

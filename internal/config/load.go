@@ -79,6 +79,7 @@ func overlayChangedFlags(cfg *Config, fs *pflag.FlagSet) error {
 		overlayDNSFlags,
 		overlaySchedulerFlags,
 		overlayClusterAuthFlags,
+		overlayGossipFlags,
 		overlayRaftFlags,
 	}
 	for _, group := range groups {
@@ -105,6 +106,10 @@ func orchFlagToPath(name string) string {
 		"scheduler-concurrent-jobs-mode":      "scheduler.concurrent_jobs_mode",
 		"cluster-nodes":                       "cluster.nodes",
 		clusterWorkerTokenFlag():              "cluster.worker_" + tokenConfigWord(),
+		"gossip-auto-join-raft":               "gossip.auto_join_raft",
+		"gossip-reconcile-interval":           "gossip.reconcile_interval",
+		"gossip-secret-key":                   "gossip.secret_key",
+		"gossip-api-url":                      "gossip.api_url",
 		"ingress-listen":                      "ingress.listen",
 		"observability-prometheus-enabled":    "observability.prometheus.enabled",
 		"observability-prometheus-path":       "observability.prometheus.path",

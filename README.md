@@ -151,6 +151,8 @@ See:
 - [Project Status](docs/project-status.md)
 - [Quick Start](docs/quick-start.md)
 - [Beta Release](docs/release-beta.md)
+- [Runtime Compatibility Matrix](docs/runtime-compatibility.md)
+- [Gossip Cluster Discovery](docs/gossip-clustering.md)
 - [Local Docker Smoke Test](docs/local-docker-smoke.md)
 - [Local Docker Worker Dispatch Smoke Test](docs/local-docker-worker-dispatch-smoke.md)
 - [Full-Stack Docker Example](docs/fullstack-docker.md)

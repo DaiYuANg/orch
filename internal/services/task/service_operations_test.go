@@ -21,7 +21,7 @@ func TestSubmitMigrateMovesWorkloadToTargetNode(t *testing.T) {
 	harness := newTaskHarness(t, cfg, task.NewHTTPWorkerDispatcher(cfg))
 	app := deployApp("migrate-demo", dockerWorkload("worker", "busybox"))
 	harness.applyApp(t, app)
-	harness.applyAssignment(t, app, "worker", "node-a", workloadmeta.AssignmentStatusRunning)
+	harness.applyWorkerAssignment(t, app, "node-a", workloadmeta.AssignmentStatusRunning)
 
 	summary, err := harness.svc.SubmitMigrate(context.Background(), app.Metadata, task.AppOperationOptions{TargetNode: "node-b"})
 	if err != nil {
@@ -38,7 +38,7 @@ func TestSubmitFailoverMovesFailedWorkloadToLocalNode(t *testing.T) {
 	harness := newTaskHarness(t, config.Default(), nil)
 	app := deployApp("failover-demo", dockerWorkload("worker", "busybox"))
 	harness.applyApp(t, app)
-	harness.applyAssignment(t, app, "worker", "node-b", workloadmeta.AssignmentStatusFailed)
+	harness.applyWorkerAssignment(t, app, "node-b", workloadmeta.AssignmentStatusFailed)
 
 	summary, err := harness.svc.SubmitFailover(context.Background(), app.Metadata, task.AppOperationOptions{})
 	if err != nil {

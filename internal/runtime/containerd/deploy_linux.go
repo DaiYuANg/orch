@@ -100,6 +100,13 @@ func criWorkloadLabels(meta deployv1.Metadata, w deployv1.Workload) map[string]s
 	return workloadmeta.Labels(meta, w)
 }
 
+func criWorkloadLabelSelector(meta deployv1.Metadata, workloadName string) map[string]string {
+	return map[string]string{
+		"orch.io/namespace": workloadmeta.NamespaceOrDefault(meta.Namespace),
+		"orch.io/workload":  strings.TrimSpace(workloadName),
+	}
+}
+
 func criDNSConfig(dns workloadDNSResolver, namespace string) *runtimeapi.DNSConfig {
 	if dns == nil {
 		return nil
@@ -196,10 +203,7 @@ func criContainerConfig(ref string, meta deployv1.Metadata, w deployv1.Workload)
 }
 
 func ensureNoExistingWorkload(ctx context.Context, runtime runtimeapi.RuntimeServiceClient, meta deployv1.Metadata, workloadName string) error {
-	labels := map[string]string{
-		"orch.io/namespace": workloadmeta.NamespaceOrDefault(meta.Namespace),
-		"orch.io/workload":  strings.TrimSpace(workloadName),
-	}
+	labels := criWorkloadLabelSelector(meta, workloadName)
 	containers, err := runtime.ListContainers(ctx, &runtimeapi.ListContainersRequest{
 		Filter: &runtimeapi.ContainerFilter{LabelSelector: labels},
 	})
@@ -308,9 +312,11 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		return err
 	}
 
-	if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, ip); err != nil {
-		cleanupCRIWorkload(ctx, clients.runtime, containerID, sandboxID)
-		return err
+	if p.dns != nil {
+		if err := p.dns.UpsertWorkloadA(ctx, meta.Namespace, w.Name, ip); err != nil {
+			cleanupCRIWorkload(ctx, clients.runtime, containerID, sandboxID)
+			return err
+		}
 	}
 
 	p.logger.Info("containerd workload running", "sandbox", sandboxID, "container", containerID, "workload", w.Name, "ip", ip)
@@ -324,10 +330,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	}
 	defer clients.Close()
 
-	labels := map[string]string{
-		"orch.io/namespace": workloadmeta.NamespaceOrDefault(meta.Namespace),
-		"orch.io/workload":  strings.TrimSpace(workloadName),
-	}
+	labels := criWorkloadLabelSelector(meta, workloadName)
 	containers, err := clients.runtime.ListContainers(ctx, &runtimeapi.ListContainersRequest{
 		Filter: &runtimeapi.ContainerFilter{LabelSelector: labels},
 	})
@@ -387,8 +390,10 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 		return stopErr
 	}
 
-	if err := p.dns.RemoveWorkloadA(ctx, meta.Namespace, workloadName); err != nil {
-		return err
+	if p.dns != nil {
+		if err := p.dns.RemoveWorkloadA(ctx, meta.Namespace, workloadName); err != nil {
+			return err
+		}
 	}
 	p.logger.Info("containerd workload stopped", "workload", workloadName)
 	return nil

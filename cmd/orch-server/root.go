@@ -15,6 +15,7 @@ import (
 	"github.com/lyonbrown4d/orch/internal/deploy/orch"
 	"github.com/lyonbrown4d/orch/internal/dixdiag"
 	"github.com/lyonbrown4d/orch/internal/dnssvc"
+	"github.com/lyonbrown4d/orch/internal/gossipsvc"
 	"github.com/lyonbrown4d/orch/internal/httpserver"
 	"github.com/lyonbrown4d/orch/internal/ingress"
 	"github.com/lyonbrown4d/orch/internal/lifecycleplan"
@@ -81,6 +82,7 @@ func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 			orchvpn.GatewayModule(),
 			runtime.Module(),
 			raftsvc.Module(),
+			gossipsvc.Module(),
 			services.Module(),
 			ingress.Module(),
 			scheduler.Module(),

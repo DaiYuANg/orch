@@ -191,8 +191,9 @@ func (h *taskHarness) applyApp(t *testing.T, app *deployv1.App) {
 	}
 }
 
-func (h *taskHarness) applyAssignment(t *testing.T, app *deployv1.App, workloadName, nodeID, status string) {
+func (h *taskHarness) applyWorkerAssignment(t *testing.T, app *deployv1.App, nodeID, status string) {
 	t.Helper()
+	workloadName := "worker"
 	if err := h.raft.ApplyWorkloadAssignment(context.Background(), workloadmeta.Assignment{
 		Key:      workloadmeta.AssignmentKey(app.Metadata, workloadName),
 		Metadata: app.Metadata,

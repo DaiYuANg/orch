@@ -4,6 +4,8 @@
 - [Project Status](project-status.md)
 - [Quick Start](quick-start.md)
 - [Beta Release](release-beta.md)
+- [Runtime Compatibility Matrix](runtime-compatibility.md)
+- [Gossip Cluster Discovery](gossip-clustering.md)
 - [Local Docker Smoke Test](local-docker-smoke.md)
 - [Local Docker DNS Smoke Test](local-docker-dns-smoke.md)
 - [Local Docker Worker Dispatch Smoke Test](local-docker-worker-dispatch-smoke.md)

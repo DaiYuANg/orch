@@ -13,20 +13,22 @@ import (
 )
 
 func (p *Provider) Logs(_ context.Context, meta deployv1.Metadata, workloadName string, opts runtimeinfo.LogOptions) (runtimeinfo.LogResult, error) {
-	base := p.nameBase(meta, workloadName)
-	logDir := filepath.Join(p.rootOrDefault(), "logs")
-	stdout, err := runtimeinfo.ReadTailFile(filepath.Join(logDir, base+".stdout.log"), opts.Tail)
+	stdoutPath, stderrPath := p.logPathsForWorkload(meta, workloadName)
+	if st, err := p.readState(meta, workloadName); err == nil {
+		stdoutPath, stderrPath = stateLogPaths(st, stdoutPath, stderrPath)
+	}
+	stdout, err := runtimeinfo.ReadTailFile(stdoutPath, opts.Tail)
 	if err != nil {
 		return runtimeinfo.LogResult{}, oopsx.B("runtime", "process").Wrapf(err, "read stdout log")
 	}
-	stderr, err := runtimeinfo.ReadTailFile(filepath.Join(logDir, base+".stderr.log"), opts.Tail)
+	stderr, err := runtimeinfo.ReadTailFile(stderrPath, opts.Tail)
 	if err != nil {
 		return runtimeinfo.LogResult{}, oopsx.B("runtime", "process").Wrapf(err, "read stderr log")
 	}
 	return runtimeinfo.LogResult{
 		Name:    strings.TrimSpace(workloadName),
 		Runtime: deployv1.RuntimeProcess,
-		Source:  logDir,
+		Source:  processLogSource(stdoutPath, stderrPath),
 		Content: combineProcessLogs(stdout, stderr),
 	}, nil
 }
@@ -41,8 +43,7 @@ func combineProcessLogs(stdout, stderr string) string {
 	return stdout + stderr
 }
 
-func (p *Provider) openLogs(meta deployv1.Metadata, w deployv1.Workload) (*os.File, *os.File, func(), error) {
-	stdoutPath, stderrPath := p.logPaths(meta, w)
+func (p *Provider) openLogFiles(stdoutPath, stderrPath string) (*os.File, *os.File, func(), error) {
 	stdout, err := openAppend(stdoutPath)
 	if err != nil {
 		return nil, nil, func() {}, err
@@ -60,14 +61,33 @@ func (p *Provider) openLogs(meta deployv1.Metadata, w deployv1.Workload) (*os.Fi
 }
 
 func (p *Provider) logPaths(meta deployv1.Metadata, w deployv1.Workload) (string, string) {
-	base := p.nameBase(meta, w.Name)
-	stdoutPath := filepath.Join(p.rootOrDefault(), "logs", base+".stdout.log")
-	stderrPath := filepath.Join(p.rootOrDefault(), "logs", base+".stderr.log")
+	stdoutPath, stderrPath := p.logPathsForWorkload(meta, w.Name)
 	if w.Run.Options.Process != nil {
 		stdoutPath = overrideProcessLogPath(stdoutPath, w.Run.Options.Process.StdoutPath)
 		stderrPath = overrideProcessLogPath(stderrPath, w.Run.Options.Process.StderrPath)
 	}
 	return stdoutPath, stderrPath
+}
+
+func (p *Provider) logPathsForWorkload(meta deployv1.Metadata, workloadName string) (string, string) {
+	base := p.nameBase(meta, workloadName)
+	stdoutPath := filepath.Join(p.rootOrDefault(), "logs", base+".stdout.log")
+	stderrPath := filepath.Join(p.rootOrDefault(), "logs", base+".stderr.log")
+	return stdoutPath, stderrPath
+}
+
+func stateLogPaths(st state, defaultStdout, defaultStderr string) (string, string) {
+	stdoutPath := overrideProcessLogPath(defaultStdout, st.StdoutPath)
+	stderrPath := overrideProcessLogPath(defaultStderr, st.StderrPath)
+	return stdoutPath, stderrPath
+}
+
+func processLogSource(stdoutPath, stderrPath string) string {
+	stdoutDir := filepath.Dir(stdoutPath)
+	if stdoutDir == filepath.Dir(stderrPath) {
+		return stdoutDir
+	}
+	return "stdout=" + stdoutPath + " stderr=" + stderrPath
 }
 
 func overrideProcessLogPath(defaultPath, configured string) string {

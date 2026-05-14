@@ -201,6 +201,13 @@ func (s *Service) isLocalLeader() bool {
 	return err == nil && ready && leaderID == s.localReplicaID
 }
 
+func (s *Service) LocalAddress() string {
+	if s == nil {
+		return ""
+	}
+	return s.localAddress
+}
+
 // WaitLocalLeader blocks until this node is the local Raft leader.
 // If Dragonboat is not started, it returns immediately so FSM-only tests keep using the local apply path.
 func (s *Service) WaitLocalLeader(ctx context.Context) error {

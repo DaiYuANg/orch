@@ -67,3 +67,22 @@ func TestRenderUnit(t *testing.T) {
 		}
 	}
 }
+
+func TestRuntimeStatusFromActiveState(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"active":       "running",
+		"activating":   "starting",
+		"reloading":    "starting",
+		"deactivating": "stopping",
+		"inactive":     "stopped",
+		"failed":       "failed",
+		"":             "unknown",
+	}
+	for input, want := range cases {
+		if got := systemd.RuntimeStatusFromActiveState(input); got != want {
+			t.Fatalf("state %q = %q, want %q", input, got, want)
+		}
+	}
+}

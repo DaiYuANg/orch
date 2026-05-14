@@ -24,8 +24,9 @@ Implemented:
   build/start/stop/provider/resolve/lifecycle-hook durations are exported
   through the existing observability backend.
 - Runtime-local workload inspection API/CLI for supported providers
-  (`describe workload`, `logs`), with Docker/process/Firecracker status/logs and
-  fallback status for providers that have not implemented runtime-local status.
+  (`describe workload`, `logs`), with Docker, containerd, process,
+  Firecracker, and systemd status/logs. Remote assignments are inspected through
+  worker status/logs dispatch when `cluster.nodes` is configured.
 - CLI operation helpers for `wait app`, recent assignment `events`, and
   `describe node`.
 - Registry-backed ingress route and endpoint management.
@@ -34,6 +35,8 @@ Implemented:
   bootstrap, local status visibility, basic add/remove voter membership
   operations, and follower forwarding for deploy lifecycle and membership writes
   when `cluster.nodes` maps leader IDs to API URLs.
+- Optional gossip discovery using HashiCorp memberlist, scoped to node
+  discovery and Raft leader-driven voter auto-join.
 - Transitional DSL flow with `plan/render/apply/delete`, with the canonical
   Workload DSL v1 direction documented separately.
 - DSL/compiler pipeline direction (`parser -> HIR -> binder -> IR -> canonical ->
@@ -62,13 +65,15 @@ In progress:
 
 - Beta release gate hardening across lint, tests, release snapshot, Raft smoke,
   Docker lifecycle smoke, workload DNS smoke, and worker dispatch smoke.
-- Runtime parity hardening (especially containerd CRI status/recovery
-  semantics).
-- Provider parity hardening for `systemd` and `windows-service` (status,
-  recovery, and service wrapper ergonomics).
+- Runtime parity hardening (especially recovery semantics and smoke coverage
+  across non-Docker providers).
+- Provider parity hardening for `windows-service` (native status/logs) and
+  service wrapper ergonomics.
 - Firecracker provider parity hardening (automatic TAP/bridge management,
   jailer integration, recovery, and image/rootfs preparation workflow).
 - Stateful placement/migration policy refinement beyond the current explicit
   migrate/failover/rebalance baseline.
 - More production-grade failure handling and recovery behavior.
 - Higher-level Raft membership guardrails.
+- Using gossip-discovered API URLs for worker dispatch and follower forwarding,
+  once the discovery model has enough production guardrails.

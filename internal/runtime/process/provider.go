@@ -53,7 +53,8 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		return err
 	}
 
-	stdout, stderr, closeLogs, err := p.openLogs(meta, w)
+	stdoutPath, stderrPath := p.logPaths(meta, w)
+	stdout, stderr, closeLogs, err := p.openLogFiles(stdoutPath, stderrPath)
 	if err != nil {
 		return err
 	}
@@ -73,13 +74,15 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	}
 
 	st := state{
-		PID:       cmd.Process.Pid,
-		Metadata:  meta,
-		Workload:  w.Name,
-		Runtime:   w.Runtime,
-		Artifact:  runconfig.ArtifactSummary(w.Run),
-		StopAfter: processStopTimeout(w.Run),
-		StartedAt: time.Now().UTC(),
+		PID:        cmd.Process.Pid,
+		Metadata:   meta,
+		Workload:   w.Name,
+		Runtime:    w.Runtime,
+		Artifact:   runconfig.ArtifactSummary(w.Run),
+		StdoutPath: stdoutPath,
+		StderrPath: stderrPath,
+		StopAfter:  processStopTimeout(w.Run),
+		StartedAt:  time.Now().UTC(),
 	}
 	if err := p.writeState(meta, w.Name, st); err != nil {
 		p.killProcess(cmd.Process, w.Name)
@@ -160,8 +163,10 @@ func (p *Provider) Status(_ context.Context, meta deployv1.Metadata, workloadNam
 		return runtimeinfo.Status{}, err
 	}
 	status := "stopped"
+	message := "process state exists but pid is not running"
 	if st.PID > 0 && processAlive(st.PID) {
 		status = "running"
+		message = ""
 	}
 	return runtimeinfo.Status{
 		Name:      strings.TrimSpace(workloadName),
@@ -170,6 +175,7 @@ func (p *Provider) Status(_ context.Context, meta deployv1.Metadata, workloadNam
 		NativeID:  strconv.Itoa(st.PID),
 		StartedAt: st.StartedAt,
 		UpdatedAt: time.Now().UTC(),
+		Message:   message,
 	}, nil
 }
 

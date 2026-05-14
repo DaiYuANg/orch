@@ -16,13 +16,15 @@ import (
 )
 
 type state struct {
-	PID       int                  `json:"pid"`
-	Metadata  deployv1.Metadata    `json:"metadata"`
-	Workload  string               `json:"workload"`
-	Runtime   deployv1.RuntimeKind `json:"runtime"`
-	Artifact  string               `json:"artifact,omitempty"`
-	StopAfter string               `json:"stopAfter,omitempty"`
-	StartedAt time.Time            `json:"startedAt"`
+	PID        int                  `json:"pid"`
+	Metadata   deployv1.Metadata    `json:"metadata"`
+	Workload   string               `json:"workload"`
+	Runtime    deployv1.RuntimeKind `json:"runtime"`
+	Artifact   string               `json:"artifact,omitempty"`
+	StdoutPath string               `json:"stdoutPath,omitempty"`
+	StderrPath string               `json:"stderrPath,omitempty"`
+	StopAfter  string               `json:"stopAfter,omitempty"`
+	StartedAt  time.Time            `json:"startedAt"`
 }
 
 func (p *Provider) readState(meta deployv1.Metadata, workloadName string) (state, error) {

@@ -3,10 +3,12 @@
 package containerd
 
 import (
+	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/arcgolabs/collectionx/list"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
@@ -86,5 +88,57 @@ func TestCRISandboxConfigWithoutResolver(t *testing.T) {
 	}
 	if cfg.GetLogDirectory() == "" {
 		t.Fatal("expected log directory")
+	}
+}
+
+func TestCRIWorkloadLabelSelector(t *testing.T) {
+	t.Parallel()
+
+	got := criWorkloadLabelSelector(deployv1.Metadata{Namespace: "prod"}, " api ")
+	if got["orch.io/namespace"] != "prod" {
+		t.Fatalf("namespace label = %q", got["orch.io/namespace"])
+	}
+	if got["orch.io/workload"] != "api" {
+		t.Fatalf("workload label = %q", got["orch.io/workload"])
+	}
+}
+
+func TestCRIContainerStateStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := map[runtimeapi.ContainerState]string{
+		runtimeapi.ContainerState_CONTAINER_CREATED: "created",
+		runtimeapi.ContainerState_CONTAINER_RUNNING: "running",
+		runtimeapi.ContainerState_CONTAINER_EXITED:  "exited",
+		runtimeapi.ContainerState_CONTAINER_UNKNOWN: "unknown",
+	}
+	for state, want := range tests {
+		if got := criContainerStateStatus(state); got != want {
+			t.Fatalf("state %s = %q, want %q", state, got, want)
+		}
+	}
+}
+
+func TestCRIContainerLogPath(t *testing.T) {
+	t.Parallel()
+
+	meta := deployv1.Metadata{Name: "demo", Namespace: "prod"}
+	provider := &Provider{root: t.TempDir()}
+
+	got := criContainerLogPath(provider, meta, "api", &runtimeapi.ContainerStatus{LogPath: "custom.log"})
+	want := filepath.Join(provider.logDir(meta, "api"), "custom.log")
+	if got != want {
+		t.Fatalf("relative log path = %q, want %q", got, want)
+	}
+
+	got = criContainerLogPath(provider, meta, "api", &runtimeapi.ContainerStatus{LogPath: "/var/log/orch/api.log"})
+	if got != "/var/log/orch/api.log" {
+		t.Fatalf("absolute log path = %q", got)
+	}
+
+	got = criContainerLogPath(provider, meta, "api", &runtimeapi.ContainerStatus{})
+	want = filepath.Join(provider.logDir(meta, "api"), "api.log")
+	if got != want {
+		t.Fatalf("fallback log path = %q, want %q", got, want)
 	}
 }

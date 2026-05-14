@@ -142,8 +142,10 @@ func (p *Provider) Status(_ context.Context, meta deployv1.Metadata, workloadNam
 		return runtimeinfo.Status{}, err
 	}
 	status := "stopped"
+	message := "firecracker state exists but pid is not running"
 	if st.PID > 0 && processAlive(st.PID) {
 		status = "running"
+		message = ""
 	}
 	return runtimeinfo.Status{
 		Name:      strings.TrimSpace(workloadName),
@@ -152,6 +154,7 @@ func (p *Provider) Status(_ context.Context, meta deployv1.Metadata, workloadNam
 		NativeID:  strconv.Itoa(st.PID),
 		StartedAt: st.StartedAt,
 		UpdatedAt: time.Now().UTC(),
+		Message:   message,
 	}, nil
 }
 

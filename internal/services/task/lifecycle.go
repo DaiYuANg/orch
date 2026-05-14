@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime"
 	"github.com/lyonbrown4d/orch/internal/workloadmeta"
 	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
@@ -166,6 +167,34 @@ func (s *Service) StopWorkerWorkload(ctx context.Context, meta deployv1.Metadata
 	s.registry.Delete(workload.Name)
 	s.metrics.IncDeployWorkload(ctx, string(workload.Runtime), workloadmeta.AssignmentStatusStopped)
 	return nil
+}
+
+func (s *Service) WorkerWorkloadRuntimeStatus(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, assignedNode string) (runtime.Status, error) {
+	if err := s.validateWorkerWorkload(meta, workload, assignedNode); err != nil {
+		return runtime.Status{}, err
+	}
+	if s.runtime == nil {
+		return runtime.Status{}, oopsx.B("task", "worker").Errorf("runtime manager unavailable")
+	}
+	out, err := s.runtime.Status(ctx, workload.Runtime, meta, workload.Name)
+	if err != nil {
+		return runtime.Status{}, oopsx.B("task", "worker").Wrapf(err, "read worker workload runtime status")
+	}
+	return out, nil
+}
+
+func (s *Service) WorkerWorkloadRuntimeLogs(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, assignedNode string, opts runtime.LogOptions) (runtime.LogResult, error) {
+	if err := s.validateWorkerWorkload(meta, workload, assignedNode); err != nil {
+		return runtime.LogResult{}, err
+	}
+	if s.runtime == nil {
+		return runtime.LogResult{}, oopsx.B("task", "worker").Errorf("runtime manager unavailable")
+	}
+	out, err := s.runtime.Logs(ctx, workload.Runtime, meta, workload.Name, opts)
+	if err != nil {
+		return runtime.LogResult{}, oopsx.B("task", "worker").Wrapf(err, "read worker workload runtime logs")
+	}
+	return out, nil
 }
 
 func (s *Service) validateWorkerWorkload(meta deployv1.Metadata, workload deployv1.Workload, assignedNode string) error {

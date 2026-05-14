@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lyonbrown4d/orch/internal/runtime/runtimeinfo"
 	"github.com/lyonbrown4d/orch/internal/workerapi"
 )
 
@@ -41,6 +42,44 @@ func newFailingDeployWorkerServer(t *testing.T, dispatchCh chan<- struct{}) *htt
 	return worker
 }
 
+func newInspectWorkerServer(
+	t *testing.T,
+	statusCh chan<- workerapi.WorkloadStatusBody,
+	logsCh chan<- workerapi.WorkloadLogsBody,
+) *httptest.Server {
+	t.Helper()
+	worker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case workerapi.PathV1WorkerStatus:
+			in := decodeStatusRequest(t, r)
+			statusCh <- in
+			out := workerapi.WorkloadStatusOutput{}
+			out.Body = runtimeinfo.Status{
+				Name:     in.Workload.Name,
+				Runtime:  in.Workload.Runtime,
+				Status:   "running",
+				NativeID: "remote-native-id",
+			}
+			writeWorkerResponse(t, w, out.Body)
+		case workerapi.PathV1WorkerLogs:
+			in := decodeLogsRequest(t, r)
+			logsCh <- in
+			out := workerapi.WorkloadLogsOutput{}
+			out.Body = runtimeinfo.LogResult{
+				Name:    in.Workload.Name,
+				Runtime: in.Workload.Runtime,
+				Source:  "remote-log",
+				Content: "remote log line\n",
+			}
+			writeWorkerResponse(t, w, out.Body)
+		default:
+			t.Fatalf("worker path = %q", r.URL.Path)
+		}
+	}))
+	t.Cleanup(worker.Close)
+	return worker
+}
+
 func requireWorkerPath(t *testing.T, r *http.Request, want string) {
 	t.Helper()
 	if r.URL.Path != want {
@@ -53,6 +92,24 @@ func decodeDeployRequest(t *testing.T, r *http.Request) workerapi.DeployWorkload
 	var in workerapi.DeployWorkloadBody
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		t.Fatalf("decode worker request: %v", err)
+	}
+	return in
+}
+
+func decodeStatusRequest(t *testing.T, r *http.Request) workerapi.WorkloadStatusBody {
+	t.Helper()
+	var in workerapi.WorkloadStatusBody
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		t.Fatalf("decode worker status request: %v", err)
+	}
+	return in
+}
+
+func decodeLogsRequest(t *testing.T, r *http.Request) workerapi.WorkloadLogsBody {
+	t.Helper()
+	var in workerapi.WorkloadLogsBody
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		t.Fatalf("decode worker logs request: %v", err)
 	}
 	return in
 }
@@ -72,6 +129,28 @@ func waitWorkerDispatch(t *testing.T, dispatchCh <-chan workerapi.DeployWorkload
 	case <-time.After(timeout):
 		t.Fatal("timed out waiting for worker dispatch")
 		return workerapi.DeployWorkloadBody{}
+	}
+}
+
+func waitWorkerStatus(t *testing.T, statusCh <-chan workerapi.WorkloadStatusBody, timeout time.Duration) workerapi.WorkloadStatusBody {
+	t.Helper()
+	select {
+	case got := <-statusCh:
+		return got
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for worker status")
+		return workerapi.WorkloadStatusBody{}
+	}
+}
+
+func waitWorkerLogs(t *testing.T, logsCh <-chan workerapi.WorkloadLogsBody, timeout time.Duration) workerapi.WorkloadLogsBody {
+	t.Helper()
+	select {
+	case got := <-logsCh:
+		return got
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for worker logs")
+		return workerapi.WorkloadLogsBody{}
 	}
 }
 

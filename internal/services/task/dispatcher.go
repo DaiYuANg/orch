@@ -12,6 +12,7 @@ import (
 
 	"github.com/lyonbrown4d/orch/internal/config"
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	orchruntime "github.com/lyonbrown4d/orch/internal/runtime"
 	"github.com/lyonbrown4d/orch/internal/workerapi"
 	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
@@ -19,6 +20,8 @@ import (
 type WorkerDispatcher interface {
 	DispatchWorkload(ctx context.Context, nodeID string, meta deployv1.Metadata, workload deployv1.Workload) (DispatchResult, error)
 	StopWorkload(ctx context.Context, nodeID string, meta deployv1.Metadata, workload deployv1.Workload) (DispatchResult, error)
+	WorkloadStatus(ctx context.Context, nodeID string, meta deployv1.Metadata, workload deployv1.Workload) (orchruntime.Status, error)
+	WorkloadLogs(ctx context.Context, nodeID string, meta deployv1.Metadata, workload deployv1.Workload, opts orchruntime.LogOptions) (orchruntime.LogResult, error)
 }
 
 type DispatchResult struct {
@@ -56,6 +59,37 @@ func (d *HTTPWorkerDispatcher) StopWorkload(ctx context.Context, nodeID string, 
 		},
 	}
 	return d.executeWorker(ctx, nodeID, workload.Name, "stop", workerapi.PathV1WorkerStop, in.Body, decodeWorkerStop)
+}
+
+func (d *HTTPWorkerDispatcher) WorkloadStatus(ctx context.Context, nodeID string, meta deployv1.Metadata, workload deployv1.Workload) (orchruntime.Status, error) {
+	in := workerapi.WorkloadStatusInput{
+		Body: workerapi.WorkloadStatusBody{
+			Metadata: meta,
+			Workload: workload,
+			Node:     nodeID,
+		},
+	}
+	raw, err := d.executeWorkerRaw(ctx, nodeID, workload.Name, "status", workerapi.PathV1WorkerStatus, in.Body)
+	if err != nil {
+		return orchruntime.Status{}, err
+	}
+	return decodeWorkerStatus(raw, workload)
+}
+
+func (d *HTTPWorkerDispatcher) WorkloadLogs(ctx context.Context, nodeID string, meta deployv1.Metadata, workload deployv1.Workload, opts orchruntime.LogOptions) (orchruntime.LogResult, error) {
+	in := workerapi.WorkloadLogsInput{
+		Body: workerapi.WorkloadLogsBody{
+			Metadata: meta,
+			Workload: workload,
+			Node:     nodeID,
+			Tail:     opts.Tail,
+		},
+	}
+	raw, err := d.executeWorkerRaw(ctx, nodeID, workload.Name, "logs", workerapi.PathV1WorkerLogs, in.Body)
+	if err != nil {
+		return orchruntime.LogResult{}, err
+	}
+	return decodeWorkerLogs(raw, workload)
 }
 
 func decodeWorkerDeploy(data []byte, nodeID, fallbackWorkload string) (DispatchResult, error) {
@@ -108,6 +142,34 @@ func decodeWorkerStop(data []byte, nodeID, fallbackWorkload string) (DispatchRes
 	}, nil
 }
 
+func decodeWorkerStatus(data []byte, workload deployv1.Workload) (orchruntime.Status, error) {
+	var out workerapi.WorkloadStatusOutput
+	if err := clientcodec.JSON.Unmarshal(data, &out.Body); err != nil {
+		return orchruntime.Status{}, oopsx.B("task", "worker").Wrapf(err, "decode worker status response")
+	}
+	if out.Body.Name == "" {
+		out.Body.Name = strings.TrimSpace(workload.Name)
+	}
+	if out.Body.Runtime == "" {
+		out.Body.Runtime = workload.Runtime
+	}
+	return out.Body, nil
+}
+
+func decodeWorkerLogs(data []byte, workload deployv1.Workload) (orchruntime.LogResult, error) {
+	var out workerapi.WorkloadLogsOutput
+	if err := clientcodec.JSON.Unmarshal(data, &out.Body); err != nil {
+		return orchruntime.LogResult{}, oopsx.B("task", "worker").Wrapf(err, "decode worker logs response")
+	}
+	if out.Body.Name == "" {
+		out.Body.Name = strings.TrimSpace(workload.Name)
+	}
+	if out.Body.Runtime == "" {
+		out.Body.Runtime = workload.Runtime
+	}
+	return out.Body, nil
+}
+
 func (d *HTTPWorkerDispatcher) executeWorker(
 	ctx context.Context,
 	nodeID string,
@@ -117,9 +179,24 @@ func (d *HTTPWorkerDispatcher) executeWorker(
 	body any,
 	decode func([]byte, string, string) (DispatchResult, error),
 ) (DispatchResult, error) {
+	raw, err := d.executeWorkerRaw(ctx, nodeID, workloadName, action, path, body)
+	if err != nil {
+		return DispatchResult{}, err
+	}
+	return decode(raw, nodeID, workloadName)
+}
+
+func (d *HTTPWorkerDispatcher) executeWorkerRaw(
+	ctx context.Context,
+	nodeID string,
+	workloadName string,
+	action string,
+	path string,
+	body any,
+) ([]byte, error) {
 	baseURL, ok := d.cfg.Cluster.NodeURL(nodeID)
 	if !ok {
-		return DispatchResult{}, oopsx.B("task", "worker").Errorf("no worker API URL configured for node %q (set cluster.nodes.%s)", nodeID, nodeID)
+		return nil, oopsx.B("task", "worker").Errorf("no worker API URL configured for node %q (set cluster.nodes.%s)", nodeID, nodeID)
 	}
 
 	opts := []clientxhttp.Option{}
@@ -137,26 +214,26 @@ func (d *HTTPWorkerDispatcher) executeWorker(
 		},
 	}, opts...)
 	if err != nil {
-		return DispatchResult{}, oopsx.B("task", "worker").Wrapf(err, "create worker client for node %q", nodeID)
+		return nil, oopsx.B("task", "worker").Wrapf(err, "create worker client for node %q", nodeID)
 	}
 	defer closeWorkerClient(hc)
 
 	raw, err := clientcodec.JSON.Marshal(body)
 	if err != nil {
-		return DispatchResult{}, oopsx.B("task", "worker").Wrapf(err, "encode worker %s", action)
+		return nil, oopsx.B("task", "worker").Wrapf(err, "encode worker %s", action)
 	}
 	req := hc.R().
 		SetHeader("Content-Type", "application/json").
 		SetBody(raw)
 	resp, err := hc.Execute(ctx, req, "POST", path)
 	if err != nil {
-		return DispatchResult{}, oopsx.B("task", "worker").Wrapf(err, "%s workload %q on node %q", action, workloadName, nodeID)
+		return nil, oopsx.B("task", "worker").Wrapf(err, "%s workload %q on node %q", action, workloadName, nodeID)
 	}
 	if !resp.IsSuccess() {
 		msg := strings.TrimSpace(string(resp.Bytes()))
-		return DispatchResult{}, oopsx.B("task", "worker").Errorf("%s workload %q on node %q: %s: %s", action, workloadName, nodeID, resp.Status(), msg)
+		return nil, oopsx.B("task", "worker").Errorf("%s workload %q on node %q: %s: %s", action, workloadName, nodeID, resp.Status(), msg)
 	}
-	return decode(resp.Bytes(), nodeID, workloadName)
+	return resp.Bytes(), nil
 }
 
 func closeWorkerClient(hc clientxhttp.Client) {

@@ -10,6 +10,7 @@ const (
 	PriorityShutdown = 5
 	PriorityIdentity = 10
 	PriorityRaft     = 20
+	PriorityGossip   = 25
 	PriorityNetwork  = 30
 	PriorityWorkload = 40
 	PriorityReady    = 100
@@ -27,6 +28,7 @@ const (
 	HookLogging       = "logging"
 	HookNodeID        = "nodeid"
 	HookRaft          = "raft"
+	HookGossip        = "gossip"
 	HookDNS           = "dns"
 	HookIngress       = "ingress"
 	HookHTTPServer    = "httpserver"

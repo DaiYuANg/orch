@@ -12,6 +12,7 @@ type Config struct {
 	OrchVPN       OrchVPNConfig       `json:"orch_vpn"`
 	Scheduler     SchedulerConfig     `json:"scheduler"`
 	Cluster       ClusterConfig       `json:"cluster"`
+	Gossip        GossipConfig        `json:"gossip"`
 	Auth          AuthConfig          `json:"auth"`
 	Raft          RaftConfig          `json:"raft"`
 }

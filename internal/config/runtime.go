@@ -22,6 +22,17 @@ type ClusterConfig struct {
 	WorkerToken string `json:"worker_token,omitempty"`
 }
 
+type GossipConfig struct {
+	Enabled           bool     `json:"enabled,omitempty"`
+	Bind              string   `json:"bind,omitempty"`
+	Advertise         string   `json:"advertise,omitempty"`
+	Seeds             []string `json:"seeds,omitempty"`
+	SecretKey         string   `json:"secret_key,omitempty"`
+	APIURL            string   `json:"api_url,omitempty"`
+	AutoJoinRaft      bool     `json:"auto_join_raft,omitempty"`
+	ReconcileInterval string   `json:"reconcile_interval,omitempty"`
+}
+
 func (c ClusterConfig) NodeURL(nodeID string) (string, bool) {
 	id := strings.TrimSpace(nodeID)
 	if id == "" || len(c.Nodes) == 0 {
@@ -106,6 +117,16 @@ func Default() Config {
 	raft.Bootstrap = true
 	raft.Data.Dir = filepath.Join(root, "dragonboat")
 
+	var gossip GossipConfig
+	gossip.Enabled = false
+	gossip.Bind = "0.0.0.0:7946"
+	gossip.Advertise = ""
+	gossip.Seeds = []string{}
+	gossip.SecretKey = ""
+	gossip.APIURL = ""
+	gossip.AutoJoinRaft = true
+	gossip.ReconcileInterval = "5s"
+
 	return Config{
 		App: AppConfig{
 			Name: "orch",
@@ -137,7 +158,8 @@ func Default() Config {
 		Cluster: ClusterConfig{
 			Nodes: map[string]string{},
 		},
-		Auth: auth,
-		Raft: raft,
+		Gossip: gossip,
+		Auth:   auth,
+		Raft:   raft,
 	}
 }

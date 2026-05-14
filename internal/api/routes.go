@@ -43,5 +43,7 @@ func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.S
 		NewDeploySourceEndpoint(loaderSvc, taskSvc, leader, cfg.Auth.Enabled),
 		NewWorkerDeployEndpoint(taskSvc, cfg.Auth.Enabled),
 		NewWorkerStopEndpoint(taskSvc, cfg.Auth.Enabled),
+		NewWorkerStatusEndpoint(taskSvc, cfg.Auth.Enabled),
+		NewWorkerLogsEndpoint(taskSvc, cfg.Auth.Enabled),
 	)
 }

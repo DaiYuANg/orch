@@ -75,6 +75,19 @@ func overlayClusterAuthFlags(cfg *Config, fs *pflag.FlagSet) error {
 	)
 }
 
+func overlayGossipFlags(cfg *Config, fs *pflag.FlagSet) error {
+	return applyFlagOverlays(fs,
+		boolFlag("gossip-enabled", func(v bool) { cfg.Gossip.Enabled = v }),
+		stringFlag("gossip-bind", func(v string) { cfg.Gossip.Bind = v }),
+		stringFlag("gossip-advertise", func(v string) { cfg.Gossip.Advertise = v }),
+		stringSliceFlag("gossip-seeds", func(v []string) { cfg.Gossip.Seeds = v }),
+		stringFlag("gossip-secret-key", func(v string) { cfg.Gossip.SecretKey = v }),
+		stringFlag("gossip-api-url", func(v string) { cfg.Gossip.APIURL = v }),
+		boolFlag("gossip-auto-join-raft", func(v bool) { cfg.Gossip.AutoJoinRaft = v }),
+		stringFlag("gossip-reconcile-interval", func(v string) { cfg.Gossip.ReconcileInterval = v }),
+	)
+}
+
 func overlayRaftFlags(cfg *Config, fs *pflag.FlagSet) error {
 	return applyFlagOverlays(fs,
 		stringFlag("raft-node-id", func(v string) { cfg.Raft.Node.ID = v }),

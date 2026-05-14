@@ -1,4 +1,4 @@
-package raftsvc
+package raftsvc_test
 
 import "github.com/lni/dragonboat/v4/logger"
 

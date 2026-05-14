@@ -1,14 +1,18 @@
-package orchvpn
+package orchvpn_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/daiyuang/orch/internal/orchvpn"
+)
 
 func TestClientConfig_normalized(t *testing.T) {
 	t.Parallel()
-	_, err := (&ClientConfig{}).normalized()
+	_, err := (&orchvpn.ClientConfig{}).Normalize()
 	if err == nil {
 		t.Fatal("expected error for empty URL")
 	}
-	got, err := (&ClientConfig{ControlPlaneURL: "http://a/"}).normalized()
+	got, err := (&orchvpn.ClientConfig{ControlPlaneURL: "http://a/"}).Normalize()
 	if err != nil {
 		t.Fatal(err)
 	}

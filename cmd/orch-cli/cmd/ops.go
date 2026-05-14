@@ -3,17 +3,12 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/arcgolabs/collectionx/list"
-	"github.com/cenkalti/backoff/v5"
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
@@ -119,32 +114,48 @@ func newLogsCmd() *cobra.Command {
 		Short:   "Print workload logs from the assigned runtime node",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := contextFromCmd(cmd)
-			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
-				out, err := c.WorkloadLogs(ctx, namespace, app, args[0], tail)
-				if err != nil {
-					return oopsx.B("cli").Wrapf(err, "logs")
-				}
-				if jsonOut {
-					enc := json.NewEncoder(os.Stdout)
-					enc.SetIndent("", "  ")
-					return enc.Encode(out.Body)
-				}
-				if strings.TrimSpace(out.Body.Content) == "" {
-					return writeLine(viewMutedStyle.Render("No logs."))
-				}
-				_, err = fmt.Fprint(os.Stdout, out.Body.Content)
-				return err
-			})
+			return runLogsCommand(cmd, args[0], namespace, app, tail, jsonOut)
 		},
 	}
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
 	cmd.Flags().StringVar(&app, "app", "", "App name")
 	cmd.Flags().IntVar(&tail, "tail", 100, "Number of log lines")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
-	_ = cmd.MarkFlagRequired("app")
+	mustMarkFlagRequired(cmd, "app")
 	return cmd
+}
+
+func runLogsCommand(cmd *cobra.Command, workloadName, namespace, app string, tail int, jsonOut bool) error {
+	ctx := contextFromCmd(cmd)
+	conn := cliapp.ConnFromGlobals(serverURL, authToken)
+	if err := cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+		out, err := c.WorkloadLogs(ctx, namespace, app, workloadName, tail)
+		if err != nil {
+			return oopsx.B("cli").Wrapf(err, "logs")
+		}
+		return writeLogsOutput(out, jsonOut)
+	}); err != nil {
+		return oopsx.B("cli").Wrapf(err, "run logs")
+	}
+	return nil
+}
+
+func writeLogsOutput(out *api.WorkloadLogsOutput, jsonOut bool) error {
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(out.Body); err != nil {
+			return oopsx.B("cli").Wrapf(err, "write logs json")
+		}
+		return nil
+	}
+	if strings.TrimSpace(out.Body.Content) == "" {
+		return writeLine(viewMutedStyle.Render("No logs."))
+	}
+	if _, err := fmt.Fprint(os.Stdout, out.Body.Content); err != nil {
+		return oopsx.B("cli").Wrapf(err, "write logs")
+	}
+	return nil
 }
 
 func newEventsCmd() *cobra.Command {
@@ -186,35 +197,59 @@ func newDescribeNodeCmd() *cobra.Command {
 		Short: "Describe a control-plane node",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := contextFromCmd(cmd)
-			conn := cliapp.ConnFromGlobals(serverURL, authToken)
-			return cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
-				raft, err := c.RaftStatus(ctx)
-				if err != nil {
-					return oopsx.B("cli").Wrapf(err, "node raft status")
-				}
-				name := strings.TrimSpace(raft.Body.NodeID)
-				if len(args) > 0 {
-					name = strings.TrimSpace(args[0])
-				}
-				if jsonOut {
-					enc := json.NewEncoder(os.Stdout)
-					enc.SetIndent("", "  ")
-					return enc.Encode(raft.Body)
-				}
-				if name == "" || name == raft.Body.NodeID {
-					host, err := c.Hostinfo(ctx)
-					if err != nil {
-						return oopsx.B("cli").Wrapf(err, "node hostinfo")
-					}
-					return writeLocalNodeHuman(name, raft, host)
-				}
-				return writeRaftMemberNodeHuman(name, raft)
-			})
+			return runDescribeNodeCommand(cmd, args, jsonOut)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
 	return cmd
+}
+
+func runDescribeNodeCommand(cmd *cobra.Command, args []string, jsonOut bool) error {
+	ctx := contextFromCmd(cmd)
+	conn := cliapp.ConnFromGlobals(serverURL, authToken)
+	if err := cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+		raft, err := c.RaftStatus(ctx)
+		if err != nil {
+			return oopsx.B("cli").Wrapf(err, "node raft status")
+		}
+		return writeDescribeNodeOutput(ctx, c, args, raft, jsonOut)
+	}); err != nil {
+		return oopsx.B("cli").Wrapf(err, "describe node")
+	}
+	return nil
+}
+
+func writeDescribeNodeOutput(
+	ctx context.Context,
+	c *apiclient.Client,
+	args []string,
+	raft *api.RaftStatusOutput,
+	jsonOut bool,
+) error {
+	name := describeNodeName(args, raft.Body.NodeID)
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(raft.Body); err != nil {
+			return oopsx.B("cli").Wrapf(err, "write node json")
+		}
+		return nil
+	}
+	if name != "" && name != raft.Body.NodeID {
+		return writeRaftMemberNodeHuman(name, raft)
+	}
+	host, err := c.Hostinfo(ctx)
+	if err != nil {
+		return oopsx.B("cli").Wrapf(err, "node hostinfo")
+	}
+	return writeLocalNodeHuman(name, raft, host)
+}
+
+func describeNodeName(args []string, fallback string) string {
+	if len(args) > 0 {
+		return strings.TrimSpace(args[0])
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func newDescribeWorkloadCmd() *cobra.Command {
@@ -246,201 +281,6 @@ func newDescribeWorkloadCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "App namespace")
 	cmd.Flags().StringVar(&app, "app", "", "App name")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
-	_ = cmd.MarkFlagRequired("app")
+	mustMarkFlagRequired(cmd, "app")
 	return cmd
-}
-
-func waitReady(ctx context.Context, c *apiclient.Client, timeout time.Duration, progress bool) (*api.ReadyOutput, error) {
-	if timeout <= 0 {
-		return nil, oopsx.B("cli").Errorf("--timeout must be greater than zero")
-	}
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	spinner := startStatusSpinner(progress, "waiting for control plane readiness")
-
-	var last *api.ReadyOutput
-	var lastErr error
-	out, err := backoff.Retry(waitCtx, func() (*api.ReadyOutput, error) {
-		out, err := c.Ready(waitCtx)
-		if err != nil {
-			lastErr = err
-			updateStatusSpinner(spinner, "waiting for control plane readiness last_error="+err.Error())
-			return nil, err
-		} else {
-			last = out
-			updateStatusSpinner(spinner, "waiting for control plane readiness status="+out.Body.Status)
-			if out.Body.Ready {
-				successWatchSpinner(spinner, "control plane ready")
-				return out, nil
-			}
-		}
-		return nil, errWaitPending
-	}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)))
-	if err == nil {
-		return out, nil
-	}
-	failWatchSpinner(spinner, "control plane readiness timed out")
-	if lastErr != nil && !errors.Is(err, errWaitPending) {
-		return last, oopsx.B("cli").Wrapf(lastErr, "wait ready timed out after %s", timeout)
-	}
-	return last, oopsx.B("cli").Errorf("wait ready timed out after %s", timeout)
-}
-
-func waitAppStatus(ctx context.Context, c *apiclient.Client, namespace, name, target string, timeout time.Duration, progress bool) (*api.GetAppOutput, error) {
-	target = strings.ToLower(strings.TrimSpace(target))
-	if target == "" {
-		target = "running"
-	}
-	if timeout <= 0 {
-		return nil, oopsx.B("cli").Errorf("--timeout must be greater than zero")
-	}
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	spinner := startStatusSpinner(progress, "waiting for app "+name+" status="+target)
-
-	var last *api.GetAppOutput
-	var lastErr error
-	var permanentErr error
-	out, err := backoff.Retry(waitCtx, func() (*api.GetAppOutput, error) {
-		out, err := c.GetApp(waitCtx, namespace, name)
-		if err != nil {
-			lastErr = err
-			updateStatusSpinner(spinner, "waiting for app "+name+" last_error="+err.Error())
-			return nil, err
-		} else {
-			last = out
-			status := strings.ToLower(strings.TrimSpace(out.Body.Status))
-			updateStatusSpinner(spinner, "waiting for app "+name+" status="+status+" ready="+appReadyText(out.Body.Running, out.Body.DesiredWorkloads))
-			if status == target {
-				successWatchSpinner(spinner, "app "+name+" status="+status)
-				return out, nil
-			}
-			if status == "failed" && target != "failed" {
-				failWatchSpinner(spinner, "app "+name+" failed")
-				permanentErr = oopsx.B("cli").Errorf("app %s reached failed status: %s", name, nonEmpty(out.Body.LastError))
-				return nil, backoff.Permanent(permanentErr)
-			}
-		}
-		return nil, errWaitPending
-	}, backoff.WithBackOff(backoff.NewConstantBackOff(500*time.Millisecond)))
-	if err == nil {
-		return out, nil
-	}
-	if permanentErr != nil {
-		return last, permanentErr
-	}
-	failWatchSpinner(spinner, "wait app timed out")
-	if lastErr != nil && !errors.Is(err, errWaitPending) {
-		return last, oopsx.B("cli").Wrapf(lastErr, "wait app timed out after %s", timeout)
-	}
-	return last, oopsx.B("cli").Errorf("wait app timed out after %s", timeout)
-}
-
-func startStatusSpinner(progress bool, text string) *pterm.SpinnerPrinter {
-	if !progress || !stderrIsTerminal() {
-		return nil
-	}
-	spinner, err := pterm.DefaultSpinner.WithRemoveWhenDone(false).Start(text)
-	if err != nil {
-		return nil
-	}
-	return spinner
-}
-
-func updateStatusSpinner(spinner *pterm.SpinnerPrinter, text string) {
-	if spinner != nil {
-		spinner.UpdateText(text)
-	}
-}
-
-func writeReadyHuman(out *api.ReadyOutput) error {
-	if out == nil {
-		return writeLine(viewMutedStyle.Render("No readiness response."))
-	}
-	if err := writeInfoLine("ready",
-		viewField("status", statusBadge(out.Body.Status)),
-		viewField("time", out.Body.Timestamp),
-	); err != nil {
-		return err
-	}
-	rows := list.NewGridWithCapacity[string](out.Body.Checks.Len())
-	out.Body.Checks.Range(func(_ int, check api.ReadyCheckItem) bool {
-		rows.AddRow(check.Name, strconv.FormatBool(check.Ready), statusBadge(check.Status), nonEmpty(check.Detail))
-		return true
-	})
-	return writeTable(list.NewList("CHECK", "READY", "STATUS", "DETAIL"), rows)
-}
-
-func writeEventsHuman(items []api.AssignmentItem) error {
-	rows := list.NewGridWithCapacity[string](len(items))
-	for _, item := range items {
-		rows.AddRow(formatTime(item.UpdatedAt), item.Key, nonEmpty(item.Node), string(item.Runtime), statusBadge(item.Status), nonEmpty(item.Error))
-	}
-	return writeTable(list.NewList("TIME", "KEY", "NODE", "RUNTIME", "STATUS", "ERROR"), rows)
-}
-
-func writeLocalNodeHuman(name string, raft *api.RaftStatusOutput, host *api.HostinfoOutput) error {
-	if raft == nil || host == nil {
-		return writeLine(viewMutedStyle.Render("No node response."))
-	}
-	body := host.Body
-	rows := list.NewGrid[string](
-		[]string{"node_id", nonEmpty(name)},
-		[]string{"hostname", nonEmpty(body.Host.Hostname)},
-		[]string{"os", body.Host.OS},
-		[]string{"arch", body.Host.KernelArch},
-		[]string{"raft_ready", strconv.FormatBool(raft.Body.Ready)},
-		[]string{"raft_state", statusBadge(raft.Body.State)},
-		[]string{"raft_leader", nonEmpty(raft.Body.LeaderID)},
-		[]string{"raft_address", nonEmpty(raft.Body.LocalAddress)},
-		[]string{"cpu_cores", strconv.Itoa(body.CPU.LogicalCores)},
-		[]string{"cpu_usage", formatPercent(body.CPU.UsagePercent)},
-		[]string{"memory_total", formatBytes(body.Memory.TotalBytes)},
-		[]string{"memory_used", formatPercent(body.Memory.UsedPercent)},
-	)
-	return writeKVTable(rows)
-}
-
-func writeRaftMemberNodeHuman(name string, raft *api.RaftStatusOutput) error {
-	if raft == nil || raft.Body.Members == nil {
-		return writeLine(viewMutedStyle.Render("No node response."))
-	}
-	var found api.RaftMemberItem
-	ok := false
-	raft.Body.Members.Range(func(_ int, member api.RaftMemberItem) bool {
-		if member.ID != name {
-			return true
-		}
-		found = member
-		ok = true
-		return false
-	})
-	if !ok {
-		return oopsx.B("cli").Errorf("node %q not found in raft members", name)
-	}
-	rows := list.NewGrid[string](
-		[]string{"node_id", found.ID},
-		[]string{"raft_address", found.Address},
-		[]string{"suffrage", found.Suffrage},
-		[]string{"leader", strconv.FormatBool(found.ID == raft.Body.LeaderID)},
-		[]string{"local", strconv.FormatBool(found.ID == raft.Body.NodeID)},
-	)
-	return writeKVTable(rows)
-}
-
-func writeWorkloadRuntimeStatusHuman(out *api.WorkloadRuntimeStatusOutput) error {
-	if out == nil {
-		return writeLine(viewMutedStyle.Render("No workload status response."))
-	}
-	body := out.Body
-	rows := list.NewGrid[string](
-		[]string{"name", nonEmpty(body.Name)},
-		[]string{"runtime", string(body.Runtime)},
-		[]string{"status", statusBadge(body.Status)},
-		[]string{"native_id", nonEmpty(body.NativeID)},
-		[]string{"started_at", formatTime(body.StartedAt)},
-		[]string{"updated_at", formatTime(body.UpdatedAt)},
-		[]string{"message", nonEmpty(body.Message)},
-	)
-	return writeKVTable(rows)
 }

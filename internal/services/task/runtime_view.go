@@ -30,7 +30,11 @@ func (s *Service) WorkloadRuntimeStatus(ctx context.Context, meta deployv1.Metad
 			}, nil
 		}
 	}
-	return s.runtime.Status(ctx, workload.Runtime, meta, workload.Name)
+	out, err := s.runtime.Status(ctx, workload.Runtime, meta, workload.Name)
+	if err != nil {
+		return runtime.Status{}, oopsx.B("task").Wrapf(err, "read workload runtime status")
+	}
+	return out, nil
 }
 
 func (s *Service) WorkloadRuntimeLogs(ctx context.Context, meta deployv1.Metadata, workloadName string, opts runtime.LogOptions) (runtime.LogResult, error) {
@@ -47,10 +51,14 @@ func (s *Service) WorkloadRuntimeLogs(ctx context.Context, meta deployv1.Metadat
 			return runtime.LogResult{}, oopsx.B("task").Errorf("workload %q is assigned to remote node %q; query that node for logs", workload.Name, nodeID)
 		}
 	}
-	return s.runtime.Logs(ctx, workload.Runtime, meta, workload.Name, opts)
+	out, err := s.runtime.Logs(ctx, workload.Runtime, meta, workload.Name, opts)
+	if err != nil {
+		return runtime.LogResult{}, oopsx.B("task").Wrapf(err, "read workload runtime logs")
+	}
+	return out, nil
 }
 
-func nonEmptyStatus(status string, fallback string) string {
+func nonEmptyStatus(status, fallback string) string {
 	status = strings.TrimSpace(status)
 	if status != "" {
 		return status

@@ -11,6 +11,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/hostdns"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 func newHostDNSCmd() *cobra.Command {
@@ -37,42 +38,69 @@ func newHostDNSActionCmd(action string) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			_ = nonInteractive // reserved for installer parity; commands are non-interactive today.
-			cfg, err := config.LoadFromCobra(cmd)
-			if err != nil {
-				return fmt.Errorf("load config: %w", err)
-			}
-			hostCfg, err := hostdns.ConfigFromOrch(cfg)
-			if err != nil {
-				return err
-			}
-			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
-			defer cancel()
-			manager := hostdns.DefaultManager()
-			switch action {
-			case "install":
-				err = manager.Install(ctx, hostCfg)
-			case "uninstall":
-				err = manager.Uninstall(ctx, hostCfg)
-			default:
-				err = fmt.Errorf("unknown host-dns action %q", action)
-			}
-			if err != nil {
-				return err
-			}
-			if jsonOut {
-				return writeHostDNSJSON(map[string]any{
-					"action": action,
-					"config": hostCfg,
-					"ok":     true,
-				})
-			}
-			fmt.Fprintf(os.Stdout, "host-dns %s ok: zone=%s nameserver=%s port=%d\n", action, hostCfg.Zone, hostCfg.Nameserver, hostCfg.Port)
-			return nil
+			return runHostDNSAction(cmd, action, jsonOut)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON")
 	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "Run without prompts for installer scripts")
 	return cmd
+}
+
+func runHostDNSAction(cmd *cobra.Command, action string, jsonOut bool) error {
+	hostCfg, err := loadHostDNSConfig(cmd)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+	defer cancel()
+	if err := executeHostDNSAction(ctx, action, hostCfg); err != nil {
+		return oopsx.B("host-dns").Wrapf(err, "%s host dns", action)
+	}
+	return writeHostDNSActionOutput(action, hostCfg, jsonOut)
+}
+
+func loadHostDNSConfig(cmd *cobra.Command) (hostdns.Config, error) {
+	cfg, err := config.LoadFromCobra(cmd)
+	if err != nil {
+		return hostdns.Config{}, fmt.Errorf("load config: %w", err)
+	}
+	hostCfg, err := hostdns.ConfigFromOrch(cfg)
+	if err != nil {
+		return hostdns.Config{}, oopsx.B("host-dns").Wrapf(err, "build host dns config")
+	}
+	return hostCfg, nil
+}
+
+func executeHostDNSAction(ctx context.Context, action string, hostCfg hostdns.Config) error {
+	manager := hostdns.DefaultManager()
+	switch action {
+	case "install":
+		if err := manager.Install(ctx, hostCfg); err != nil {
+			return fmt.Errorf("install host dns: %w", err)
+		}
+		return nil
+	case "uninstall":
+		if err := manager.Uninstall(ctx, hostCfg); err != nil {
+			return fmt.Errorf("uninstall host dns: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown host-dns action %q", action)
+	}
+}
+
+func writeHostDNSActionOutput(action string, hostCfg hostdns.Config, jsonOut bool) error {
+	if jsonOut {
+		return writeHostDNSJSON(map[string]any{
+			"action": action,
+			"config": hostCfg,
+			"ok":     true,
+		})
+	}
+	if _, err := fmt.Fprintf(os.Stdout, "host-dns %s ok: zone=%s nameserver=%s port=%d\n", action, hostCfg.Zone, hostCfg.Nameserver, hostCfg.Port); err != nil {
+		return oopsx.B("host-dns").Wrapf(err, "write host dns output")
+	}
+	return nil
 }
 
 func newHostDNSStatusCmd() *cobra.Command {
@@ -88,25 +116,27 @@ func newHostDNSStatusCmd() *cobra.Command {
 			}
 			hostCfg, err := hostdns.ConfigFromOrch(cfg)
 			if err != nil {
-				return err
+				return oopsx.B("host-dns").Wrapf(err, "build host dns config")
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
 			defer cancel()
 			status, err := hostdns.DefaultManager().Status(ctx, hostCfg)
 			if err != nil {
-				return err
+				return oopsx.B("host-dns").Wrapf(err, "read host dns status")
 			}
 			if jsonOut {
 				return writeHostDNSJSON(status)
 			}
-			fmt.Fprintf(os.Stdout, "host-dns supported=%t installed=%t zone=%s nameserver=%s port=%d detail=%s\n",
+			if _, err := fmt.Fprintf(os.Stdout, "host-dns supported=%t installed=%t zone=%s nameserver=%s port=%d detail=%s\n",
 				status.Supported,
 				status.Installed,
 				status.Config.Zone,
 				status.Config.Nameserver,
 				status.Config.Port,
 				status.Detail,
-			)
+			); err != nil {
+				return oopsx.B("host-dns").Wrapf(err, "write host dns status")
+			}
 			return nil
 		},
 	}
@@ -117,5 +147,8 @@ func newHostDNSStatusCmd() *cobra.Command {
 func writeHostDNSJSON(v any) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		return oopsx.B("host-dns").Wrapf(err, "write host dns json")
+	}
+	return nil
 }

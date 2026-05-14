@@ -68,12 +68,12 @@ const (
 )
 
 type RunSpec struct {
-	Artifact ArtifactSpec `json:"artifact,omitempty"      yaml:"artifact,omitempty"`
-	Exec     ExecSpec     `json:"exec,omitempty"          yaml:"exec,omitempty"`
-	Env      []EnvVar     `json:"env,omitempty"           yaml:"env,omitempty"`
-	Cwd      string       `json:"cwd,omitempty"           yaml:"cwd,omitempty"`
-	User     string       `json:"user,omitempty"          yaml:"user,omitempty"`
-	Options  RunOptions   `json:"runtimeOptions"          yaml:"runtimeOptions"`
+	Artifact ArtifactSpec `json:"artifact,omitzero" yaml:"artifact,omitempty"`
+	Exec     ExecSpec     `json:"exec,omitzero"     yaml:"exec,omitempty"`
+	Env      []EnvVar     `json:"env,omitempty"     yaml:"env,omitempty"`
+	Cwd      string       `json:"cwd,omitempty"     yaml:"cwd,omitempty"`
+	User     string       `json:"user,omitempty"    yaml:"user,omitempty"`
+	Options  RunOptions   `json:"runtimeOptions"    yaml:"runtimeOptions"`
 }
 
 type ArtifactSpec struct {

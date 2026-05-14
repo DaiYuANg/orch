@@ -104,12 +104,10 @@ func writeDiagnosticsEvents(events *list.List[dixdiag.RecentEvent]) error {
 		return writeLine(viewMutedStyle.Render("No recent dix events."))
 	}
 	values := events.Values()
-	start := len(values) - 20
-	if start < 0 {
-		start = 0
-	}
+	start := max(len(values)-20, 0)
 	rows := list.NewGridWithCapacity[string](len(values) - start)
-	for _, event := range values[start:] {
+	for i := start; i < len(values); i++ {
+		event := &values[i]
 		rows.AddRow(
 			formatTime(event.At),
 			event.Type,

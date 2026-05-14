@@ -66,7 +66,7 @@ func (s *Service) refreshRoutes() {
 	log.Info("ingress routes refreshed", "routes", routeCount)
 }
 
-func (s *Service) Start(_ context.Context) error {
+func (s *Service) Start(ctx context.Context) error {
 	if !s.cfg.Enabled {
 		s.logger.Info("ingress disabled by config")
 		return nil
@@ -77,108 +77,143 @@ func (s *Service) Start(_ context.Context) error {
 		s.mu.Unlock()
 		return nil
 	}
-
-	var tlsConf *tls.Config
-	domains := s.cfg.TLSAutocertDomainList()
-	if s.cfg.TLS.Enabled {
-		m, err := newAutocertManager(s.cfg.TLS, domains, s.dataRoot)
-		if err != nil {
-			s.mu.Unlock()
-			return err
-		}
-		tlsConf = serverTLSConfig(m)
-		if strings.TrimSpace(s.cfg.TLS.Email) == "" {
-			s.logger.Warn("ingress autocert: ingress.tls.email is empty (Let's Encrypt recommends a contact email)")
-		}
-		s.logger.Info("ingress autocert",
-			"domains", domains.Values(),
-			"tls_listen", s.cfg.TLSListenAddrList().Values(),
-			"staging", s.cfg.TLS.Staging,
-		)
+	tlsConf, err := s.startTLSConfig()
+	if err != nil {
+		s.mu.Unlock()
+		return err
 	}
+	listeners, err := s.openListeners(ctx, tlsConf.value)
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	log := s.logger.With(slog.String("component", "ingress"), slog.String("engine", "vale"))
+	if err := s.startGatewayServers(listeners.all, log); err != nil {
+		s.closeListeners(listeners.all)
+		s.mu.Unlock()
+		return err
+	}
+	s.started = true
+	s.startRefreshLoop(ctx)
+	s.mu.Unlock()
 
+	s.refreshRoutes()
+	s.logger.Info("ingress started", "plain_listen", listeners.plain, "tls_listen", listeners.tls)
+	return nil
+}
+
+type ingressTLSConfig struct {
+	value *tls.Config
+}
+
+func (s *Service) startTLSConfig() (ingressTLSConfig, error) {
+	if !s.cfg.TLS.Enabled {
+		return ingressTLSConfig{}, nil
+	}
+	domains := s.cfg.TLSAutocertDomainList()
+	manager, err := newAutocertManager(s.cfg.TLS, domains, s.dataRoot)
+	if err != nil {
+		return ingressTLSConfig{}, err
+	}
+	if strings.TrimSpace(s.cfg.TLS.Email) == "" {
+		s.logger.Warn("ingress autocert: ingress.tls.email is empty (Let's Encrypt recommends a contact email)")
+	}
+	s.logger.Info("ingress autocert",
+		"domains", domains.Values(),
+		"tls_listen", s.cfg.TLSListenAddrList().Values(),
+		"staging", s.cfg.TLS.Staging,
+	)
+	return ingressTLSConfig{value: serverTLSConfig(manager)}, nil
+}
+
+type ingressListeners struct {
+	all   []net.Listener
+	plain []string
+	tls   []string
+}
+
+func (s *Service) openListeners(ctx context.Context, tlsConf *tls.Config) (ingressListeners, error) {
 	plainAddrs := s.cfg.PlainListenAddrList()
 	tlsAddrs := s.cfg.TLSListenAddrList()
-	listeners := make([]net.Listener, 0, plainAddrs.Len()+tlsAddrs.Len())
+	out := ingressListeners{
+		all:   make([]net.Listener, 0, plainAddrs.Len()+tlsAddrs.Len()),
+		plain: plainAddrs.Values(),
+		tls:   tlsAddrs.Values(),
+	}
+	if err := s.listenPlain(ctx, plainAddrs.Values(), &out); err != nil {
+		return ingressListeners{}, err
+	}
+	if err := s.listenTLS(ctx, tlsAddrs.Values(), tlsConf, &out); err != nil {
+		return ingressListeners{}, err
+	}
+	if len(out.all) == 0 {
+		return ingressListeners{}, oopsx.B("ingress").Errorf("no ingress listeners (configure ingress.listen and/or ingress.tls)")
+	}
+	return out, nil
+}
 
-	var listenErr error
-	plainAddrs.Range(func(_ int, addr string) bool {
-		ln, err := net.Listen("tcp", addr)
+func (s *Service) listenPlain(ctx context.Context, addrs []string, out *ingressListeners) error {
+	for _, addr := range addrs {
+		ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 		if err != nil {
-			for _, l := range listeners {
-				_ = l.Close()
-			}
-			listenErr = oopsx.B("ingress").Wrapf(err, "listen %s", addr)
-			return false
+			s.closeListeners(out.all)
+			return oopsx.B("ingress").Wrapf(err, "listen %s", addr)
 		}
-		listeners = append(listeners, ln)
-		return true
-	})
-	if listenErr != nil {
-		s.mu.Unlock()
-		return listenErr
+		out.all = append(out.all, ln)
 	}
-	tlsAddrs.Range(func(_ int, addr string) bool {
-		if tlsConf == nil {
-			return true
-		}
-		ln, err := net.Listen("tcp", addr)
+	return nil
+}
+
+func (s *Service) listenTLS(ctx context.Context, addrs []string, tlsConf *tls.Config, out *ingressListeners) error {
+	if tlsConf == nil {
+		return nil
+	}
+	for _, addr := range addrs {
+		ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
 		if err != nil {
-			for _, l := range listeners {
-				_ = l.Close()
-			}
-			listenErr = oopsx.B("ingress").Wrapf(err, "listen tls %s", addr)
-			return false
+			s.closeListeners(out.all)
+			return oopsx.B("ingress").Wrapf(err, "listen tls %s", addr)
 		}
-		listeners = append(listeners, tls.NewListener(ln, tlsConf))
-		return true
-	})
-	if listenErr != nil {
-		s.mu.Unlock()
-		return listenErr
+		out.all = append(out.all, tls.NewListener(ln, tlsConf))
 	}
+	return nil
+}
 
-	if len(listeners) == 0 {
-		s.mu.Unlock()
-		return oopsx.B("ingress").Errorf("no ingress listeners (configure ingress.listen and/or ingress.tls)")
-	}
-
-	log := s.logger.With(slog.String("component", "ingress"), slog.String("engine", "vale"))
-
+func (s *Service) startGatewayServers(listeners []net.Listener, log *slog.Logger) error {
 	snapshot, _, err := buildValeSnapshot(nil)
 	if err != nil {
-		for _, l := range listeners {
-			_ = l.Close()
-		}
-		s.mu.Unlock()
 		return err
 	}
 	gateway := valeruntime.NewGateway(snapshot, log, true, valeruntime.NewNoopMetrics())
 	s.gateway = gateway
+	s.servers = makeIngressServers(len(listeners), log, gateway, s.currentRouteCount)
+	serveIngressListeners(listeners, s.servers, log)
+	return nil
+}
 
-	servers := make([]*http.Server, 0, len(listeners))
-	for range listeners {
-		servers = append(servers, newIngressHTTPServer(log, gateway, s.currentRouteCount))
+func makeIngressServers(count int, log *slog.Logger, gateway *valeruntime.Gateway, routeCount func() int) []*http.Server {
+	servers := make([]*http.Server, 0, count)
+	for range count {
+		servers = append(servers, newIngressHTTPServer(log, gateway, routeCount))
 	}
+	return servers
+}
 
+func serveIngressListeners(listeners []net.Listener, servers []*http.Server, log *slog.Logger) {
 	for i, ln := range listeners {
-		ln, server := ln, servers[i]
-		go func() {
-			if listenErr := server.Serve(ln); listenErr != nil && listenErr != http.ErrServerClosed {
-				log.Error("ingress listener stopped", "error", listenErr)
+		go func(ln net.Listener, server *http.Server) {
+			if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
+				log.Error("ingress listener stopped", "error", err)
 			}
-		}()
+		}(ln, servers[i])
 	}
+}
 
-	s.servers = servers
-	s.started = true
-
-	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+func (s *Service) startRefreshLoop(ctx context.Context) {
+	refreshCtx, refreshCancel := context.WithCancel(context.WithoutCancel(ctx))
 	s.refreshCancel = refreshCancel
 	ch := s.raft.DeployReconcileSignals()
-	s.refreshWG.Add(1)
-	go func() {
-		defer s.refreshWG.Done()
+	s.refreshWG.Go(func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -191,17 +226,7 @@ func (s *Service) Start(_ context.Context) error {
 				s.refreshRoutes()
 			}
 		}
-	}()
-
-	s.mu.Unlock()
-
-	s.refreshRoutes()
-
-	s.logger.Info("ingress started",
-		"plain_listen", plainAddrs.Values(),
-		"tls_listen", tlsAddrs.Values(),
-	)
-	return nil
+	})
 }
 
 func (s *Service) Stop(ctx context.Context) error {
@@ -241,6 +266,14 @@ func (s *Service) Stop(ctx context.Context) error {
 
 	s.logger.Info("ingress stopped")
 	return nil
+}
+
+func (s *Service) closeListeners(listeners []net.Listener) {
+	for _, l := range listeners {
+		if err := l.Close(); err != nil {
+			s.logger.Warn("close ingress listener", "error", err)
+		}
+	}
 }
 
 func (s *Service) currentRouteCount() int {

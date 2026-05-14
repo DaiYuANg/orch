@@ -113,30 +113,45 @@ func (s *Service) buildAppView(app deployv1.App) AppView {
 	}
 	workloads.Range(func(_ int, workload deployv1.Workload) bool {
 		item := s.buildAppWorkloadView(app.Metadata, workload, generation)
-		view.Workloads.Add(item)
-		switch item.Status {
-		case workloadmeta.AssignmentStatusRunning:
-			view.Running++
-		case workloadmeta.AssignmentStatusStopped:
-			view.Stopped++
-		case workloadmeta.AssignmentStatusFailed:
-			view.Failed++
-		default:
-			view.Pending++
-		}
-		if item.UpdatedAt.After(view.LastTransitionAt) {
-			view.LastTransitionAt = item.UpdatedAt
-		}
-		if item.Error != "" && view.LastError == "" {
-			view.LastError = item.Error
-		}
+		view.addWorkload(item)
 		return true
 	})
 	view.Status = aggregateAppStatus(view)
-	if view.DesiredWorkloads > 0 && view.Running+view.Stopped+view.Failed == view.DesiredWorkloads && view.Pending == 0 {
+	if view.allDesiredWorkloadsObserved() {
 		view.ObservedGeneration = generation
 	}
 	return view
+}
+
+func (view *AppView) addWorkload(item AppWorkloadView) {
+	view.Workloads.Add(item)
+	view.countWorkloadStatus(item.Status)
+	if item.UpdatedAt.After(view.LastTransitionAt) {
+		view.LastTransitionAt = item.UpdatedAt
+	}
+	if item.Error != "" && view.LastError == "" {
+		view.LastError = item.Error
+	}
+}
+
+func (view *AppView) countWorkloadStatus(status string) {
+	switch status {
+	case workloadmeta.AssignmentStatusRunning:
+		view.Running++
+	case workloadmeta.AssignmentStatusStopped:
+		view.Stopped++
+	case workloadmeta.AssignmentStatusFailed:
+		view.Failed++
+	default:
+		view.Pending++
+	}
+}
+
+func (view AppView) allDesiredWorkloadsObserved() bool {
+	if view.DesiredWorkloads == 0 || view.Pending != 0 {
+		return false
+	}
+	return view.Running+view.Stopped+view.Failed == view.DesiredWorkloads
 }
 
 func (s *Service) buildAppWorkloadView(meta deployv1.Metadata, workload deployv1.Workload, desiredGeneration string) AppWorkloadView {

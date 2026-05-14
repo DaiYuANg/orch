@@ -37,7 +37,7 @@ func printRouteHints(log *slog.Logger, ifName string, cidrs *list.List[string]) 
 		})
 	default:
 		log.Info("manual route setup (Linux)", "if_name", ifName, "routes", routeList)
-		log.Debug("route hint example", "cmd", fmt.Sprintf(`sudo ip addr add <addr>/32 dev %s`, ifName))
+		log.Debug("route hint example", "cmd", "sudo ip addr add <addr>/32 dev "+ifName)
 		log.Debug("route hint example", "cmd", fmt.Sprintf(`sudo ip link set %s up`, ifName))
 		cidrs.Range(func(_ int, c string) bool {
 			log.Debug("route hint example", "cmd", fmt.Sprintf(`sudo ip route add %s dev %s`, c, ifName))

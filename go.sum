@@ -171,8 +171,8 @@ github.com/arcgolabs/storx/keycodec v0.2.0 h1:vCYyMOXKfkSjmGp0jmXVEwDaN07K64r8YG
 github.com/arcgolabs/storx/keycodec v0.2.0/go.mod h1:Ny7Z/Q1a5jG1To4XD8XgVg5uK4EuCMg4RSyyBJPn1QM=
 github.com/arcgolabs/storx/observer v0.1.0 h1:xVGpjNgNCe38jiIS9Ssofqg9EVHGaRDUDZdwPP34W74=
 github.com/arcgolabs/storx/observer v0.1.0/go.mod h1:LS9mjg3VnyowgCE89SG5kusejAXgBypWS2wfJUssAes=
-github.com/arcgolabs/vale v0.1.0 h1:+rQcyZc4cDu2I8x8L2YObouq7uIHNsqK8LFAKpL17X8=
-github.com/arcgolabs/vale v0.1.0/go.mod h1:jjCjzCSU83ny/Inljp5FMoAFQtRj8qU6Q0PZ5C0xBI8=
+github.com/arcgolabs/vale v0.1.1 h1:xXglbEu0u9V7jw8Ys4dUz+2x0qlcpzZ3VxNkrq1MnMU=
+github.com/arcgolabs/vale v0.1.1/go.mod h1:xOxyCQFraWozNLTBrFuQLjEX6wghPmI8keVrhpts6q4=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-metrics v0.4.1 h1:hR91U9KYmb6bLBYLQjyM+3j+rcd/UhE+G78SFnF8gJA=
@@ -836,6 +836,8 @@ github.com/labstack/echo/v4 v4.5.0/go.mod h1:czIriw4a0C1dFun+ObrXp7ok03xON0N1awS
 github.com/labstack/gommon v0.3.0/go.mod h1:MULnywXg0yavhxWKc+lOruYdAhDwPK9wf0OL7NoOu+k=
 github.com/leodido/go-urn v1.4.0 h1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=
 github.com/leodido/go-urn v1.4.0/go.mod h1:bvxc+MVxLKB4z00jd1z+Dvzr47oO32F/QSNjSBOlFxI=
+github.com/libp2p/go-buffer-pool v0.1.0 h1:oK4mSFcQz7cTQIfqbe4MIj9gLW+mnanjyFtc6cdF0Y8=
+github.com/libp2p/go-buffer-pool v0.1.0/go.mod h1:N+vh8gMqimBzdKkSMVuydVDq+UV5QTWy5HSiZacSbPg=
 github.com/lithammer/fuzzysearch v1.1.8 h1:/HIuJnjHuXS8bKaiTMeeDlW2/AyIWk2brx1V8LFgLN4=
 github.com/lithammer/fuzzysearch v1.1.8/go.mod h1:IdqeyBClc3FFqSzYq/MXESsS4S0FsZ5ajtkr5xPLts4=
 github.com/lni/dragonboat/v4 v4.0.0-20250723143628-076c7f6497dc h1:5KPn/Yn1COC7w2InNxubbp5tqEYhtNy2l/EOt103ZlE=

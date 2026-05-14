@@ -87,10 +87,9 @@ func (o *Orch) appFromCompileResult(virtualName string, res compiler.Result) (*v
 }
 
 func diagsErr(fset *token.FileSet, d diag.Diagnostics) error {
-	var b strings.Builder
+	lines := make([]string, 0, len(d))
 	for i := range d {
-		b.WriteString(d[i].Format(fset))
-		b.WriteByte('\n')
+		lines = append(lines, d[i].Format(fset))
 	}
-	return fmt.Errorf("%s", strings.TrimSpace(b.String()))
+	return fmt.Errorf("%s", strings.TrimSpace(strings.Join(lines, "\n")))
 }

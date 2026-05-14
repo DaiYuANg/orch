@@ -8,8 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// LoadAppFile loads an App from a YAML file. The file is expected to be a
-// canonical deploy YAML (not the Kotlin-style .wd DSL).
+// ParseAppYAML parses a canonical deploy YAML document into an App.
 //
 // For .orch plano manifests, resolve internal/deploy/loader.Loader from DI (see cmd/orch-cli/cliapp).
 //

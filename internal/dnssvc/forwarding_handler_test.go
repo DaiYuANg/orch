@@ -1,8 +1,7 @@
-package dnssvc
+package dnssvc_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/dnssvc"
 )
 
 func TestServiceForwardsNonOrchQueriesToWorkloadUpstream(t *testing.T) {
@@ -33,19 +33,19 @@ func TestServiceForwardsNonOrchQueriesToWorkloadUpstream(t *testing.T) {
 			},
 			A: net.ParseIP("203.0.113.10"),
 		}}
-		_ = writer.WriteMsg(reply)
+		if err := writer.WriteMsg(reply); err != nil {
+			t.Errorf("write upstream dns reply: %v", err)
+		}
 	})
 
-	svc := &Service{
-		logger: testDNSLogger(),
-		cfg: config.DNSConfig{
-			Enabled: true,
-			Listen:  "127.0.0.1:0",
-			Zone:    "orch.local",
-		},
+	dnsCfg := config.DNSConfig{
+		Enabled: true,
+		Listen:  "127.0.0.1:0",
+		Zone:    "orch.local",
 	}
-	svc.cfg.Data.Path = filepath.Join(t.TempDir(), "dns.db")
-	svc.cfg.Workload.Upstream = []string{upstream}
+	dnsCfg.Data.Path = filepath.Join(t.TempDir(), "dns.db")
+	dnsCfg.Workload.Upstream = []string{upstream}
+	svc := dnssvc.New(config.Config{DNS: dnsCfg}, testDNSLogger())
 
 	ctx := context.Background()
 	if err := svc.Start(ctx); err != nil {
@@ -57,7 +57,7 @@ func TestServiceForwardsNonOrchQueriesToWorkloadUpstream(t *testing.T) {
 		}
 	})
 
-	response := queryTestDNS(t, svc.server.UDPAddr(), "www.example.net.", dns.TypeA)
+	response := queryTestDNS(t, svc.UDPAddr(), "www.example.net.", dns.TypeA)
 	if response.Rcode != dns.RcodeSuccess || len(response.Answer) != 1 {
 		t.Fatalf("external response rcode=%d answer=%#v", response.Rcode, response.Answer)
 	}
@@ -65,7 +65,7 @@ func TestServiceForwardsNonOrchQueriesToWorkloadUpstream(t *testing.T) {
 		t.Fatalf("upstream queries = %d, want 1", upstreamQueries.Load())
 	}
 
-	response = queryTestDNS(t, svc.server.UDPAddr(), "missing.orch.local.", dns.TypeA)
+	response = queryTestDNS(t, svc.UDPAddr(), "missing.orch.local.", dns.TypeA)
 	if response.Rcode != dns.RcodeNameError {
 		t.Fatalf("orch-zone miss rcode = %d, want NXDOMAIN", response.Rcode)
 	}
@@ -77,7 +77,7 @@ func TestServiceForwardsNonOrchQueriesToWorkloadUpstream(t *testing.T) {
 func startTestDNSServer(t *testing.T, handler dns.HandlerFunc) string {
 	t.Helper()
 
-	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	conn, err := (&net.ListenConfig{}).ListenPacket(t.Context(), "udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen udp: %v", err)
 	}
@@ -86,10 +86,14 @@ func startTestDNSServer(t *testing.T, handler dns.HandlerFunc) string {
 		Handler:    handler,
 	}
 	go func() {
-		_ = server.ActivateAndServe()
+		if err := server.ActivateAndServe(); err != nil {
+			t.Logf("dns test server stopped: %v", err)
+		}
 	}()
 	t.Cleanup(func() {
-		_ = server.Shutdown()
+		if err := server.Shutdown(); err != nil {
+			t.Fatalf("shutdown dns test server: %v", err)
+		}
 	})
 	return conn.LocalAddr().String()
 }
@@ -117,7 +121,9 @@ func TestForwardingHandlerWithoutUpstreamRefusesExternalQueries(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = store.Close()
+		if err := store.Close(); err != nil {
+			t.Fatalf("close dns store: %v", err)
+		}
 	})
 	if err := store.SaveRecord(context.Background(), dnsserver.Record{
 		Zone: "orch.local",
@@ -130,7 +136,7 @@ func TestForwardingHandlerWithoutUpstreamRefusesExternalQueries(t *testing.T) {
 	}
 
 	resolver := dnsserver.NewResolver(store, dnsserver.WithResolverLogger(testDNSLogger()))
-	server := startTestDNSServer(t, newForwardingHandler(resolver, nil, nil).ServeDNS)
+	server := startTestDNSServer(t, dnssvc.NewForwardingHandler(resolver, nil, nil).ServeDNS)
 	response := queryTestDNS(t, server, "www.example.net.", dns.TypeA)
 	if response.Rcode != dns.RcodeRefused {
 		t.Fatalf("external rcode = %d, want refused", response.Rcode)
@@ -138,5 +144,5 @@ func TestForwardingHandlerWithoutUpstreamRefusesExternalQueries(t *testing.T) {
 }
 
 func testDNSLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }

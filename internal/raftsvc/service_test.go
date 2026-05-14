@@ -1,8 +1,8 @@
-package raftsvc
+package raftsvc_test
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"log/slog"
 	"net"
 	"path/filepath"
@@ -12,11 +12,12 @@ import (
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodeid"
+	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return slog.New(slog.DiscardHandler)
 }
 
 func TestBootstrapServerListIncludesStaticPeers(t *testing.T) {
@@ -25,9 +26,9 @@ func TestBootstrapServerListIncludesStaticPeers(t *testing.T) {
 		"node-b": "10.0.0.12:7444",
 		"node-a": "10.0.0.11:7444",
 	}
-	svc := New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
+	svc := raftsvc.New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
 
-	servers, err := svc.bootstrapServerList("node-a", "10.0.0.11:7444")
+	servers, err := svc.BootstrapServerList("node-a", "10.0.0.11:7444")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,9 +50,9 @@ func TestBootstrapServerListOverridesLocalPeerAddress(t *testing.T) {
 	cfg.Raft.Peers = map[string]string{
 		"node-a": "10.0.0.99:7444",
 	}
-	svc := New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
+	svc := raftsvc.New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
 
-	servers, err := svc.bootstrapServerList("node-a", "10.0.0.11:7444")
+	servers, err := svc.BootstrapServerList("node-a", "10.0.0.11:7444")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,16 +69,16 @@ func TestBootstrapServerListOverridesLocalPeerAddress(t *testing.T) {
 func TestBootstrapServerListRejectsPeerWithoutHost(t *testing.T) {
 	cfg := config.Default()
 	cfg.Raft.Peers = map[string]string{"node-b": ":7444"}
-	svc := New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
+	svc := raftsvc.New(cfg, testLogger(), nodeid.Local{Value: "node-a"})
 
-	if _, err := svc.bootstrapServerList("node-a", "10.0.0.11:7444"); err == nil {
+	if _, err := svc.BootstrapServerList("node-a", "10.0.0.11:7444"); err == nil {
 		t.Fatal("expected invalid peer error")
 	}
 }
 
 func TestRaftMembershipSingleNode(t *testing.T) {
 	ctx := context.Background()
-	svc := newStartedTestRaft(t, "node-a", true)
+	svc := newStartedTestRaft(t, "node-a")
 	waitRaftLeader(t, svc)
 
 	members, err := svc.ListMembers(ctx)
@@ -95,13 +96,18 @@ func TestRaftMembershipSingleNode(t *testing.T) {
 
 func TestRaftStatusSingleNodeLeader(t *testing.T) {
 	ctx := context.Background()
-	svc := newStartedTestRaft(t, "node-a", true)
+	svc := newStartedTestRaft(t, "node-a")
 	waitRaftLeader(t, svc)
 
 	status, err := svc.Status(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
+	requireSingleNodeLeaderStatus(t, status)
+}
+
+func requireSingleNodeLeaderStatus(t *testing.T, status raftsvc.Status) {
+	t.Helper()
 	if !status.Ready || !status.IsLeader {
 		t.Fatalf("status readiness = ready:%t leader:%t", status.Ready, status.IsLeader)
 	}
@@ -142,10 +148,10 @@ func TestRaftSingleNodeRestoresMetadataAfterRestart(t *testing.T) {
 
 	first := newStartedTestRaftWithDataDir(t, "node-a", true, raftAddr, dataDir)
 	waitRaftLeader(t, first)
-	if err := first.ApplyDeployApp(app); err != nil {
+	if err := first.ApplyDeployApp(context.Background(), app); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.ApplyWorkloadAssignment(assignment); err != nil {
+	if err := first.ApplyWorkloadAssignment(context.Background(), assignment); err != nil {
 		t.Fatal(err)
 	}
 	stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -169,7 +175,7 @@ func TestRaftSingleNodeRestoresMetadataAfterRestart(t *testing.T) {
 
 func TestRaftAddAndRemoveVoter(t *testing.T) {
 	ctx := context.Background()
-	leader := newStartedTestRaft(t, "node-a", true)
+	leader := newStartedTestRaft(t, "node-a")
 	waitRaftLeader(t, leader)
 
 	followerAddr := reserveTestRaftAddr(t)
@@ -187,18 +193,19 @@ func TestRaftAddAndRemoveVoter(t *testing.T) {
 	waitRaftMember(t, leader, "node-b", false)
 }
 
-func newStartedTestRaft(t testing.TB, id string, bootstrap bool) *Service {
-	return newStartedTestRaftWithBind(t, id, bootstrap, "127.0.0.1:0")
+func newStartedTestRaft(tb testing.TB, id string) *raftsvc.Service {
+	tb.Helper()
+	return newStartedTestRaftWithBind(tb, id, true, "127.0.0.1:0")
 }
 
-func newStartedTestRaftWithBind(t testing.TB, id string, bootstrap bool, bind string) *Service {
-	t.Helper()
-	tmp := t.TempDir()
-	return newStartedTestRaftWithDataDir(t, id, bootstrap, bind, filepath.Join(tmp, "dragonboat"))
+func newStartedTestRaftWithBind(tb testing.TB, id string, bootstrap bool, bind string) *raftsvc.Service {
+	tb.Helper()
+	tmp := tb.TempDir()
+	return newStartedTestRaftWithDataDir(tb, id, bootstrap, bind, filepath.Join(tmp, "dragonboat"))
 }
 
-func newStartedTestRaftWithDataDir(t testing.TB, id string, bootstrap bool, bind, dataDir string) *Service {
-	t.Helper()
+func newStartedTestRaftWithDataDir(tb testing.TB, id string, bootstrap bool, bind, dataDir string) *raftsvc.Service {
+	tb.Helper()
 	cfg := config.Default()
 	cfg.Raft.Bind = bind
 	cfg.Raft.Advertise = ""
@@ -206,15 +213,15 @@ func newStartedTestRaftWithDataDir(t testing.TB, id string, bootstrap bool, bind
 	cfg.Raft.Peers = map[string]string{}
 	cfg.Raft.Data.Dir = dataDir
 
-	svc := New(cfg, testLogger(), nodeid.Local{Value: id})
+	svc := raftsvc.New(cfg, testLogger(), nodeid.Local{Value: id})
 	if err := svc.Start(context.Background()); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := svc.Stop(stopCtx); err != nil {
-			t.Logf("stop raft: %v", err)
+			tb.Logf("stop raft: %v", err)
 		}
 	})
 	return svc
@@ -222,7 +229,7 @@ func newStartedTestRaftWithDataDir(t testing.TB, id string, bootstrap bool, bind
 
 func reserveTestRaftAddr(t *testing.T) string {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,42 +240,47 @@ func reserveTestRaftAddr(t *testing.T) string {
 	return addr
 }
 
-func waitRaftLeader(t testing.TB, svc *Service) {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+func waitRaftLeader(tb testing.TB, svc *raftsvc.Service) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := svc.WaitLocalLeader(ctx); err == nil {
+		return
+	}
+	status, err := svc.Status(context.Background())
+	if err != nil {
+		tb.Fatalf("raft did not reach leader; status error: %v", err)
+	}
+	tb.Fatalf("raft did not reach leader: %#v", status)
+}
+
+func waitRaftMember(tb testing.TB, svc *raftsvc.Service, id string, want bool) {
+	tb.Helper()
+	deadline := time.Now().Add(5 * time.Second)
 	for {
-		if svc.isLocalLeader() {
+		found, err := raftMemberPresent(svc, id)
+		if err == nil && found == want {
 			return
 		}
 		if time.Now().After(deadline) {
-			status, _ := svc.Status(context.Background())
-			t.Fatalf("raft did not reach leader: %#v", status)
+			tb.Fatalf("raft member %q present=%t, want %t", id, !want, want)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 }
 
-func waitRaftMember(t testing.TB, svc *Service, id string, want bool) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		members, err := svc.ListMembers(context.Background())
-		if err == nil {
-			found := false
-			members.Range(func(_ int, member Member) bool {
-				if member.ID == id {
-					found = true
-					return false
-				}
-				return true
-			})
-			if found == want {
-				return
-			}
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("raft member %q present=%t, want %t", id, !want, want)
-		}
-		time.Sleep(20 * time.Millisecond)
+func raftMemberPresent(svc *raftsvc.Service, id string) (bool, error) {
+	members, err := svc.ListMembers(context.Background())
+	if err != nil {
+		return false, fmt.Errorf("list raft members: %w", err)
 	}
+	found := false
+	members.Range(func(_ int, member raftsvc.Member) bool {
+		if member.ID == id {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found, nil
 }

@@ -1,23 +1,25 @@
-package api
+package api_test
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/arcgolabs/collectionx/list"
+
+	"github.com/daiyuang/orch/internal/api"
 )
 
 func TestCollectionBackedOutputsSerializeAsJSONArrays(t *testing.T) {
 	t.Parallel()
 
-	workloads := ListWorkloadsOutput{}
-	workloads.Body.Items = list.NewList(WorkloadItem{Name: "web", Runtime: "docker", Artifact: "nginx", Status: "running"})
+	workloads := api.ListWorkloadsOutput{}
+	workloads.Body.Items = list.NewList(api.WorkloadItem{Name: "web", Runtime: "docker", Artifact: "nginx", Status: "running"})
 	raw, err := json.Marshal(workloads.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var wire struct {
-		Items []WorkloadItem `json:"items"`
+		Items []api.WorkloadItem `json:"items"`
 	}
 	if err := json.Unmarshal(raw, &wire); err != nil {
 		t.Fatal(err)
@@ -26,7 +28,7 @@ func TestCollectionBackedOutputsSerializeAsJSONArrays(t *testing.T) {
 		t.Fatalf("wire items = %#v", wire.Items)
 	}
 
-	var decoded ListWorkloadsOutput
+	var decoded api.ListWorkloadsOutput
 	if err := json.Unmarshal(raw, &decoded.Body); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +41,7 @@ func TestCollectionBackedOutputsSerializeAsJSONArrays(t *testing.T) {
 func TestCollectionBackedBootstrapRoutesSerializeAsJSONArray(t *testing.T) {
 	t.Parallel()
 
-	out := OrchVPNBootstrapOutput{}
+	out := api.OrchVPNBootstrapOutput{}
 	out.Body.ContainerRoutes = list.NewList("10.42.0.10/32")
 	raw, err := json.Marshal(out.Body)
 	if err != nil {

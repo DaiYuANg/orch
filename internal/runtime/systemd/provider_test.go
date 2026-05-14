@@ -1,20 +1,21 @@
-package systemd
+package systemd_test
 
 import (
 	"strings"
 	"testing"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/runtime/systemd"
 )
 
 func TestDefaultUnitName(t *testing.T) {
 	t.Parallel()
 
 	meta := deployv1.Metadata{Name: "Demo_App", Namespace: ""}
-	if got := defaultUnitName(meta, "api"); got != "orch-default-demo_app-api.service" {
+	if got := systemd.DefaultUnitName(meta, "api"); got != "orch-default-demo_app-api.service" {
 		t.Fatalf("unit name = %q", got)
 	}
-	if got := normalizeUnitName("custom-api"); got != "custom-api.service" {
+	if got := systemd.NormalizeUnitName("custom-api"); got != "custom-api.service" {
 		t.Fatalf("custom unit name = %q", got)
 	}
 }
@@ -45,7 +46,7 @@ func TestRenderUnit(t *testing.T) {
 		},
 	}
 
-	unit, err := renderUnit(meta, workload, "orch-prod-demo-api.service")
+	unit, err := systemd.RenderUnit(meta, workload, "orch-prod-demo-api.service")
 	if err != nil {
 		t.Fatal(err)
 	}

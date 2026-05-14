@@ -9,6 +9,7 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 
 	"github.com/daiyuang/orch/internal/nodecapacity"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // NewRaftCapacityStore returns a [nodecapacity.SnapshotStore] backed by the replicated FSM (raft apply).
@@ -21,7 +22,6 @@ type raftCapacityStore struct {
 }
 
 func (r *raftCapacityStore) Upsert(ctx context.Context, snap nodecapacity.Snapshot) error {
-	_ = ctx
 	if r == nil || r.s == nil {
 		return nil
 	}
@@ -34,7 +34,7 @@ func (r *raftCapacityStore) Upsert(ctx context.Context, snap nodecapacity.Snapsh
 	}
 	b, err := json.Marshal(env)
 	if err != nil {
-		return err
+		return oopsx.B("raft", "capacity").Wrapf(err, "encode node capacity")
 	}
 	if r.s.nh == nil {
 		r.s.fsm.applyCommandPayload(b)
@@ -43,7 +43,10 @@ func (r *raftCapacityStore) Upsert(ctx context.Context, snap nodecapacity.Snapsh
 	if !r.s.isLocalLeader() {
 		return nil
 	}
-	return r.s.applyCommand(b, 5*time.Second, "not leader: send node capacity to the raft leader node")
+	if err := r.s.applyCommand(ctx, b, 5*time.Second, "not leader: send node capacity to the raft leader node"); err != nil {
+		return oopsx.B("raft", "capacity").Wrapf(err, "apply node capacity")
+	}
+	return nil
 }
 
 func (r *raftCapacityStore) Get(nodeID string) (nodecapacity.Snapshot, bool) {

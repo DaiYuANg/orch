@@ -38,51 +38,18 @@ func newOTLP(ctx context.Context, cfg config.Config, logger *slog.Logger) (obs.O
 	if err != nil {
 		return nil, nil, fmt.Errorf("otlp resource: %w", err)
 	}
-
-	var traceExporter sdktrace.SpanExporter
-	var metricExporter sdkmetric.Exporter
-
-	switch proto {
-	case "grpc":
-		hostport := otlpGRPCAddr(o.Endpoint)
-		topts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(hostport)}
-		mopts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(hostport)}
-		if o.Insecure {
-			topts = append(topts, otlptracegrpc.WithInsecure())
-			mopts = append(mopts, otlpmetricgrpc.WithInsecure())
-		}
-		traceExporter, err = otlptracegrpc.New(ctx, topts...)
-		if err != nil {
-			return nil, nil, fmt.Errorf("otlp grpc trace exporter: %w", err)
-		}
-		metricExporter, err = otlpmetricgrpc.New(ctx, mopts...)
-		if err != nil {
-			_ = traceExporter.Shutdown(ctx)
-			return nil, nil, fmt.Errorf("otlp grpc metric exporter: %w", err)
-		}
-	case "http":
-		topts := otlpHTTPTraceOptions(o.Endpoint, o.Insecure)
-		mopts := otlpHTTPMetricOptions(o.Endpoint, o.Insecure)
-		traceExporter, err = otlptracehttp.New(ctx, topts...)
-		if err != nil {
-			return nil, nil, fmt.Errorf("otlp http trace exporter: %w", err)
-		}
-		metricExporter, err = otlpmetrichttp.New(ctx, mopts...)
-		if err != nil {
-			_ = traceExporter.Shutdown(ctx)
-			return nil, nil, fmt.Errorf("otlp http metric exporter: %w", err)
-		}
-	default:
-		return nil, nil, fmt.Errorf("otlp: unknown protocol %q (use grpc or http)", o.Protocol)
+	exporters, err := newOTLPExporters(ctx, proto, cfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(traceExporter),
+		sdktrace.WithBatcher(exporters.trace),
 		sdktrace.WithResource(res),
 	)
 	otel.SetTracerProvider(tp)
 
-	reader := sdkmetric.NewPeriodicReader(metricExporter, sdkmetric.WithInterval(defaultOTLPExportInterval))
+	reader := sdkmetric.NewPeriodicReader(exporters.metric, sdkmetric.WithInterval(defaultOTLPExportInterval))
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(reader),
 		sdkmetric.WithResource(res),
@@ -108,6 +75,76 @@ func newOTLP(ctx context.Context, cfg config.Config, logger *slog.Logger) (obs.O
 	return backend, shutdown, nil
 }
 
+type otlpExporters struct {
+	trace  sdktrace.SpanExporter
+	metric sdkmetric.Exporter
+}
+
+func newOTLPExporters(ctx context.Context, proto string, cfg config.Config) (otlpExporters, error) {
+	switch proto {
+	case "grpc":
+		return newOTLPGRPCExporters(ctx, cfg)
+	case "http":
+		return newOTLPHTTPExporters(ctx, cfg)
+	default:
+		return otlpExporters{}, fmt.Errorf("otlp: unknown protocol %q (use grpc or http)", cfg.Observability.OTLP.Protocol)
+	}
+}
+
+func newOTLPGRPCExporters(ctx context.Context, cfg config.Config) (otlpExporters, error) {
+	traceOptions, metricOptions := otlpGRPCOptions(cfg)
+	traceExporter, err := otlptracegrpc.New(ctx, traceOptions...)
+	if err != nil {
+		return otlpExporters{}, fmt.Errorf("otlp grpc trace exporter: %w", err)
+	}
+	metricExporter, err := otlpmetricgrpc.New(ctx, metricOptions...)
+	if err != nil {
+		return otlpExporters{}, errors.Join(
+			fmt.Errorf("otlp grpc metric exporter: %w", err),
+			shutdownTraceExporter(ctx, traceExporter),
+		)
+	}
+	return otlpExporters{trace: traceExporter, metric: metricExporter}, nil
+}
+
+func otlpGRPCOptions(cfg config.Config) ([]otlptracegrpc.Option, []otlpmetricgrpc.Option) {
+	otlp := cfg.Observability.OTLP
+	hostport := otlpGRPCAddr(otlp.Endpoint)
+	traceOptions := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(hostport)}
+	metricOptions := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(hostport)}
+	if otlp.Insecure {
+		traceOptions = append(traceOptions, otlptracegrpc.WithInsecure())
+		metricOptions = append(metricOptions, otlpmetricgrpc.WithInsecure())
+	}
+	return traceOptions, metricOptions
+}
+
+func newOTLPHTTPExporters(ctx context.Context, cfg config.Config) (otlpExporters, error) {
+	otlp := cfg.Observability.OTLP
+	traceExporter, err := otlptracehttp.New(ctx, otlpHTTPTraceOptions(otlp.Endpoint, otlp.Insecure)...)
+	if err != nil {
+		return otlpExporters{}, fmt.Errorf("otlp http trace exporter: %w", err)
+	}
+	metricExporter, err := otlpmetrichttp.New(ctx, otlpHTTPMetricOptions(otlp.Endpoint, otlp.Insecure)...)
+	if err != nil {
+		return otlpExporters{}, errors.Join(
+			fmt.Errorf("otlp http metric exporter: %w", err),
+			shutdownTraceExporter(ctx, traceExporter),
+		)
+	}
+	return otlpExporters{trace: traceExporter, metric: metricExporter}, nil
+}
+
+func shutdownTraceExporter(ctx context.Context, exporter sdktrace.SpanExporter) error {
+	if exporter == nil {
+		return nil
+	}
+	if err := exporter.Shutdown(ctx); err != nil {
+		return fmt.Errorf("otlp trace exporter shutdown: %w", err)
+	}
+	return nil
+}
+
 func otlpGRPCAddr(endpoint string) string {
 	return stripScheme(lo.CoalesceOrEmpty(strings.TrimSpace(endpoint), "localhost:4317"))
 }
@@ -123,23 +160,11 @@ func stripScheme(hostport string) string {
 }
 
 func otlpHTTPTraceOptions(endpoint string, insecure bool) []otlptracehttp.Option {
-	return otlpHTTPOptions(endpoint, insecure, func(fullURL string) otlptracehttp.Option {
-		return otlptracehttp.WithEndpointURL(fullURL)
-	}, func(hostport string) otlptracehttp.Option {
-		return otlptracehttp.WithEndpoint(hostport)
-	}, func() otlptracehttp.Option {
-		return otlptracehttp.WithInsecure()
-	})
+	return otlpHTTPOptions(endpoint, insecure, otlptracehttp.WithEndpointURL, otlptracehttp.WithEndpoint, otlptracehttp.WithInsecure)
 }
 
 func otlpHTTPMetricOptions(endpoint string, insecure bool) []otlpmetrichttp.Option {
-	return otlpHTTPOptions(endpoint, insecure, func(fullURL string) otlpmetrichttp.Option {
-		return otlpmetrichttp.WithEndpointURL(fullURL)
-	}, func(hostport string) otlpmetrichttp.Option {
-		return otlpmetrichttp.WithEndpoint(hostport)
-	}, func() otlpmetrichttp.Option {
-		return otlpmetrichttp.WithInsecure()
-	})
+	return otlpHTTPOptions(endpoint, insecure, otlpmetrichttp.WithEndpointURL, otlpmetrichttp.WithEndpoint, otlpmetrichttp.WithInsecure)
 }
 
 func otlpHTTPOptions[T any](

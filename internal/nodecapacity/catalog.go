@@ -9,6 +9,7 @@ import (
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/internal/hostinfo"
 	"github.com/daiyuang/orch/internal/nodeid"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // Catalog exposes placement-facing reads and RefreshLocal writes via [SnapshotStore].
@@ -59,8 +60,11 @@ func (c *Catalog) RefreshLocal(ctx context.Context, local nodeid.Local, cfg conf
 	}
 	rep, err := hostinfo.Collect(ctx)
 	if err != nil {
-		return err
+		return oopsx.B("nodecapacity").Wrapf(err, "collect host capacity")
 	}
 	snap := snapshotFromReport(nodeID, rep)
-	return c.store.Upsert(ctx, snap)
+	if err := c.store.Upsert(ctx, snap); err != nil {
+		return oopsx.B("nodecapacity").Wrapf(err, "upsert local capacity")
+	}
+	return nil
 }

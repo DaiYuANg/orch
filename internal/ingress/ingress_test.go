@@ -1,28 +1,27 @@
-package ingress
+package ingress_test
 
 import (
+	"html"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/arcgolabs/collectionx/list"
-	valeruntime "github.com/arcgolabs/vale/runtime"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/ingress"
 )
 
 func testHTTPHandler(t *testing.T, routes *list.List[config.IngressRoute]) http.Handler {
 	t.Helper()
-	snapshot, routeCount, err := buildValeSnapshot(routes)
+	handler, err := ingress.NewHTTPHandler(routes, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := valeruntime.NewGateway(snapshot, slog.Default(), false, valeruntime.NewNoopMetrics())
-	return newIngressHTTPHandler(gateway, func() int { return routeCount })
+	return handler
 }
 
 func TestNewIngressHTTPHandler_proxyPathRewrite(t *testing.T) {
@@ -30,7 +29,7 @@ func TestNewIngressHTTPHandler_proxyPathRewrite(t *testing.T) {
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(r.URL.Path))
+		writeTestResponse(t, w, r.URL.Path)
 	}))
 	t.Cleanup(upstream.Close)
 
@@ -38,7 +37,7 @@ func TestNewIngressHTTPHandler_proxyPathRewrite(t *testing.T) {
 		config.IngressRoute{PathPrefix: "/api", Upstream: upstream.URL},
 	))
 
-	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1/api/v1/hello", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://127.0.0.1/api/v1/hello", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +45,8 @@ func TestNewIngressHTTPHandler_proxyPathRewrite(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	resp := rec.Result()
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	defer closeResponseBody(t, resp)
+	body := readResponseBody(t, resp)
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: %d", resp.StatusCode)
@@ -63,12 +62,12 @@ func TestNewIngressHTTPHandler_noRouteNotFound(t *testing.T) {
 	handler := testHTTPHandler(t, list.NewList(
 		config.IngressRoute{PathPrefix: "/api", Upstream: "http://127.0.0.1:1"},
 	))
-	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/other", nil)
+	req := newTestRequest(t, "http://127.0.0.1/other")
 	req.Host = "127.0.0.1"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	resp := rec.Result()
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status: %d", resp.StatusCode)
 	}
@@ -85,12 +84,12 @@ func TestNewIngressHTTPHandler_pathPrefixBoundary(t *testing.T) {
 	handler := testHTTPHandler(t, list.NewList(
 		config.IngressRoute{PathPrefix: "/api", Upstream: upstream.URL},
 	))
-	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/api2", nil)
+	req := newTestRequest(t, "http://127.0.0.1/api2")
 	req.Host = "127.0.0.1"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	resp := rec.Result()
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("status: %d", resp.StatusCode)
 	}
@@ -99,12 +98,12 @@ func TestNewIngressHTTPHandler_pathPrefixBoundary(t *testing.T) {
 func TestNewIngressHTTPHandler_placeholderNoRoutes(t *testing.T) {
 	t.Parallel()
 	handler := testHTTPHandler(t, nil)
-	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/", nil)
+	req := newTestRequest(t, "http://127.0.0.1/")
 	req.Host = "127.0.0.1"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	resp := rec.Result()
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: %d", resp.StatusCode)
 	}
@@ -116,11 +115,11 @@ func TestNewIngressHTTPHandler_roundRobinDistributes(t *testing.T) {
 	var hitsA, hitsB int
 	srvA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hitsA++
-		_, _ = w.Write([]byte("a"))
+		writeTestResponse(t, w, "a")
 	}))
 	srvB := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hitsB++
-		_, _ = w.Write([]byte("b"))
+		writeTestResponse(t, w, "b")
 	}))
 	t.Cleanup(srvA.Close)
 	t.Cleanup(srvB.Close)
@@ -134,7 +133,7 @@ func TestNewIngressHTTPHandler_roundRobinDistributes(t *testing.T) {
 	))
 
 	for range 8 {
-		req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1/p/x", nil)
+		req := newTestRequest(t, "http://127.0.0.1/p/x")
 		req.Host = "127.0.0.1"
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -142,7 +141,7 @@ func TestNewIngressHTTPHandler_roundRobinDistributes(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("status: %d", resp.StatusCode)
 		}
-		resp.Body.Close()
+		closeResponseBody(t, resp)
 	}
 
 	if hitsA < 1 || hitsB < 1 {
@@ -150,6 +149,38 @@ func TestNewIngressHTTPHandler_roundRobinDistributes(t *testing.T) {
 	}
 	if hitsA+hitsB != 8 {
 		t.Fatalf("hitsA+hitsB=%d want 8", hitsA+hitsB)
+	}
+}
+
+func writeTestResponse(t *testing.T, w http.ResponseWriter, body string) {
+	t.Helper()
+	if _, err := io.WriteString(w, html.EscapeString(body)); err != nil {
+		t.Fatalf("write response: %v", err)
+	}
+}
+
+func newTestRequest(t *testing.T, url string) *http.Request {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	return req
+}
+
+func readResponseBody(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+	return body
+}
+
+func closeResponseBody(t *testing.T, resp *http.Response) {
+	t.Helper()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("close response body: %v", err)
 	}
 }
 
@@ -212,7 +243,7 @@ func TestCompileIngressRoutesFromDeploy(t *testing.T) {
 		}},
 	})
 	dns := mapDNS{"ns/web": "10.0.0.2"}
-	got := CompileIngressRoutesFromDeploy(apps, dns, nil)
+	got := ingress.CompileIngressRoutesFromDeploy(apps, dns, nil)
 	route, ok := got.Get(0)
 	if got.Len() != 1 || !ok || route.PathPrefix != "/api" || route.Upstream != "http://10.0.0.2:8080" {
 		t.Fatalf("got %#v", got.Values())

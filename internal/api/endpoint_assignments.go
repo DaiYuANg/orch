@@ -28,11 +28,12 @@ func (e *AssignmentsEndpoint) EndpointSpec() httpx.EndpointSpec {
 }
 
 func (e *AssignmentsEndpoint) Register(r httpx.Registrar) {
-	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"scheduler"}, "listWorkloadAssignments", "List scheduler workload assignments",
+	httpx.MustGroupGet(r.Scope(), "", e.Handle, OpenAPIMeta([]string{"scheduler"}, "listWorkloadAssignments", "List scheduler workload assignments",
 		"Sorted workload assignment records including app metadata, workload name, assigned node, runtime, artifact, status, and last error."))
 }
 
-func (e *AssignmentsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListAssignmentsOutput, error) {
+// Handle returns the current scheduler assignment view.
+func (e *AssignmentsEndpoint) Handle(_ context.Context, _ *EmptyInput) (*ListAssignmentsOutput, error) {
 	out := &ListAssignmentsOutput{}
 	out.Body.Items = list.NewList[AssignmentItem]()
 	if e != nil && e.tasks != nil {

@@ -1,18 +1,18 @@
-package api
+package api_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"testing"
 
+	"github.com/daiyuang/orch/internal/api"
 	"github.com/daiyuang/orch/internal/services/registry"
 )
 
 func TestWorkloadsEndpointHandleMapsPublicItems(t *testing.T) {
 	t.Parallel()
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	reg := registry.NewService(logger)
 	reg.Upsert(registry.WorkloadRecord{
 		Name:     "web",
@@ -22,7 +22,7 @@ func TestWorkloadsEndpointHandleMapsPublicItems(t *testing.T) {
 		Status:   "running",
 	})
 
-	out, err := NewWorkloadsEndpoint(reg).handle(context.Background(), &EmptyInput{})
+	out, err := api.NewWorkloadsEndpoint(reg).Handle(context.Background(), &api.EmptyInput{})
 	if err != nil {
 		t.Fatal(err)
 	}

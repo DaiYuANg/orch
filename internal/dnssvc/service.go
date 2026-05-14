@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/mapping"
 	"github.com/arcgolabs/dnsx/dnsserver"
 	"github.com/miekg/dns"
@@ -44,33 +45,51 @@ func (s *Service) Start(ctx context.Context) error {
 	if err := os.MkdirAll(filepath.Dir(s.cfg.Data.Path), 0o750); err != nil {
 		return oopsx.B("dns").Wrapf(err, "mkdir dns data dir")
 	}
-
 	store, err := dnsserver.OpenBboltStore(s.cfg.Data.Path, s.logger)
 	if err != nil {
 		return oopsx.B("dns").Wrapf(err, "open dns store")
 	}
-
-	resolver := dnsserver.NewResolver(store, dnsserver.WithResolverLogger(s.logger))
-	upstreams := s.cfg.WorkloadUpstreamList()
-	serverOptions := []dnsserver.Option{dnsserver.WithLogger(s.logger)}
-	if upstreams.Len() > 0 {
-		serverOptions = append(serverOptions, dnsserver.WithHandler(newForwardingHandler(resolver, upstreams, s.logger)))
-	}
-	server := dnsserver.NewServerWithResolver(
-		dnsserver.Config{Listen: s.cfg.Listen},
-		resolver,
-		serverOptions...,
-	)
+	server, upstreams := s.newServer(ctx, store)
 	if err := server.Start(ctx); err != nil {
-		if closeErr := store.Close(); closeErr != nil {
-			s.logger.Warn("close dns store after start failure", "error", closeErr)
-		}
+		s.closeStoreAfterStartFailure(store)
 		return oopsx.B("dns").Wrapf(err, "start dns server")
 	}
 
 	s.store = store
 	s.server = server
 	s.started.Store(true)
+	if err := s.seedZoneRecord(ctx); err != nil {
+		return err
+	}
+	s.logStarted(upstreams)
+	return nil
+}
+
+func (s *Service) newServer(ctx context.Context, store *dnsserver.BboltStore) (*dnsserver.Server, *list.List[string]) {
+	resolver := dnsserver.NewResolver(store, dnsserver.WithResolverLogger(s.logger))
+	upstreams := s.cfg.WorkloadUpstreamList(ctx)
+	return dnsserver.NewServerWithResolver(
+		dnsserver.Config{Listen: s.cfg.Listen},
+		resolver,
+		s.serverOptions(resolver, upstreams)...,
+	), upstreams
+}
+
+func (s *Service) serverOptions(resolver *dnsserver.Resolver, upstreams *list.List[string]) []dnsserver.Option {
+	options := []dnsserver.Option{dnsserver.WithLogger(s.logger)}
+	if upstreams.Len() > 0 {
+		options = append(options, dnsserver.WithHandler(newForwardingHandler(resolver, upstreams, s.logger)))
+	}
+	return options
+}
+
+func (s *Service) closeStoreAfterStartFailure(store *dnsserver.BboltStore) {
+	if closeErr := store.Close(); closeErr != nil {
+		s.logger.Warn("close dns store after start failure", "error", closeErr)
+	}
+}
+
+func (s *Service) seedZoneRecord(ctx context.Context) error {
 	zone := dnsZoneName(s.cfg)
 	if err := s.store.SaveRecord(ctx, dnsserver.Record{
 		Zone: zone,
@@ -81,7 +100,11 @@ func (s *Service) Start(ctx context.Context) error {
 	}); err != nil {
 		return oopsx.B("dns").Wrapf(err, "seed zone record")
 	}
-	s.logger.Info("dns service started", "listen", s.cfg.Listen, "udp", server.UDPAddr(), "tcp", server.TCPAddr())
+	return nil
+}
+
+func (s *Service) logStarted(upstreams *list.List[string]) {
+	s.logger.Info("dns service started", "listen", s.cfg.Listen, "udp", s.server.UDPAddr(), "tcp", s.server.TCPAddr())
 	if upstreams.Len() > 0 {
 		s.logger.Info("dns workload upstreams configured", "upstream", upstreams.Values())
 	}
@@ -91,7 +114,6 @@ func (s *Service) Start(ctx context.Context) error {
 			"search", s.WorkloadSearchDomains("default").Values(),
 		)
 	}
-	return nil
 }
 
 func (s *Service) Stop(ctx context.Context) error {
@@ -113,4 +135,12 @@ func (s *Service) Stop(ctx context.Context) error {
 	s.started.Store(false)
 	s.logger.Info("dns service stopped")
 	return nil
+}
+
+// UDPAddr returns the active UDP listener address, or an empty string when DNS is not running.
+func (s *Service) UDPAddr() string {
+	if s == nil || s.server == nil {
+		return ""
+	}
+	return s.server.UDPAddr()
 }

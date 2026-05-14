@@ -19,7 +19,7 @@ import (
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
 	unitName := p.workloadUnitName(meta, w)
 	unitPath := systemdUnitPath(unitName)
-	content, err := renderUnit(meta, w, unitName)
+	content, err := RenderUnit(meta, w, unitName)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 }
 
 func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadName string) error {
-	unitName := defaultUnitName(meta, workloadName)
+	unitName := DefaultUnitName(meta, workloadName)
 	unitPath := systemdUnitPath(unitName)
 	if st, err := p.readState(meta, workloadName); err == nil {
 		if strings.TrimSpace(st.UnitName) != "" {

@@ -1,0 +1,287 @@
+package task_test
+
+import (
+	"context"
+	"log/slog"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/daiyuang/orch/internal/config"
+	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/metrics"
+	"github.com/daiyuang/orch/internal/nodecapacity"
+	"github.com/daiyuang/orch/internal/nodeid"
+	"github.com/daiyuang/orch/internal/observability"
+	"github.com/daiyuang/orch/internal/placement"
+	"github.com/daiyuang/orch/internal/raftsvc"
+	orchruntime "github.com/daiyuang/orch/internal/runtime"
+	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/daiyuang/orch/internal/services/task"
+	"github.com/daiyuang/orch/internal/workloadmeta"
+)
+
+const deployReconcileTimeout = 10 * time.Second
+
+type fakeRuntimeProvider struct {
+	mu       sync.Mutex
+	deployed []deployv1.Workload
+	stopped  []string
+	ch       chan deployv1.Workload
+	stopCh   chan string
+}
+
+type taskHarness struct {
+	ctx      context.Context
+	cfg      config.Config
+	raft     *raftsvc.Service
+	store    nodecapacity.SnapshotStore
+	catalog  *nodecapacity.Catalog
+	runtime  *fakeRuntimeProvider
+	registry *registry.Service
+	svc      *task.Service
+}
+
+type workloadOption func(*deployv1.Workload)
+
+func newFakeRuntimeProvider() *fakeRuntimeProvider {
+	return &fakeRuntimeProvider{
+		ch:     make(chan deployv1.Workload, 4),
+		stopCh: make(chan string, 4),
+	}
+}
+
+func (p *fakeRuntimeProvider) Kind() deployv1.RuntimeKind {
+	return deployv1.RuntimeDocker
+}
+
+func (p *fakeRuntimeProvider) Deploy(_ context.Context, _ deployv1.Metadata, workload deployv1.Workload) error {
+	p.mu.Lock()
+	p.deployed = append(p.deployed, workload)
+	p.mu.Unlock()
+	p.ch <- workload
+	return nil
+}
+
+func (p *fakeRuntimeProvider) Stop(_ context.Context, _ deployv1.Metadata, name string) error {
+	p.mu.Lock()
+	p.stopped = append(p.stopped, name)
+	p.mu.Unlock()
+	select {
+	case p.stopCh <- name:
+	default:
+	}
+	return nil
+}
+
+func newTaskHarness(t *testing.T, cfg config.Config, dispatcher task.WorkerDispatcher) *taskHarness {
+	t.Helper()
+	logger := slog.New(slog.DiscardHandler)
+	local := nodeid.Local{Value: "node-a"}
+	raft := raftsvc.New(cfg, logger, local)
+	store := raftsvc.NewRaftCapacityStore(raft)
+	catalog := nodecapacity.NewCatalog(store)
+	fakeRuntime := newFakeRuntimeProvider()
+	runtimeManager := orchruntime.NewManager(logger, fakeRuntime)
+	registrySvc := registry.NewService(logger)
+	svc := task.NewService(logger, newTestMetrics(t, cfg, logger), runtimeManager, registrySvc, cfg, task.Bundle{
+		LocalNode:  local,
+		Catalog:    catalog,
+		Placement:  placement.NewEngine(),
+		Raft:       raft,
+		Dispatcher: dispatcher,
+	})
+	return &taskHarness{
+		ctx:      t.Context(),
+		cfg:      cfg,
+		raft:     raft,
+		store:    store,
+		catalog:  catalog,
+		runtime:  fakeRuntime,
+		registry: registrySvc,
+		svc:      svc,
+	}
+}
+
+func newTestMetrics(t *testing.T, cfg config.Config, logger *slog.Logger) *metrics.Service {
+	t.Helper()
+	cfg.Observability.Prometheus.Enabled = false
+	cfg.Observability.OTLP.Enabled = false
+	obs, err := observability.New(cfg, nil, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return metrics.New(obs)
+}
+
+func dockerWorkload(name, image string, opts ...workloadOption) deployv1.Workload {
+	workload := deployv1.Workload{
+		Name:    name,
+		Kind:    deployv1.WorkloadKindWorker,
+		Runtime: deployv1.RuntimeDocker,
+		Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: image}},
+	}
+	for _, opt := range opts {
+		opt(&workload)
+	}
+	return workload
+}
+
+func workloadKind(kind deployv1.WorkloadKind) workloadOption {
+	return func(workload *deployv1.Workload) {
+		workload.Kind = kind
+	}
+}
+
+func workloadResources(cpuMillis, memoryBytes int64) workloadOption {
+	return func(workload *deployv1.Workload) {
+		workload.Resources = &deployv1.Resources{CPUMillis: cpuMillis, MemoryBytes: memoryBytes}
+	}
+}
+
+func workloadPreferred(nodes ...string) workloadOption {
+	return func(workload *deployv1.Workload) {
+		workload.Scheduling = &deployv1.Scheduling{PreferredNodes: nodes}
+	}
+}
+
+func workloadDependsOn(names ...string) workloadOption {
+	return func(workload *deployv1.Workload) {
+		for _, name := range names {
+			workload.DependsOn = append(workload.DependsOn, deployv1.WorkloadRef{Name: name})
+		}
+	}
+}
+
+func deployApp(name string, workloads ...deployv1.Workload) *deployv1.App {
+	return &deployv1.App{
+		Metadata:  deployv1.Metadata{Name: name, Namespace: "default"},
+		Workloads: workloads,
+	}
+}
+
+func (h *taskHarness) seedRemoteCapacity(t *testing.T, nodeID string) {
+	t.Helper()
+	if err := h.store.Upsert(h.ctx, nodecapacity.Snapshot{
+		NodeID:           nodeID,
+		UpdatedAt:        time.Now(),
+		LogicalCPUCores:  8,
+		CPUUsagePercent:  5,
+		MemoryAvailBytes: 16 << 30,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (h *taskHarness) startReconcile() {
+	h.svc.StartDeployReconcile(h.ctx)
+}
+
+func (h *taskHarness) submitDeploy(t *testing.T, app *deployv1.App) {
+	t.Helper()
+	if err := h.svc.SubmitDeploy(h.ctx, app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (h *taskHarness) applyApp(t *testing.T, app *deployv1.App) {
+	t.Helper()
+	if err := h.raft.ApplyDeployApp(context.Background(), *app); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (h *taskHarness) applyAssignment(t *testing.T, app *deployv1.App, workloadName, nodeID, status string) {
+	t.Helper()
+	if err := h.raft.ApplyWorkloadAssignment(context.Background(), workloadmeta.Assignment{
+		Key:      workloadmeta.AssignmentKey(app.Metadata, workloadName),
+		Metadata: app.Metadata,
+		Workload: workloadName,
+		Node:     nodeID,
+		Runtime:  deployv1.RuntimeDocker,
+		Status:   status,
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (h *taskHarness) waitRuntimeDeploy(t *testing.T, timeout time.Duration) deployv1.Workload {
+	t.Helper()
+	select {
+	case got := <-h.runtime.ch:
+		return got
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for runtime deploy")
+		return deployv1.Workload{}
+	}
+}
+
+func (h *taskHarness) requireNoLocalDeploy(t *testing.T) {
+	t.Helper()
+	select {
+	case got := <-h.runtime.ch:
+		t.Fatalf("local runtime should not deploy remote workload, got %q", got.Name)
+	default:
+	}
+}
+
+func (h *taskHarness) requireNoStop(t *testing.T) {
+	t.Helper()
+	select {
+	case stopped := <-h.runtime.stopCh:
+		t.Fatalf("unexpected stop for unassigned workload %q", stopped)
+	default:
+	}
+}
+
+func (h *taskHarness) requireRegistryRecord(t *testing.T, name, nodeID, status string, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		if h.registryHasRecord(name, nodeID, status) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("registry did not converge, got %#v", h.registry.List())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func (h *taskHarness) registryHasRecord(name, nodeID, status string) bool {
+	items := h.registry.List()
+	got, ok := items.Get(0)
+	return items.Len() == 1 && ok && got.Name == name && got.Node == nodeID && got.Status == status
+}
+
+func (h *taskHarness) requireAssignment(t *testing.T, app *deployv1.App, workloadName, nodeID, status string) workloadmeta.Assignment {
+	t.Helper()
+	key := workloadmeta.AssignmentKey(app.Metadata, workloadName)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got, ok := h.raft.GetWorkloadAssignment(key)
+		if ok && got.Node == nodeID && got.Status == status {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("assignment %q did not converge to node=%q status=%q, got %#v", key, nodeID, status, h.raft.ListWorkloadAssignments())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func requireAssignmentPayload(t *testing.T, assignment workloadmeta.Assignment, runtime deployv1.RuntimeKind, artifact string) {
+	t.Helper()
+	if assignment.Runtime != runtime || assignment.Artifact != artifact {
+		t.Fatalf("assignment payload = %#v", assignment)
+	}
+}
+
+func waitDispatchSignal(t *testing.T, dispatchCh <-chan struct{}, timeout time.Duration) {
+	t.Helper()
+	select {
+	case <-dispatchCh:
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for worker dispatch")
+	}
+}

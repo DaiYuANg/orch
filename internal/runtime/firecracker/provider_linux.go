@@ -24,7 +24,7 @@ import (
 const defaultStopTimeout = 5 * time.Second
 
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
-	cfg, err := p.buildConfig(meta, w)
+	cfg, err := p.BuildConfig(meta, w)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 		Metadata:  meta,
 		Workload:  w.Name,
 		Runtime:   w.Runtime,
-		Artifact:  firecrackerArtifactSummary(w.Run),
+		Artifact:  ArtifactSummary(w.Run),
 		StartedAt: time.Now().UTC(),
 	}
 	if err := p.writeState(meta, w.Name, st); err != nil {
@@ -172,7 +172,7 @@ func (p *Provider) ensureNoLiveState(meta deployv1.Metadata, workloadName string
 	return p.removeState(meta, workloadName)
 }
 
-func firecrackerMachineConfig(cfg vmConfig) fc.Config {
+func firecrackerMachineConfig(cfg VMConfig) fc.Config {
 	return fc.Config{
 		SocketPath:      cfg.APISocket,
 		VMID:            cfg.ID,
@@ -194,7 +194,7 @@ func firecrackerMachineConfig(cfg vmConfig) fc.Config {
 	}
 }
 
-func firecrackerCommand(ctx context.Context, cfg vmConfig, stdout, stderr *os.File) *exec.Cmd {
+func firecrackerCommand(ctx context.Context, cfg VMConfig, stdout, stderr *os.File) *exec.Cmd {
 	return fc.VMCommandBuilder{}.
 		WithBin(cfg.BinaryPath).
 		WithSocketPath(cfg.APISocket).
@@ -203,7 +203,7 @@ func firecrackerCommand(ctx context.Context, cfg vmConfig, stdout, stderr *os.Fi
 		Build(ctx)
 }
 
-func firecrackerNetworkInterfaces(netCfg *networkConfig) fc.NetworkInterfaces {
+func firecrackerNetworkInterfaces(netCfg *NetworkConfig) fc.NetworkInterfaces {
 	if netCfg == nil {
 		return nil
 	}

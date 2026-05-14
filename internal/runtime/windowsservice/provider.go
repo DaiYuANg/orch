@@ -61,6 +61,11 @@ func defaultServiceName(meta deployv1.Metadata, workloadName string) string {
 	))
 }
 
+// DefaultServiceName returns the stable SCM service name orch uses for a workload.
+func DefaultServiceName(meta deployv1.Metadata, workloadName string) string {
+	return defaultServiceName(meta, workloadName)
+}
+
 func normalizeServiceName(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -69,6 +74,11 @@ func normalizeServiceName(name string) string {
 	name = strings.ReplaceAll(name, "\\", "-")
 	name = strings.ReplaceAll(name, "/", "-")
 	return strings.Join(strings.Fields(name), "-")
+}
+
+// NormalizeServiceName returns a service-control-manager-safe service name.
+func NormalizeServiceName(name string) string {
+	return normalizeServiceName(name)
 }
 
 func (p *Provider) workloadDisplayName(meta deployv1.Metadata, w deployv1.Workload) string {
@@ -80,11 +90,16 @@ func (p *Provider) workloadDisplayName(meta deployv1.Metadata, w deployv1.Worklo
 	return fmt.Sprintf("orch %s/%s/%s", workloadmeta.NamespaceOrDefault(meta.Namespace), meta.Name, w.Name)
 }
 
+// WorkloadDisplayName returns the configured or default Windows service display name.
+func (p *Provider) WorkloadDisplayName(meta deployv1.Metadata, w deployv1.Workload) string {
+	return p.workloadDisplayName(meta, w)
+}
+
 func (p *Provider) readState(meta deployv1.Metadata, workloadName string) (state, error) {
 	var st state
 	b, err := os.ReadFile(p.statePath(meta, workloadName))
 	if err != nil {
-		return st, err
+		return st, oopsx.B("runtime", "windows-service").Wrapf(err, "read windows service state")
 	}
 	if err := json.Unmarshal(b, &st); err != nil {
 		return st, oopsx.B("runtime", "windows-service").Wrapf(err, "decode windows service state")
@@ -94,7 +109,7 @@ func (p *Provider) readState(meta deployv1.Metadata, workloadName string) (state
 
 func (p *Provider) writeState(meta deployv1.Metadata, workloadName string, st state) error {
 	path := p.statePath(meta, workloadName)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return oopsx.B("runtime", "windows-service").Wrapf(err, "create state dir")
 	}
 	b, err := json.MarshalIndent(st, "", "  ")

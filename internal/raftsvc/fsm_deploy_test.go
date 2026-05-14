@@ -1,118 +1,89 @@
-package raftsvc
+package raftsvc_test
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
+	"path/filepath"
 	"testing"
+	"time"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/workloadmeta"
 )
 
-func TestFSMApplyDeployApp(t *testing.T) {
-	f := &schedulingFSM{}
-	app := deployv1.App{}
-	app.Metadata.Name = "demo"
-	app.Metadata.Namespace = "ns1"
-	app.Workloads = []deployv1.Workload{{Name: "w", Runtime: deployv1.RuntimeDocker}}
+func TestRaftApplyDeployApp(t *testing.T) {
+	svc := newStartedTestRaft(t, "node-fsm-app")
+	waitRaftLeader(t, svc)
 
-	b, err := json.Marshal(struct {
-		Type string       `json:"type"`
-		App  deployv1.App `json:"app"`
-	}{Type: cmdUpsertDeployApp, App: app})
-	if err != nil {
+	app := deployAppFixture("demo", "ns1")
+	if err := svc.ApplyDeployApp(context.Background(), app); err != nil {
 		t.Fatal(err)
 	}
-	f.applyCommandPayload(b)
-	apps := f.listDeployApps()
+
+	apps := svc.ListDesiredDeployApps()
 	got, ok := apps.Get(0)
 	if apps.Len() != 1 || !ok || got.Metadata.Name != "demo" {
 		t.Fatalf("list = %#v", apps)
 	}
 }
 
-func TestFSMDeployAppDefaultNamespaceDelete(t *testing.T) {
-	f := &schedulingFSM{}
-	app := deployv1.App{}
-	app.Metadata.Name = "demo"
-	app.Workloads = []deployv1.Workload{{Name: "w", Runtime: deployv1.RuntimeDocker}}
+func TestRaftDeployAppDefaultNamespaceDelete(t *testing.T) {
+	svc := newStartedTestRaft(t, "node-fsm-delete")
+	waitRaftLeader(t, svc)
 
-	upsert, err := json.Marshal(struct {
-		Type string       `json:"type"`
-		App  deployv1.App `json:"app"`
-	}{Type: cmdUpsertDeployApp, App: app})
-	if err != nil {
+	app := deployAppFixture("demo", "")
+	if err := svc.ApplyDeployApp(context.Background(), app); err != nil {
 		t.Fatal(err)
 	}
-	f.applyCommandPayload(upsert)
 
-	if _, ok := f.getDeployApp(deployv1.Metadata{Name: "demo", Namespace: "default"}); !ok {
+	meta := deployv1.Metadata{Name: "demo", Namespace: "default"}
+	if _, ok := svc.GetDesiredDeployApp(meta); !ok {
 		t.Fatal("default namespace app not found")
 	}
-
-	deletePayload, err := json.Marshal(struct {
-		Type     string            `json:"type"`
-		Metadata deployv1.Metadata `json:"metadata"`
-	}{Type: cmdDeleteDeployApp, Metadata: deployv1.Metadata{Name: "demo", Namespace: "default"}})
-	if err != nil {
+	if err := svc.ApplyDeleteDeployApp(context.Background(), meta); err != nil {
 		t.Fatal(err)
 	}
-	f.applyCommandPayload(deletePayload)
 
-	if apps := f.listDeployApps(); apps.Len() != 0 {
+	if apps := svc.ListDesiredDeployApps(); apps.Len() != 0 {
 		t.Fatalf("apps after delete = %#v", apps.Values())
 	}
 }
 
-func TestFSMDeploySnapshotRoundTrip(t *testing.T) {
-	f := &schedulingFSM{}
-	app := deployv1.App{}
-	app.Metadata.Name = "demo"
-	b, err := json.Marshal(struct {
-		Type string       `json:"type"`
-		App  deployv1.App `json:"app"`
-	}{Type: cmdUpsertDeployApp, App: app})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.applyCommandPayload(b)
+func TestRaftDeploySnapshotRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	dataDir := filepath.Join(t.TempDir(), "dragonboat")
+	raftAddr := reserveTestRaftAddr(t)
+	app := deployAppFixture("demo", "default")
 
-	var sink bytes.Buffer
-	if err := f.SaveSnapshot(&sink, nil, nil); err != nil {
+	first := newStartedTestRaftWithDataDir(t, "node-fsm-snapshot", true, raftAddr, dataDir)
+	waitRaftLeader(t, first)
+	if err := first.ApplyDeployApp(ctx, app); err != nil {
 		t.Fatal(err)
 	}
+	stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	if err := first.Stop(stopCtx); err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	cancel()
 
-	f2 := &schedulingFSM{}
-	if err := f2.RecoverFromSnapshot(bytes.NewReader(sink.Bytes()), nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	apps := f2.listDeployApps()
-	got, ok := apps.Get(0)
-	if apps.Len() != 1 || !ok || got.Metadata.Name != "demo" {
-		t.Fatalf("after restore = %#v", apps)
+	second := newStartedTestRaftWithDataDir(t, "node-fsm-snapshot", true, raftAddr, dataDir)
+	waitRaftLeader(t, second)
+	got, ok := second.GetDesiredDeployApp(deployv1.Metadata{Name: "demo", Namespace: "default"})
+	if !ok || got.Metadata.Name != "demo" {
+		t.Fatalf("after restore = %#v ok=%t", got, ok)
 	}
 }
 
-func TestFSMApplyWorkloadAssignment(t *testing.T) {
-	f := &schedulingFSM{}
-	assignment := workloadmeta.Assignment{
-		Metadata: deployv1.Metadata{Name: "demo", Namespace: "ns1"},
-		Workload: "web",
-		Node:     "node-a",
-		Runtime:  deployv1.RuntimeDocker,
-		Artifact: "nginx",
-		Status:   workloadmeta.AssignmentStatusRunning,
-	}
-	b, err := json.Marshal(struct {
-		Type       string                  `json:"type"`
-		Assignment workloadmeta.Assignment `json:"assignment"`
-	}{Type: cmdUpsertWorkloadAssignment, Assignment: assignment})
-	if err != nil {
+func TestRaftApplyWorkloadAssignment(t *testing.T) {
+	svc := newStartedTestRaft(t, "node-fsm-assignment")
+	waitRaftLeader(t, svc)
+
+	assignment := assignmentFixture(workloadmeta.AssignmentStatusRunning)
+	if err := svc.ApplyWorkloadAssignment(context.Background(), assignment); err != nil {
 		t.Fatal(err)
 	}
-	f.applyCommandPayload(b)
 
-	got, ok := f.getAssignment(workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload))
+	got, ok := svc.GetWorkloadAssignment(workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload))
 	if !ok {
 		t.Fatal("assignment not stored")
 	}
@@ -121,37 +92,53 @@ func TestFSMApplyWorkloadAssignment(t *testing.T) {
 	}
 }
 
-func TestFSMAssignmentSnapshotRoundTrip(t *testing.T) {
-	f := &schedulingFSM{}
-	assignment := workloadmeta.Assignment{
-		Metadata: deployv1.Metadata{Name: "demo", Namespace: "ns1"},
-		Workload: "web",
-		Node:     "node-a",
-		Status:   workloadmeta.AssignmentStatusAssigned,
-	}
-	b, err := json.Marshal(struct {
-		Type       string                  `json:"type"`
-		Assignment workloadmeta.Assignment `json:"assignment"`
-	}{Type: cmdUpsertWorkloadAssignment, Assignment: assignment})
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.applyCommandPayload(b)
+func TestRaftAssignmentSnapshotRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	dataDir := filepath.Join(t.TempDir(), "dragonboat")
+	raftAddr := reserveTestRaftAddr(t)
+	assignment := assignmentFixture(workloadmeta.AssignmentStatusAssigned)
 
-	var sink bytes.Buffer
-	if err := f.SaveSnapshot(&sink, nil, nil); err != nil {
+	first := newStartedTestRaftWithDataDir(t, "node-fsm-assignment-snapshot", true, raftAddr, dataDir)
+	waitRaftLeader(t, first)
+	if err := first.ApplyWorkloadAssignment(ctx, assignment); err != nil {
 		t.Fatal(err)
 	}
+	stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	if err := first.Stop(stopCtx); err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	cancel()
 
-	f2 := &schedulingFSM{}
-	if err := f2.RecoverFromSnapshot(bytes.NewReader(sink.Bytes()), nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	got, ok := f2.getAssignment(workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload))
+	second := newStartedTestRaftWithDataDir(t, "node-fsm-assignment-snapshot", true, raftAddr, dataDir)
+	waitRaftLeader(t, second)
+	got, ok := second.GetWorkloadAssignment(workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload))
 	if !ok {
 		t.Fatal("assignment not restored")
 	}
 	if got.Node != "node-a" || got.Status != workloadmeta.AssignmentStatusAssigned {
 		t.Fatalf("after restore = %#v", got)
+	}
+}
+
+func deployAppFixture(name, namespace string) deployv1.App {
+	return deployv1.App{
+		Metadata: deployv1.Metadata{Name: name, Namespace: namespace},
+		Workloads: []deployv1.Workload{{
+			Name:    "w",
+			Runtime: deployv1.RuntimeDocker,
+		}},
+	}
+}
+
+func assignmentFixture(status string) workloadmeta.Assignment {
+	meta := deployv1.Metadata{Name: "demo", Namespace: "ns1"}
+	return workloadmeta.Assignment{
+		Metadata: meta,
+		Workload: "web",
+		Node:     "node-a",
+		Runtime:  deployv1.RuntimeDocker,
+		Artifact: "nginx",
+		Status:   status,
 	}
 }

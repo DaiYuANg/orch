@@ -1,4 +1,4 @@
-package composeimport
+package composeimport_test
 
 import (
 	"context"
@@ -6,14 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/daiyuang/orch/internal/deploy/composeimport"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
 func TestLoadComposeFile_mapsServices(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	p := filepath.Join(dir, "compose.yaml")
-	content := `
+	app := loadComposeFixture(t, `
 name: orch-test
 services:
   web:
@@ -24,35 +23,49 @@ services:
       - db
   db:
     image: postgres:15
-`
-	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
+`)
 
-	res, err := LoadComposeFile(context.Background(), p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := res.App.Validate(); err != nil {
+	if err := app.Validate(); err != nil {
 		t.Fatalf("validate: %v", err)
 	}
-	if len(res.App.Workloads) != 2 {
-		t.Fatalf("workloads: got %d", len(res.App.Workloads))
+	if len(app.Workloads) != 2 {
+		t.Fatalf("workloads: got %d", len(app.Workloads))
 	}
-	var web *deployv1.Workload
-	for i := range res.App.Workloads {
-		if res.App.Workloads[i].Name == "web" {
-			web = &res.App.Workloads[i]
-			break
-		}
-	}
-	if web == nil {
-		t.Fatal("missing web workload")
-	}
+	web := requireWorkload(t, app, "web")
 	if web.Run.Artifact.Image != "nginx:alpine" {
 		t.Fatalf("image %q", web.Run.Artifact.Image)
 	}
 	if len(web.DependsOn) != 1 || web.DependsOn[0].Name != "db" {
 		t.Fatalf("dependsOn %+v", web.DependsOn)
 	}
+}
+
+func loadComposeFixture(t *testing.T, content string) *deployv1.App {
+	t.Helper()
+	path := writeComposeFixture(t, content)
+	res, err := composeimport.LoadComposeFile(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.App
+}
+
+func writeComposeFixture(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "compose.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func requireWorkload(t *testing.T, app *deployv1.App, name string) *deployv1.Workload {
+	t.Helper()
+	for i := range app.Workloads {
+		if app.Workloads[i].Name == name {
+			return &app.Workloads[i]
+		}
+	}
+	t.Fatalf("missing workload %q", name)
+	return nil
 }

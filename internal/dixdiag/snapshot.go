@@ -158,10 +158,7 @@ func recentEventList(records *list.List[dix.EventRecord]) *list.List[RecentEvent
 		return list.NewList[RecentEvent]()
 	}
 	values := records.Values()
-	start := len(values) - maxRecentEvents
-	if start < 0 {
-		start = 0
-	}
+	start := max(len(values)-maxRecentEvents, 0)
 	out := list.NewListWithCapacity[RecentEvent](len(values) - start)
 	for _, record := range values[start:] {
 		out.Add(recentEvent(record))
@@ -177,27 +174,8 @@ func recentEvent(record dix.EventRecord) RecentEvent {
 	}
 
 	switch event := record.Event.(type) {
-	case dix.BuildEvent:
-		out.Type = "build"
-		out.Operation = "build"
-		out.Target = event.Meta.Name
-		out.Duration, out.DurationMS = durationFields(event.Duration)
-		out.Status = eventStatus(event.Err)
-		out.Detail = errDetail(event.Err)
-	case dix.StartEvent:
-		out.Type = "start"
-		out.Operation = "start"
-		out.Target = event.Meta.Name
-		out.Duration, out.DurationMS = durationFields(event.Duration)
-		out.Status = eventStatus(event.Err)
-		out.Detail = errDetail(event.Err)
-	case dix.StopEvent:
-		out.Type = "stop"
-		out.Operation = "stop"
-		out.Target = event.Meta.Name
-		out.Duration, out.DurationMS = durationFields(event.Duration)
-		out.Status = eventStatus(event.Err)
-		out.Detail = errDetail(event.Err)
+	case dix.BuildEvent, dix.StartEvent, dix.StopEvent:
+		applyRuntimeEvent(&out, event)
 	case dix.HealthCheckEvent:
 		out.Type = "health"
 		out.Operation = string(event.Kind)
@@ -210,27 +188,8 @@ func recentEvent(record dix.EventRecord) RecentEvent {
 		out.Operation = event.From.String() + "->" + event.To.String()
 		out.Target = event.Meta.Name
 		out.Detail = event.Reason
-	case dix.ProviderEvent:
-		out.Type = "provider"
-		out.Operation = event.Operation
-		out.Target = nonEmpty(event.Service, event.Label)
-		out.Duration, out.DurationMS = durationFields(event.Duration)
-		out.Status = eventStatus(event.Err)
-		out.Detail = errDetail(event.Err)
-	case dix.ResolveEvent:
-		out.Type = "resolve"
-		out.Operation = event.Operation
-		out.Target = event.Service
-		out.Duration, out.DurationMS = durationFields(event.Duration)
-		out.Status = eventStatus(event.Err)
-		out.Detail = errDetail(event.Err)
-	case dix.LifecycleHookEvent:
-		out.Type = "hook"
-		out.Operation = string(event.Kind)
-		out.Target = nonEmpty(event.Name, event.Label)
-		out.Duration, out.DurationMS = durationFields(event.Duration)
-		out.Status = eventStatus(event.Err)
-		out.Detail = errDetail(event.Err)
+	case dix.ProviderEvent, dix.ResolveEvent, dix.LifecycleHookEvent:
+		applyOperationEvent(&out, event)
 	case dix.MessageEvent:
 		out.Type = "message"
 		out.Operation = string(event.Level)
@@ -239,6 +198,37 @@ func recentEvent(record dix.EventRecord) RecentEvent {
 		out.Type = fmt.Sprintf("%T", record.Event)
 	}
 	return out
+}
+
+func applyRuntimeEvent(out *RecentEvent, event any) {
+	switch event := event.(type) {
+	case dix.BuildEvent:
+		setTimedEvent(out, "build", "build", event.Meta.Name, event.Duration, event.Err)
+	case dix.StartEvent:
+		setTimedEvent(out, "start", "start", event.Meta.Name, event.Duration, event.Err)
+	case dix.StopEvent:
+		setTimedEvent(out, "stop", "stop", event.Meta.Name, event.Duration, event.Err)
+	}
+}
+
+func applyOperationEvent(out *RecentEvent, event any) {
+	switch event := event.(type) {
+	case dix.ProviderEvent:
+		setTimedEvent(out, "provider", event.Operation, nonEmpty(event.Service, event.Label), event.Duration, event.Err)
+	case dix.ResolveEvent:
+		setTimedEvent(out, "resolve", event.Operation, event.Service, event.Duration, event.Err)
+	case dix.LifecycleHookEvent:
+		setTimedEvent(out, "hook", string(event.Kind), nonEmpty(event.Name, event.Label), event.Duration, event.Err)
+	}
+}
+
+func setTimedEvent(out *RecentEvent, typ, operation, target string, duration time.Duration, err error) {
+	out.Type = typ
+	out.Operation = operation
+	out.Target = target
+	out.Duration, out.DurationMS = durationFields(duration)
+	out.Status = eventStatus(err)
+	out.Detail = errDetail(err)
 }
 
 func runtimeDurations(records *list.List[dix.EventRecord]) (time.Duration, time.Duration) {
@@ -257,40 +247,6 @@ func runtimeDurations(records *list.List[dix.EventRecord]) (time.Duration, time.
 		return true
 	})
 	return buildDuration, startDuration
-}
-
-func graphSnapshot(rt *dix.Runtime) GraphSnapshot {
-	graph, err := rt.DependencyGraph()
-	out := GraphSnapshot{}
-	if err != nil {
-		out.Error = err.Error()
-	}
-	if graph.Nodes != nil {
-		out.Nodes = graph.Nodes.Len()
-		graph.Nodes.Range(func(_ int, node dix.DependencyGraphNode) bool {
-			switch node.Kind {
-			case dix.DependencyGraphNodeApp:
-				out.Apps++
-			case dix.DependencyGraphNodeModule:
-				out.Modules++
-			case dix.DependencyGraphNodeService:
-				out.Services++
-			case dix.DependencyGraphNodeOperation:
-				out.Operations++
-				if node.Eager {
-					out.EagerOperations++
-				}
-				if node.Raw {
-					out.RawOperations++
-				}
-			}
-			return true
-		})
-	}
-	if graph.Edges != nil {
-		out.Edges = graph.Edges.Len()
-	}
-	return out
 }
 
 func durationFields(d time.Duration) (string, float64) {

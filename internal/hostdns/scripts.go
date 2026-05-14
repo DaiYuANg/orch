@@ -10,7 +10,8 @@ import (
 //go:embed scripts/*
 var hostDNSScripts embed.FS
 
-type hostDNSTemplateData struct {
+// TemplateData contains variables used by embedded host DNS installer templates.
+type TemplateData struct {
 	Zone       string
 	Namespace  string
 	Nameserver string
@@ -18,7 +19,8 @@ type hostDNSTemplateData struct {
 	Port       int
 }
 
-func renderHostDNSTemplate(name string, data hostDNSTemplateData) (string, error) {
+// RenderTemplate renders an embedded host DNS installer template.
+func RenderTemplate(name string, data TemplateData) (string, error) {
 	raw, err := hostDNSScripts.ReadFile("scripts/" + name)
 	if err != nil {
 		return "", fmt.Errorf("read embedded host DNS template %s: %w", name, err)

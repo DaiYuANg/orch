@@ -29,9 +29,14 @@ func InstallDragonboatLogger(base *slog.Logger) {
 	})
 }
 
+// NewDragonboatLogger creates a slog-backed Dragonboat logger for the package name.
+func NewDragonboatLogger(base *slog.Logger, pkgName string) dblogger.ILogger {
+	return newDragonboatSlogLogger(base, pkgName)
+}
+
 type dragonboatSlogLogger struct {
 	logger *slog.Logger
-	level  atomic.Int32
+	level  atomic.Int64
 }
 
 func newDragonboatSlogLogger(base *slog.Logger, pkgName string) *dragonboatSlogLogger {
@@ -49,32 +54,32 @@ func newDragonboatSlogLogger(base *slog.Logger, pkgName string) *dragonboatSlogL
 }
 
 func (l *dragonboatSlogLogger) SetLevel(level dblogger.LogLevel) {
-	l.level.Store(int32(level))
+	l.level.Store(int64(level))
 }
 
-func (l *dragonboatSlogLogger) Debugf(format string, args ...interface{}) {
+func (l *dragonboatSlogLogger) Debugf(format string, args ...any) {
 	l.logf(dblogger.DEBUG, format, args...)
 }
 
-func (l *dragonboatSlogLogger) Infof(format string, args ...interface{}) {
+func (l *dragonboatSlogLogger) Infof(format string, args ...any) {
 	l.logf(dblogger.INFO, format, args...)
 }
 
-func (l *dragonboatSlogLogger) Warningf(format string, args ...interface{}) {
+func (l *dragonboatSlogLogger) Warningf(format string, args ...any) {
 	l.logf(dblogger.WARNING, format, args...)
 }
 
-func (l *dragonboatSlogLogger) Errorf(format string, args ...interface{}) {
+func (l *dragonboatSlogLogger) Errorf(format string, args ...any) {
 	l.logf(dblogger.ERROR, format, args...)
 }
 
-func (l *dragonboatSlogLogger) Panicf(format string, args ...interface{}) {
+func (l *dragonboatSlogLogger) Panicf(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	l.log(dblogger.CRITICAL, msg)
 	panic(msg)
 }
 
-func (l *dragonboatSlogLogger) logf(level dblogger.LogLevel, format string, args ...interface{}) {
+func (l *dragonboatSlogLogger) logf(level dblogger.LogLevel, format string, args ...any) {
 	if !l.enabled(level) {
 		return
 	}
@@ -91,13 +96,15 @@ func (l *dragonboatSlogLogger) log(level dblogger.LogLevel, msg string) {
 }
 
 func (l *dragonboatSlogLogger) enabled(level dblogger.LogLevel) bool {
-	return int32(level) <= l.level.Load()
+	return int64(level) <= l.level.Load()
 }
 
 func slogLevelForDragonboat(level dblogger.LogLevel) slog.Level {
 	switch level {
 	case dblogger.DEBUG:
 		return slog.LevelDebug
+	case dblogger.INFO:
+		return slog.LevelInfo
 	case dblogger.WARNING:
 		return slog.LevelWarn
 	case dblogger.ERROR, dblogger.CRITICAL:
@@ -115,6 +122,8 @@ func dragonboatLevelName(level dblogger.LogLevel) string {
 		return "error"
 	case dblogger.WARNING:
 		return "warning"
+	case dblogger.INFO:
+		return "info"
 	case dblogger.DEBUG:
 		return "debug"
 	default:

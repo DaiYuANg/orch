@@ -1,17 +1,19 @@
-package config
+package config_test
 
 import (
 	"slices"
 	"testing"
+
+	"github.com/daiyuang/orch/internal/config"
 )
 
 func TestIngressPlainAndTLSListenAddrs(t *testing.T) {
 	t.Parallel()
 
-	c := IngressConfig{
+	c := config.IngressConfig{
 		Enabled: true,
 		Listen:  []string{":80", ":443"},
-		TLS: IngressTLSAuto{
+		TLS: config.IngressTLSAuto{
 			Enabled: true,
 			Domains: []string{"example.com"},
 		},
@@ -24,10 +26,10 @@ func TestIngressPlainAndTLSListenAddrs(t *testing.T) {
 		t.Fatalf("PlainListenAddrs: %#v want %#v", got, wantPlain)
 	}
 
-	c2 := IngressConfig{
+	c2 := config.IngressConfig{
 		Enabled: true,
 		Listen:  []string{":8080"},
-		TLS: IngressTLSAuto{
+		TLS: config.IngressTLSAuto{
 			Enabled: true,
 			Listen:  []string{":8443"},
 			Domains: []string{"a.example"},
@@ -43,10 +45,10 @@ func TestIngressPlainAndTLSListenAddrs(t *testing.T) {
 
 func TestIngressReachabilityURLsWithTLS(t *testing.T) {
 	t.Parallel()
-	u := IngressReachabilityURLs(IngressConfig{
+	u := config.IngressReachabilityURLs(config.IngressConfig{
 		Enabled: true,
 		Listen:  []string{":80"},
-		TLS: IngressTLSAuto{
+		TLS: config.IngressTLSAuto{
 			Enabled: true,
 			Domains: []string{"orch.example"},
 		},

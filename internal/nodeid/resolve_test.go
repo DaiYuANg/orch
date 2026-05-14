@@ -1,4 +1,4 @@
-package nodeid
+package nodeid_test
 
 import (
 	"context"
@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/daiyuang/orch/internal/config"
+	"github.com/daiyuang/orch/internal/nodeid"
 )
 
 func TestResolve_explicitOverridesHardware(t *testing.T) {
 	t.Parallel()
 	cfg := config.Default()
 	cfg.Raft.Node.ID = "  fixed-node  "
-	got, err := Resolve(context.Background(), cfg)
+	got, err := nodeid.Resolve(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +26,7 @@ func TestResolve_autoKeywordUsesHardware(t *testing.T) {
 	t.Parallel()
 	cfg := config.Default()
 	cfg.Raft.Node.ID = "AuTo"
-	got, err := Resolve(context.Background(), cfg)
+	got, err := nodeid.Resolve(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func TestResolve_emptyMeansHardware(t *testing.T) {
 	t.Parallel()
 	cfg := config.Default()
 	cfg.Raft.Node.ID = ""
-	got, err := Resolve(context.Background(), cfg)
+	got, err := nodeid.Resolve(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -41,7 +41,7 @@ func RegisterResourceSnapshotJob(ctx context.Context, s *Service, cat *nodecapac
 		gocron.DurationJob(resInt),
 		gocron.NewTask(func() {
 			start := time.Now()
-			cctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
 			defer cancel()
 			if err := cat.RefreshLocal(cctx, local, s.cfg); err != nil {
 				s.logger.Warn("scheduler job failed",

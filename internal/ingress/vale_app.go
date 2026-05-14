@@ -18,6 +18,22 @@ import (
 
 const ingressEntrypoint = "ingress"
 
+// NewHTTPHandler builds an ingress HTTP handler for the provided static routes.
+func NewHTTPHandler(routes *list.List[config.IngressRoute], log *slog.Logger) (http.Handler, error) {
+	if routes == nil {
+		routes = list.NewList[config.IngressRoute]()
+	}
+	if log == nil {
+		log = slog.Default()
+	}
+	snapshot, routeCount, err := buildValeSnapshot(routes)
+	if err != nil {
+		return nil, err
+	}
+	gateway := valeruntime.NewGateway(snapshot, log, false, valeruntime.NewNoopMetrics())
+	return newIngressHTTPHandler(gateway, func() int { return routeCount }), nil
+}
+
 func newIngressHTTPServer(log *slog.Logger, gateway *valeruntime.Gateway, routeCount func() int) *http.Server {
 	return &http.Server{
 		Handler:           newIngressHTTPHandler(gateway, routeCount),
@@ -34,7 +50,9 @@ func newIngressHTTPHandler(gateway *valeruntime.Gateway, routeCount func() int) 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if routeCount != nil && routeCount() == 0 {
 			w.Header().Set("content-type", "text/plain; charset=utf-8")
-			_, _ = w.Write([]byte("orch ingress is running"))
+			if _, err := w.Write([]byte("orch ingress is running")); err != nil {
+				return
+			}
 			return
 		}
 		gatewayHandler.ServeHTTP(w, r)
@@ -42,6 +60,9 @@ func newIngressHTTPHandler(gateway *valeruntime.Gateway, routeCount func() int) 
 }
 
 func buildValeSnapshot(routes *list.List[config.IngressRoute]) (*valeruntime.CompiledSnapshot, int, error) {
+	if routes == nil {
+		routes = list.NewList[config.IngressRoute]()
+	}
 	snapshot := valeruntime.NewSnapshot().
 		AddEntrypoint(ingressEntrypoint, "", valeruntime.EntrypointRuntime{Name: ingressEntrypoint})
 	if routes.Len() == 0 {
@@ -51,28 +72,10 @@ func buildValeSnapshot(routes *list.List[config.IngressRoute]) (*valeruntime.Com
 	routeCount := 0
 	var buildErr error
 	routes.Range(func(i int, routeCfg config.IngressRoute) bool {
-		raw := &routeCfg
-		meta, err := newRouteMeta(raw)
-		if err != nil {
-			buildErr = oopsx.B("ingress").Wrapf(err, "route %d (prefix %q)", i, raw.PathPrefix)
+		buildErr = addValeRoute(snapshot, i, routeCfg)
+		if buildErr != nil {
 			return false
 		}
-		eps := raw.UpstreamEndpoints()
-		if eps.Len() > 1 {
-			if pol := raw.LBPolicy(); pol != "round_robin" {
-				buildErr = oopsx.B("ingress").Errorf("route %d: unsupported ingress.lb %q (supported: round_robin)", i, raw.LB)
-				return false
-			}
-		}
-		endpoints, err := buildValeEndpoints(eps, meta)
-		if err != nil {
-			buildErr = oopsx.B("ingress").Wrapf(err, "route %d", i)
-			return false
-		}
-		service := valeruntime.NewService(routeServiceName(i), "round_robin", endpoints.Values()...)
-		compiledRoute := valeruntime.NewRoute(routeName(i), ingressEntrypoint, service).
-			WithPathPrefix(normalizePathPrefix(raw.PathPrefix))
-		snapshot.AddService(service).AddRoute(compiledRoute)
 		routeCount++
 		return true
 	})
@@ -80,6 +83,33 @@ func buildValeSnapshot(routes *list.List[config.IngressRoute]) (*valeruntime.Com
 		return nil, 0, buildErr
 	}
 	return snapshot.BuildMatchers(), routeCount, nil
+}
+
+func addValeRoute(snapshot *valeruntime.CompiledSnapshot, index int, routeCfg config.IngressRoute) error {
+	raw := &routeCfg
+	meta, err := newRouteMeta(raw)
+	if err != nil {
+		return oopsx.B("ingress").Wrapf(err, "route %d (prefix %q)", index, raw.PathPrefix)
+	}
+	if policyErr := validateValeLBPolicy(index, raw); policyErr != nil {
+		return policyErr
+	}
+	endpoints, err := buildValeEndpoints(raw.UpstreamEndpoints(), meta)
+	if err != nil {
+		return oopsx.B("ingress").Wrapf(err, "route %d", index)
+	}
+	service := valeruntime.NewService(routeServiceName(index), "round_robin", endpoints.Values()...)
+	compiledRoute := valeruntime.NewRoute(routeName(index), ingressEntrypoint, service).
+		WithPathPrefix(normalizePathPrefix(raw.PathPrefix))
+	snapshot.AddService(service).AddRoute(compiledRoute)
+	return nil
+}
+
+func validateValeLBPolicy(index int, route *config.IngressRoute) error {
+	if route.UpstreamEndpoints().Len() <= 1 || route.LBPolicy() == "round_robin" {
+		return nil
+	}
+	return oopsx.B("ingress").Errorf("route %d: unsupported ingress.lb %q (supported: round_robin)", index, route.LB)
 }
 
 func buildValeEndpoints(eps *list.List[string], meta routeMeta) (*list.List[*valeruntime.EndpointRuntime], error) {

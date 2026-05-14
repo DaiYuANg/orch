@@ -27,11 +27,12 @@ func (e *WorkloadsEndpoint) EndpointSpec() httpx.EndpointSpec {
 }
 
 func (e *WorkloadsEndpoint) Register(r httpx.Registrar) {
-	httpx.MustGroupGet(r.Scope(), "", e.handle, OpenAPIMeta([]string{"registry"}, "listWorkloads", "List workloads known to this node",
+	httpx.MustGroupGet(r.Scope(), "", e.Handle, OpenAPIMeta([]string{"registry"}, "listWorkloads", "List workloads known to this node",
 		"Sorted workload records (including name, runtime, artifact, status) from this node registry."))
 }
 
-func (e *WorkloadsEndpoint) handle(_ context.Context, _ *EmptyInput) (*ListWorkloadsOutput, error) {
+// Handle returns workload records known to this node.
+func (e *WorkloadsEndpoint) Handle(_ context.Context, _ *EmptyInput) (*ListWorkloadsOutput, error) {
 	out := &ListWorkloadsOutput{}
 	out.Body.Items = list.MapList(e.registry.List(), func(_ int, record registry.WorkloadRecord) WorkloadItem {
 		return WorkloadItem{

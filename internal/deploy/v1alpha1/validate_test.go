@@ -1,19 +1,21 @@
-package v1alpha1
+package v1alpha1_test
 
 import (
 	"strings"
 	"testing"
+
+	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 )
 
-func validApp() *App {
-	return &App{
-		Metadata: Metadata{Name: "demo"},
-		Workloads: []Workload{
+func validApp() *deployv1.App {
+	return &deployv1.App{
+		Metadata: deployv1.Metadata{Name: "demo"},
+		Workloads: []deployv1.Workload{
 			{
 				Name:    "api",
-				Kind:    WorkloadKindService,
-				Runtime: RuntimeDocker,
-				Run:     RunSpec{Artifact: ArtifactSpec{Image: "nginx"}},
+				Kind:    deployv1.WorkloadKindService,
+				Runtime: deployv1.RuntimeDocker,
+				Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "nginx"}},
 			},
 		},
 	}
@@ -21,8 +23,8 @@ func validApp() *App {
 
 func TestValidateProcessRequiresCommandOrArtifactPath(t *testing.T) {
 	app := validApp()
-	app.Workloads[0].Runtime = RuntimeProcess
-	app.Workloads[0].Run.Artifact = ArtifactSpec{}
+	app.Workloads[0].Runtime = deployv1.RuntimeProcess
+	app.Workloads[0].Run.Artifact = deployv1.ArtifactSpec{}
 
 	err := app.Validate()
 	if err == nil || !strings.Contains(err.Error(), `run.exec.command or run.artifact.path is required for runtime "process"`) {
@@ -37,20 +39,20 @@ func TestValidateProcessRequiresCommandOrArtifactPath(t *testing.T) {
 
 func TestValidateFirecrackerRequiresRuntimeOptions(t *testing.T) {
 	app := validApp()
-	app.Workloads[0].Runtime = RuntimeFirecracker
-	app.Workloads[0].Run.Artifact = ArtifactSpec{}
+	app.Workloads[0].Runtime = deployv1.RuntimeFirecracker
+	app.Workloads[0].Run.Artifact = deployv1.ArtifactSpec{}
 
 	err := app.Validate()
 	if err == nil || !strings.Contains(err.Error(), `run.runtimeOptions.firecracker is required`) {
 		t.Fatalf("Validate() error = %v, want firecracker options error", err)
 	}
 
-	app.Workloads[0].Run.Options.Firecracker = &FirecrackerOptions{
+	app.Workloads[0].Run.Options.Firecracker = &deployv1.FirecrackerOptions{
 		KernelImagePath: "/var/lib/orch/vmlinux",
 		RootfsPath:      "/var/lib/orch/rootfs.ext4",
 	}
-	if err := app.Validate(); err != nil {
-		t.Fatalf("Validate() with firecracker options = %v", err)
+	if validateErr := app.Validate(); validateErr != nil {
+		t.Fatalf("Validate() with firecracker options = %v", validateErr)
 	}
 
 	app.Workloads[0].Run.Options.Firecracker.MemSizeMiB = -1
@@ -62,9 +64,9 @@ func TestValidateFirecrackerRequiresRuntimeOptions(t *testing.T) {
 
 func TestValidateFirecrackerNetwork(t *testing.T) {
 	app := validApp()
-	app.Workloads[0].Runtime = RuntimeFirecracker
-	app.Workloads[0].Run.Artifact = ArtifactSpec{}
-	app.Workloads[0].Run.Options.Firecracker = &FirecrackerOptions{
+	app.Workloads[0].Runtime = deployv1.RuntimeFirecracker
+	app.Workloads[0].Run.Artifact = deployv1.ArtifactSpec{}
+	app.Workloads[0].Run.Options.Firecracker = &deployv1.FirecrackerOptions{
 		KernelImagePath:    "/var/lib/orch/vmlinux",
 		RootfsPath:         "/var/lib/orch/rootfs.ext4",
 		NetworkInterfaceID: "eth0",
@@ -90,7 +92,7 @@ func TestValidateFirecrackerNetwork(t *testing.T) {
 
 func TestValidateRejectsEmptyEnvName(t *testing.T) {
 	app := validApp()
-	app.Workloads[0].Run.Env = []EnvVar{{Name: " ", Value: "8080"}}
+	app.Workloads[0].Run.Env = []deployv1.EnvVar{{Name: " ", Value: "8080"}}
 
 	err := app.Validate()
 	if err == nil || !strings.Contains(err.Error(), "run.env[0].name is required") {
@@ -101,11 +103,11 @@ func TestValidateRejectsEmptyEnvName(t *testing.T) {
 func TestValidateRejectsNegativeResources(t *testing.T) {
 	tests := []struct {
 		name string
-		res  Resources
+		res  deployv1.Resources
 		want string
 	}{
-		{name: "cpu", res: Resources{CPUMillis: -1}, want: "resources.cpuMillis must be >= 0"},
-		{name: "memory", res: Resources{MemoryBytes: -1}, want: "resources.memoryBytes must be >= 0"},
+		{name: "cpu", res: deployv1.Resources{CPUMillis: -1}, want: "resources.cpuMillis must be >= 0"},
+		{name: "memory", res: deployv1.Resources{MemoryBytes: -1}, want: "resources.memoryBytes must be >= 0"},
 	}
 
 	for _, tt := range tests {
@@ -123,14 +125,14 @@ func TestValidateRejectsNegativeResources(t *testing.T) {
 
 func TestValidateRejectsWorkloadDependencyCycle(t *testing.T) {
 	app := validApp()
-	app.Workloads = append(app.Workloads, Workload{
+	app.Workloads = append(app.Workloads, deployv1.Workload{
 		Name:    "db",
-		Kind:    WorkloadKindStateful,
-		Runtime: RuntimeDocker,
-		Run:     RunSpec{Artifact: ArtifactSpec{Image: "postgres"}},
+		Kind:    deployv1.WorkloadKindStateful,
+		Runtime: deployv1.RuntimeDocker,
+		Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "postgres"}},
 	})
-	app.Workloads[0].DependsOn = []WorkloadRef{{Name: "db"}}
-	app.Workloads[1].DependsOn = []WorkloadRef{{Name: "api"}}
+	app.Workloads[0].DependsOn = []deployv1.WorkloadRef{{Name: "db"}}
+	app.Workloads[1].DependsOn = []deployv1.WorkloadRef{{Name: "api"}}
 
 	err := app.Validate()
 	if err == nil || !strings.Contains(err.Error(), "workloads dependsOn contains a cycle") {
@@ -140,13 +142,13 @@ func TestValidateRejectsWorkloadDependencyCycle(t *testing.T) {
 
 func TestValidateAllowsAcyclicWorkloadDependencies(t *testing.T) {
 	app := validApp()
-	app.Workloads = append(app.Workloads, Workload{
+	app.Workloads = append(app.Workloads, deployv1.Workload{
 		Name:    "db",
-		Kind:    WorkloadKindStateful,
-		Runtime: RuntimeDocker,
-		Run:     RunSpec{Artifact: ArtifactSpec{Image: "postgres"}},
+		Kind:    deployv1.WorkloadKindStateful,
+		Runtime: deployv1.RuntimeDocker,
+		Run:     deployv1.RunSpec{Artifact: deployv1.ArtifactSpec{Image: "postgres"}},
 	})
-	app.Workloads[0].DependsOn = []WorkloadRef{{Name: "db"}}
+	app.Workloads[0].DependsOn = []deployv1.WorkloadRef{{Name: "db"}}
 
 	if err := app.Validate(); err != nil {
 		t.Fatalf("Validate() with acyclic dependencies = %v", err)

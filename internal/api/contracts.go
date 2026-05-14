@@ -99,7 +99,7 @@ type AppItem struct {
 	Stopped            int       `json:"stopped"`
 	Failed             int       `json:"failed"`
 	Pending            int       `json:"pending"`
-	LastTransitionAt   time.Time `json:"lastTransitionAt,omitempty"`
+	LastTransitionAt   time.Time `json:"lastTransitionAt,omitzero"`
 	LastError          string    `json:"lastError,omitempty"`
 }
 
@@ -112,7 +112,7 @@ type AppWorkloadItem struct {
 	Status     string                `json:"status"`
 	Generation string                `json:"generation,omitempty"`
 	Error      string                `json:"error,omitempty"`
-	UpdatedAt  time.Time             `json:"updatedAt,omitempty"`
+	UpdatedAt  time.Time             `json:"updatedAt,omitzero"`
 }
 
 type AppDetailItem struct {
@@ -199,13 +199,16 @@ type StopDeployInput struct {
 	Name      string `path:"name"`
 }
 
+// DeployActionBody describes the accepted app action result.
+type DeployActionBody struct {
+	Accepted  bool   `json:"accepted"`
+	App       string `json:"app"`
+	Namespace string `json:"namespace"`
+	Status    string `json:"status"`
+}
+
 type StopDeployOutput struct {
-	Body struct {
-		Accepted  bool   `json:"accepted"`
-		App       string `json:"app"`
-		Namespace string `json:"namespace"`
-		Status    string `json:"status"`
-	} `json:"body"`
+	Body DeployActionBody `json:"body"`
 }
 
 type StartDeployInput struct {
@@ -214,12 +217,7 @@ type StartDeployInput struct {
 }
 
 type StartDeployOutput struct {
-	Body struct {
-		Accepted  bool   `json:"accepted"`
-		App       string `json:"app"`
-		Namespace string `json:"namespace"`
-		Status    string `json:"status"`
-	} `json:"body"`
+	Body DeployActionBody `json:"body"`
 }
 
 type RestartDeployInput struct {
@@ -228,12 +226,7 @@ type RestartDeployInput struct {
 }
 
 type RestartDeployOutput struct {
-	Body struct {
-		Accepted  bool   `json:"accepted"`
-		App       string `json:"app"`
-		Namespace string `json:"namespace"`
-		Status    string `json:"status"`
-	} `json:"body"`
+	Body DeployActionBody `json:"body"`
 }
 
 type DeployOperationInput struct {
@@ -255,70 +248,5 @@ type DeployOperationOutput struct {
 		Workloads  int    `json:"workloads"`
 		Moved      int    `json:"moved"`
 		Status     string `json:"status"`
-	} `json:"body"`
-}
-
-type RaftMemberItem struct {
-	ID       string `json:"id"`
-	Address  string `json:"address"`
-	Suffrage string `json:"suffrage"`
-}
-
-type RaftStatusOutput struct {
-	Body struct {
-		Ready         bool                       `json:"ready"`
-		NodeID        string                     `json:"nodeId"`
-		State         string                     `json:"state"`
-		IsLeader      bool                       `json:"isLeader"`
-		LeaderID      string                     `json:"leaderId,omitempty"`
-		LeaderAddress string                     `json:"leaderAddress,omitempty"`
-		LeaderAPIURL  string                     `json:"leaderApiUrl,omitempty"`
-		LocalAddress  string                     `json:"localAddress,omitempty"`
-		Message       string                     `json:"message,omitempty"`
-		Members       *list.List[RaftMemberItem] `json:"members"`
-	} `json:"body"`
-}
-
-type ListRaftMembersOutput struct {
-	Body struct {
-		Items *list.List[RaftMemberItem] `json:"items"`
-	} `json:"body"`
-}
-
-type AddRaftMemberInput struct {
-	Body struct {
-		ID      string `json:"id"`
-		Address string `json:"address"`
-	} `json:"body"`
-}
-
-type AddRaftMemberOutput struct {
-	Body struct {
-		Accepted bool           `json:"accepted"`
-		Member   RaftMemberItem `json:"member"`
-	} `json:"body"`
-}
-
-type RemoveRaftMemberInput struct {
-	ID string `path:"id"`
-}
-
-type RemoveRaftMemberOutput struct {
-	Body struct {
-		Accepted bool   `json:"accepted"`
-		ID       string `json:"id"`
-	} `json:"body"`
-}
-
-// OrchVPNBootstrapOutput is the response body for GET PathV1OrchVPNBootstrap.
-type OrchVPNBootstrapOutput struct {
-	Body struct {
-		Enabled         bool               `json:"enabled"`
-		APIVersion      string             `json:"api_version"`
-		Encap           string             `json:"encap"`
-		MTU             int                `json:"mtu"`
-		TunnelUDPPort   int                `json:"tunnel_udp_port"`
-		DNSZone         string             `json:"dns_zone"`
-		ContainerRoutes *list.List[string] `json:"container_routes,omitempty"`
 	} `json:"body"`
 }

@@ -1,16 +1,18 @@
-package registry
+package registry_test
 
 import (
 	"log/slog"
 	"testing"
+
+	"github.com/daiyuang/orch/internal/services/registry"
 )
 
 func TestService_List_sortedByName(t *testing.T) {
 	t.Parallel()
-	s := NewService(slog.Default())
-	s.Upsert(WorkloadRecord{Name: "zebra", Runtime: "docker", Artifact: "z", Status: "up"})
-	s.Upsert(WorkloadRecord{Name: "alpha", Runtime: "docker", Artifact: "a", Status: "up"})
-	s.Upsert(WorkloadRecord{Name: "mule", Runtime: "docker", Artifact: "m", Status: "up"})
+	s := registry.NewService(slog.Default())
+	s.Upsert(registry.WorkloadRecord{Name: "zebra", Runtime: "docker", Artifact: "z", Status: "up"})
+	s.Upsert(registry.WorkloadRecord{Name: "alpha", Runtime: "docker", Artifact: "a", Status: "up"})
+	s.Upsert(registry.WorkloadRecord{Name: "mule", Runtime: "docker", Artifact: "m", Status: "up"})
 
 	got := s.List()
 	if got.Len() != 3 {

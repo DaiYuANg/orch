@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/daiyuang/orch/internal/config"
 	"github.com/daiyuang/orch/pkg/oopsx"
@@ -43,7 +42,7 @@ func (g *GatewayService) Start(parent context.Context) error {
 	ctx, cancel := context.WithCancel(parent)
 	g.cancel = cancel
 	addr := g.cfg.ListenUDPOrDefault()
-	pc, err := net.ListenPacket("udp", addr)
+	pc, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", addr)
 	if err != nil {
 		cancel()
 		g.cancel = nil
@@ -66,27 +65,10 @@ func (g *GatewayService) readLoop(ctx context.Context, log *slog.Logger, pc net.
 	}()
 
 	obs := &slogEncapObserver{log: log}
-	buf := make([]byte, 65535)
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		_ = pc.SetReadDeadline(time.Now().Add(2 * time.Second))
-		n, remote, err := pc.ReadFrom(buf)
-		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				continue
-			}
-			if ctx.Err() != nil {
-				return
-			}
-			log.Warn("orch-vpn udp read", "error", err)
-			continue
-		}
-		if n > 0 {
-			HandleEncapUDP(pc, remote, buf[:n], obs)
-		}
-	}
+	runEncapReadLoop(ctx, log, pc, obs, encapReadLogMessages{
+		deadline: "orch-vpn udp read deadline",
+		read:     "orch-vpn udp read",
+	})
 }
 
 type slogEncapObserver struct {

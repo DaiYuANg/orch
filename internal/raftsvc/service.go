@@ -2,20 +2,14 @@ package raftsvc
 
 import (
 	"context"
-	"fmt"
-	"hash/fnv"
-	"io"
 	"log/slog"
-	"net"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/arcgolabs/collectionx/list"
 	dragonboat "github.com/lni/dragonboat/v4"
 	dbconfig "github.com/lni/dragonboat/v4/config"
 	sm "github.com/lni/dragonboat/v4/statemachine"
@@ -75,70 +69,6 @@ func New(cfg config.Config, logger *slog.Logger, local nodeid.Local) *Service {
 	return s
 }
 
-func replicaIDForNodeID(id string) (uint64, error) {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return 0, oopsx.B("raft").Errorf("raft node id is required")
-	}
-	h := fnv.New64a()
-	_, _ = io.WriteString(h, id)
-	n := h.Sum64()
-	if n == 0 {
-		n = 1
-	}
-	return n, nil
-}
-
-func validateRaftPeerAddress(label, raw string) (string, error) {
-	addr := strings.TrimSpace(raw)
-	if addr == "" {
-		return "", fmt.Errorf("%s is required", label)
-	}
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "", fmt.Errorf("%s must be host:port: %w", label, err)
-	}
-	if strings.TrimSpace(host) == "" {
-		return "", fmt.Errorf("%s must include a host", label)
-	}
-	if strings.TrimSpace(port) == "" {
-		return "", fmt.Errorf("%s must include a port", label)
-	}
-	return addr, nil
-}
-
-func validateConcreteRaftAddress(label, raw string) (string, error) {
-	addr, err := validateRaftPeerAddress(label, raw)
-	if err != nil {
-		return "", err
-	}
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "", err
-	}
-	ip := net.ParseIP(strings.Trim(host, "[]"))
-	if ip != nil && ip.IsUnspecified() {
-		return "", fmt.Errorf("%s must be a concrete host:port, got %q", label, raw)
-	}
-	return addr, nil
-}
-
-func resolveEphemeralTCPAddr(raw string) (string, error) {
-	_, port, err := net.SplitHostPort(strings.TrimSpace(raw))
-	if err != nil || port != "0" {
-		return raw, nil
-	}
-	ln, err := net.Listen("tcp", raw)
-	if err != nil {
-		return "", err
-	}
-	addr := ln.Addr().String()
-	if closeErr := ln.Close(); closeErr != nil {
-		return "", closeErr
-	}
-	return addr, nil
-}
-
 func (s *Service) dragonboatDataDir() string {
 	if dir := strings.TrimSpace(s.cfg.Raft.Data.Dir); dir != "" {
 		return dir
@@ -146,7 +76,7 @@ func (s *Service) dragonboatDataDir() string {
 	return filepath.Join(config.DefaultDataRoot(), "dragonboat")
 }
 
-func (s *Service) dragonboatAddresses() (listenAddr string, raftAddr string, err error) {
+func (s *Service) dragonboatAddresses(ctx context.Context) (listenAddr, raftAddr string, err error) {
 	bindAddr := strings.TrimSpace(s.cfg.Raft.Bind)
 	if bindAddr == "" {
 		return "", "", oopsx.B("raft").Errorf("raft.bind is required")
@@ -155,7 +85,7 @@ func (s *Service) dragonboatAddresses() (listenAddr string, raftAddr string, err
 	if err != nil {
 		return "", "", oopsx.B("raft").Wrapf(err, "validate raft bind")
 	}
-	listenAddr, err = resolveEphemeralTCPAddr(bindAddr)
+	listenAddr, err = resolveEphemeralTCPAddr(ctx, bindAddr)
 	if err != nil {
 		return "", "", oopsx.B("raft").Wrapf(err, "reserve raft bind address")
 	}
@@ -169,117 +99,6 @@ func (s *Service) dragonboatAddresses() (listenAddr string, raftAddr string, err
 		return "", "", oopsx.B("raft").Wrapf(err, "validate raft address")
 	}
 	return listenAddr, raftAddr, nil
-}
-
-func (s *Service) rememberMember(id string, replicaID uint64, address string) {
-	id = strings.TrimSpace(id)
-	address = strings.TrimSpace(address)
-	if id == "" || replicaID == 0 {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.mu.replicaToNode[replicaID] = id
-	if address != "" {
-		s.mu.addressToNode[address] = id
-	}
-}
-
-func (s *Service) forgetMember(replicaID uint64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.mu.replicaToNode, replicaID)
-}
-
-func (s *Service) nodeIDForMember(replicaID uint64, address string) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if id, ok := s.mu.replicaToNode[replicaID]; ok && strings.TrimSpace(id) != "" {
-		return id
-	}
-	if id, ok := s.mu.addressToNode[strings.TrimSpace(address)]; ok && strings.TrimSpace(id) != "" {
-		return id
-	}
-	return fmt.Sprintf("replica-%d", replicaID)
-}
-
-func (s *Service) bootstrapReplicaTargets(localReplicaID uint64, localAddr string) (map[uint64]dragonboat.Target, error) {
-	targets := map[uint64]dragonboat.Target{}
-	seenIDs := map[uint64]string{}
-	localID := strings.TrimSpace(s.localID.String())
-	if localID == "" {
-		return nil, oopsx.B("raft").Errorf("raft local id is required")
-	}
-	peers := map[string]string{}
-	for rawID, rawAddr := range s.cfg.Raft.Peers {
-		id := strings.TrimSpace(rawID)
-		if id == "" {
-			continue
-		}
-		addr, err := validateRaftPeerAddress("raft.peers."+id, rawAddr)
-		if err != nil {
-			return nil, oopsx.B("raft").Wrapf(err, "validate raft peer")
-		}
-		peers[id] = addr
-	}
-	if configured, ok := peers[localID]; ok && configured != localAddr {
-		s.logger.Warn("raft peer address for local node differs from transport advertise address; using transport address",
-			"node_id", localID,
-			"configured", configured,
-			"transport", localAddr,
-		)
-	}
-	peers[localID] = localAddr
-
-	ids := make([]string, 0, len(peers))
-	for id := range peers {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-
-	for _, id := range ids {
-		replicaID, err := replicaIDForNodeID(id)
-		if err != nil {
-			return nil, err
-		}
-		if prev, exists := seenIDs[replicaID]; exists && prev != id {
-			return nil, oopsx.B("raft").Errorf("raft node ids %q and %q resolve to the same dragonboat replica id %d", prev, id, replicaID)
-		}
-		seenIDs[replicaID] = id
-		targets[replicaID] = dragonboat.Target(peers[id])
-		s.rememberMember(id, replicaID, peers[id])
-	}
-	if _, ok := targets[localReplicaID]; !ok {
-		targets[localReplicaID] = dragonboat.Target(localAddr)
-		s.rememberMember(localID, localReplicaID, localAddr)
-	}
-	return targets, nil
-}
-
-// bootstrapServerList is kept as a small testable compatibility helper around
-// the configured static peers used to bootstrap Dragonboat's initial members.
-func (s *Service) bootstrapServerList(localID string, localAddr string) (*list.List[Member], error) {
-	replicaID, err := replicaIDForNodeID(localID)
-	if err != nil {
-		return nil, err
-	}
-	targets, err := s.bootstrapReplicaTargets(replicaID, localAddr)
-	if err != nil {
-		return nil, err
-	}
-	members := list.NewListWithCapacity[Member](len(targets))
-	for rid, target := range targets {
-		addr := string(target)
-		members.Add(Member{
-			ID:       s.nodeIDForMember(rid, addr),
-			Address:  addr,
-			Suffrage: "Voter",
-		})
-	}
-	members.Sort(func(a, b Member) int {
-		return strings.Compare(a.ID, b.ID)
-	})
-	return members, nil
 }
 
 func (s *Service) dragonboatReplicaConfig(replicaID uint64) dbconfig.Config {
@@ -311,13 +130,16 @@ func (s *Service) startReplica(nh *dragonboat.NodeHost, replicaID uint64, raftAd
 			join = true
 		}
 	}
-	return nh.StartReplica(initialMembers, join, func(shardID, rid uint64) sm.IStateMachine {
+	if err := nh.StartReplica(initialMembers, join, func(shardID, rid uint64) sm.IStateMachine {
 		return s.fsm
-	}, s.dragonboatReplicaConfig(replicaID))
+	}, s.dragonboatReplicaConfig(replicaID)); err != nil {
+		return oopsx.B("raft").Wrapf(err, "start dragonboat replica")
+	}
+	return nil
 }
 
 // Start opens a Dragonboat NodeHost and starts the control-plane Raft shard replica.
-func (s *Service) Start(_ context.Context) error {
+func (s *Service) Start(ctx context.Context) error {
 	if s.started.Load() {
 		return nil
 	}
@@ -326,14 +148,14 @@ func (s *Service) Start(_ context.Context) error {
 	if err != nil {
 		return err
 	}
-	listenAddr, raftAddr, err := s.dragonboatAddresses()
+	listenAddr, raftAddr, err := s.dragonboatAddresses(ctx)
 	if err != nil {
 		return err
 	}
 
 	dataDir := s.dragonboatDataDir()
-	if err := os.MkdirAll(dataDir, 0o750); err != nil {
-		return oopsx.B("raft").Wrapf(err, "dragonboat mkdir %q", dataDir)
+	if mkdirErr := os.MkdirAll(dataDir, 0o750); mkdirErr != nil {
+		return oopsx.B("raft").Wrapf(mkdirErr, "dragonboat mkdir %q", dataDir)
 	}
 
 	nh, err := dragonboat.NewNodeHost(dbconfig.NodeHostConfig{
@@ -396,7 +218,7 @@ func (s *Service) WaitLocalLeader(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return oopsx.B("raft").Wrapf(ctx.Err(), "wait local leader")
 		case <-ticker.C:
 			if s.isLocalLeader() {
 				return nil
@@ -405,7 +227,7 @@ func (s *Service) WaitLocalLeader(ctx context.Context) error {
 	}
 }
 
-func (s *Service) applyCommand(data []byte, timeout time.Duration, notLeaderMessage string) error {
+func (s *Service) applyCommand(ctx context.Context, data []byte, timeout time.Duration, notLeaderMessage string) error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")
 	}
@@ -418,7 +240,7 @@ func (s *Service) applyCommand(data []byte, timeout time.Duration, notLeaderMess
 	if !s.isLocalLeader() {
 		return s.notLeaderError(notLeaderMessage)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := withDefaultDeadline(ctx, timeout)
 	defer cancel()
 	_, err := s.nh.SyncPropose(ctx, s.nh.GetNoOPSession(controlShardID), data)
 	if err != nil {

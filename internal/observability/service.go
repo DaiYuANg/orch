@@ -2,7 +2,7 @@ package observability
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -22,52 +22,69 @@ type Service struct {
 }
 
 func New(cfg config.Config, reg *prom.Registry, logger *slog.Logger) (*Service, error) {
-	promOn := cfg.Observability.Prometheus.Enabled
-	otlpOn := cfg.Observability.OTLP.Enabled
-
-	if !promOn && !otlpOn {
+	if observabilityDisabled(cfg) {
 		return &Service{backend: obs.Nop()}, nil
 	}
-
-	var backends []obs.Observability
 	svc := &Service{}
+	backends, err := svc.configureBackends(cfg, reg, logger)
+	if err != nil {
+		return nil, err
+	}
+	svc.backend = combineBackends(backends)
+	return svc, nil
+}
 
-	if otlpOn {
-		otelBackend, shutdown, err := newOTLP(context.Background(), cfg, logger)
+func observabilityDisabled(cfg config.Config) bool {
+	return !cfg.Observability.Prometheus.Enabled && !cfg.Observability.OTLP.Enabled
+}
+
+func (s *Service) configureBackends(cfg config.Config, reg *prom.Registry, logger *slog.Logger) ([]obs.Observability, error) {
+	var backends []obs.Observability
+	if cfg.Observability.OTLP.Enabled {
+		backend, shutdown, err := newOTLP(context.Background(), cfg, logger)
 		if err != nil {
 			return nil, err
 		}
-		svc.shutdownOTLP = shutdown
-		backends = append(backends, otelBackend)
+		s.shutdownOTLP = shutdown
+		backends = append(backends, backend)
 	}
-
-	if promOn {
-		if reg == nil {
-			if svc.shutdownOTLP != nil {
-				_ = svc.shutdownOTLP(context.Background())
-			}
-			return nil, fmt.Errorf("observability: prometheus enabled but registry is nil")
+	if cfg.Observability.Prometheus.Enabled {
+		backend, err := s.configurePrometheus(reg)
+		if err != nil {
+			return nil, err
 		}
-		p := obsprom.New(
-			obsprom.WithNamespace("orch"),
-			obsprom.WithRegisterer(reg),
-			obsprom.WithGatherer(reg),
-		)
-		backends = append(backends, p)
-		svc.prom = p
-		svc.reg = reg
+		backends = append(backends, backend)
 	}
+	return backends, nil
+}
 
+func (s *Service) configurePrometheus(reg *prom.Registry) (obs.Observability, error) {
+	if reg == nil {
+		err := errors.New("observability: prometheus enabled but registry is nil")
+		if s.shutdownOTLP != nil {
+			err = errors.Join(err, s.shutdownOTLP(context.Background()))
+		}
+		return nil, err
+	}
+	prometheus := obsprom.New(
+		obsprom.WithNamespace("orch"),
+		obsprom.WithRegisterer(reg),
+		obsprom.WithGatherer(reg),
+	)
+	s.prom = prometheus
+	s.reg = reg
+	return prometheus, nil
+}
+
+func combineBackends(backends []obs.Observability) obs.Observability {
 	switch len(backends) {
 	case 0:
-		svc.backend = obs.Nop()
+		return obs.Nop()
 	case 1:
-		svc.backend = backends[0]
+		return backends[0]
 	default:
-		svc.backend = obs.Multi(backends...)
+		return obs.Multi(backends...)
 	}
-
-	return svc, nil
 }
 
 func (s *Service) Backend() obs.Observability {

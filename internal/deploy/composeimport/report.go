@@ -15,7 +15,7 @@ type Report struct {
 // Result is the outcome of importing Compose into the canonical deploy model.
 type Result struct {
 	App    *deployv1.App `json:"app,omitempty"`
-	Report Report        `json:"report,omitempty"`
+	Report Report        `json:"report,omitzero"`
 }
 
 func (r *Report) warnf(format string, args ...any) {

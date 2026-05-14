@@ -2,6 +2,7 @@ package hostdns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -33,11 +34,11 @@ type Manager interface {
 func ConfigFromOrch(cfg config.Config) (Config, error) {
 	zone := strings.Trim(strings.ToLower(strings.TrimSpace(cfg.DNS.ZoneName())), ".")
 	if zone == "" {
-		return Config{}, fmt.Errorf("dns zone is required")
+		return Config{}, errors.New("dns zone is required")
 	}
 	listen := strings.TrimSpace(cfg.DNS.Listen)
 	if listen == "" {
-		return Config{}, fmt.Errorf("dns.listen is required")
+		return Config{}, errors.New("dns.listen is required")
 	}
 	host, portRaw, err := net.SplitHostPort(listen)
 	if err != nil {
@@ -81,7 +82,8 @@ func requirePort53(cfg Config, platform string) error {
 	return nil
 }
 
-func dnsServerEndpoint(cfg Config) string {
+// DNSServerEndpoint returns the server endpoint string used by host DNS installers.
+func DNSServerEndpoint(cfg Config) string {
 	if cfg.Port == 53 {
 		return cfg.Nameserver
 	}

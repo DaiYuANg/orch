@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 )
 
 // orch-vpn/encap-v0 wire layout (big-endian):
@@ -33,9 +35,20 @@ func EncodeEncapV0(msgType byte, payload []byte) []byte {
 	out[4] = 0
 	out[5] = msgType
 	out[6], out[7] = 0, 0
-	binary.BigEndian.PutUint32(out[8:12], uint32(len(payload)))
+	binary.BigEndian.PutUint32(out[8:12], payloadLenUint32(len(payload)))
 	copy(out[encapV0HeaderLen:], payload)
 	return out
+}
+
+func payloadLenUint32(n int) uint32 {
+	if n < 0 || uint64(n) > math.MaxUint32 {
+		panic("encap-v0: payload too large")
+	}
+	v, err := strconv.ParseUint(strconv.Itoa(n), 10, 32)
+	if err != nil {
+		panic(fmt.Sprintf("encap-v0: payload length invalid: %v", err))
+	}
+	return uint32(v)
 }
 
 // DecodeEncapV0 validates magic/version and returns msg type and payload.

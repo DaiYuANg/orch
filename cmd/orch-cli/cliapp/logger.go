@@ -1,13 +1,12 @@
 package cliapp
 
 import (
-	"io"
 	"log/slog"
 
 	"github.com/arcgolabs/dix"
 )
 
-var quietLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+var quietLogger = slog.New(slog.DiscardHandler)
 
 func moduleLogger() dix.Module {
 	return dix.NewModule(

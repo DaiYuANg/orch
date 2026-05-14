@@ -53,7 +53,7 @@ func (f *schedulingFSM) Update(entry sm.Entry) (sm.Result, error) {
 	return sm.Result{Value: f.state.AppliedCommands}, nil
 }
 
-func (f *schedulingFSM) Lookup(interface{}) (interface{}, error) {
+func (f *schedulingFSM) Lookup(any) (any, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.state, nil
@@ -71,96 +71,123 @@ func (f *schedulingFSM) applyCommandPayload(data []byte) {
 }
 
 func (f *schedulingFSM) applyPayloadLocked(data []byte) {
+	commandType, ok := decodeCommandType(data)
+	if !ok {
+		return
+	}
+	switch commandType {
+	case cmdUpsertNodeCapacity:
+		f.applyNodeCapacity(data)
+	case cmdUpsertDeployApp:
+		f.applyDeployApp(data)
+	case cmdDeleteDeployApp:
+		f.applyDeleteDeployApp(data)
+	case cmdUpsertWorkloadAssignment:
+		f.applyWorkloadAssignment(data)
+	}
+}
+
+func decodeCommandType(data []byte) (string, bool) {
 	var head struct {
 		Type string `json:"type"`
 	}
 	if err := json.Unmarshal(data, &head); err != nil {
+		return "", false
+	}
+	return head.Type, true
+}
+
+func (f *schedulingFSM) applyNodeCapacity(data []byte) {
+	var env struct {
+		Type string                `json:"type"`
+		Node nodecapacity.Snapshot `json:"node"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
 		return
 	}
-	switch head.Type {
-	case cmdUpsertNodeCapacity:
-		var env struct {
-			Type string                `json:"type"`
-			Node nodecapacity.Snapshot `json:"node"`
-		}
-		if err := json.Unmarshal(data, &env); err != nil {
-			return
-		}
-		id := strings.TrimSpace(env.Node.NodeID)
-		if id == "" {
-			return
-		}
-		if f.state.NodeCapacity == nil {
-			f.state.NodeCapacity = make(map[string]nodecapacity.Snapshot)
-		}
-		f.state.NodeCapacity[id] = env.Node
-	case cmdUpsertDeployApp:
-		var env struct {
-			Type string       `json:"type"`
-			App  deployv1.App `json:"app"`
-		}
-		if err := json.Unmarshal(data, &env); err != nil {
-			return
-		}
-		if strings.TrimSpace(env.App.Metadata.Name) == "" {
-			return
-		}
-		key := deployAppMapKey(env.App.Metadata)
-		if f.state.DeployApps == nil {
-			f.state.DeployApps = make(map[string]deployv1.App)
-		}
-		f.state.DeployApps[key] = env.App
-		if f.notifyDeploy != nil {
-			f.notifyDeploy()
-		}
-	case cmdDeleteDeployApp:
-		var env struct {
-			Type     string            `json:"type"`
-			Metadata deployv1.Metadata `json:"metadata"`
-		}
-		if err := json.Unmarshal(data, &env); err != nil {
-			return
-		}
-		if strings.TrimSpace(env.Metadata.Name) == "" {
-			return
-		}
-		if f.state.DeployApps != nil {
-			delete(f.state.DeployApps, deployAppMapKey(env.Metadata))
-		}
-		if f.notifyDeploy != nil {
-			f.notifyDeploy()
-		}
-	case cmdUpsertWorkloadAssignment:
-		var env struct {
-			Type       string                  `json:"type"`
-			Assignment workloadmeta.Assignment `json:"assignment"`
-		}
-		if err := json.Unmarshal(data, &env); err != nil {
-			return
-		}
-		assignment := env.Assignment
-		assignment.Key = strings.TrimSpace(assignment.Key)
-		assignment.Metadata.Name = strings.TrimSpace(assignment.Metadata.Name)
-		assignment.Metadata.Namespace = strings.TrimSpace(assignment.Metadata.Namespace)
-		assignment.Workload = strings.TrimSpace(assignment.Workload)
-		assignment.Node = strings.TrimSpace(assignment.Node)
-		assignment.Status = strings.TrimSpace(assignment.Status)
-		if assignment.Metadata.Name == "" || assignment.Workload == "" {
-			return
-		}
-		if assignment.Key == "" {
-			assignment.Key = workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload)
-		}
-		if assignment.Key == "" {
-			return
-		}
-		if f.state.Assignments == nil {
-			f.state.Assignments = make(map[string]workloadmeta.Assignment)
-		}
-		f.state.Assignments[assignment.Key] = assignment
-	default:
+	id := strings.TrimSpace(env.Node.NodeID)
+	if id == "" {
 		return
 	}
+	if f.state.NodeCapacity == nil {
+		f.state.NodeCapacity = make(map[string]nodecapacity.Snapshot)
+	}
+	f.state.NodeCapacity[id] = env.Node
+}
+
+func (f *schedulingFSM) applyDeployApp(data []byte) {
+	var env struct {
+		Type string       `json:"type"`
+		App  deployv1.App `json:"app"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		return
+	}
+	if strings.TrimSpace(env.App.Metadata.Name) == "" {
+		return
+	}
+	if f.state.DeployApps == nil {
+		f.state.DeployApps = make(map[string]deployv1.App)
+	}
+	f.state.DeployApps[deployAppMapKey(env.App.Metadata)] = env.App
+	f.notifyDeployChanged()
+}
+
+func (f *schedulingFSM) applyDeleteDeployApp(data []byte) {
+	var env struct {
+		Type     string            `json:"type"`
+		Metadata deployv1.Metadata `json:"metadata"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		return
+	}
+	if strings.TrimSpace(env.Metadata.Name) == "" {
+		return
+	}
+	if f.state.DeployApps != nil {
+		delete(f.state.DeployApps, deployAppMapKey(env.Metadata))
+	}
+	f.notifyDeployChanged()
+}
+
+func (f *schedulingFSM) notifyDeployChanged() {
+	if f.notifyDeploy != nil {
+		f.notifyDeploy()
+	}
+}
+
+func (f *schedulingFSM) applyWorkloadAssignment(data []byte) {
+	var env struct {
+		Type       string                  `json:"type"`
+		Assignment workloadmeta.Assignment `json:"assignment"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		return
+	}
+	assignment, ok := normalizeAssignment(env.Assignment)
+	if !ok {
+		return
+	}
+	if f.state.Assignments == nil {
+		f.state.Assignments = make(map[string]workloadmeta.Assignment)
+	}
+	f.state.Assignments[assignment.Key] = assignment
+}
+
+func normalizeAssignment(assignment workloadmeta.Assignment) (workloadmeta.Assignment, bool) {
+	assignment.Key = strings.TrimSpace(assignment.Key)
+	assignment.Metadata.Name = strings.TrimSpace(assignment.Metadata.Name)
+	assignment.Metadata.Namespace = strings.TrimSpace(assignment.Metadata.Namespace)
+	assignment.Workload = strings.TrimSpace(assignment.Workload)
+	assignment.Node = strings.TrimSpace(assignment.Node)
+	assignment.Status = strings.TrimSpace(assignment.Status)
+	if assignment.Metadata.Name == "" || assignment.Workload == "" {
+		return workloadmeta.Assignment{}, false
+	}
+	if assignment.Key == "" {
+		assignment.Key = workloadmeta.AssignmentKey(assignment.Metadata, assignment.Workload)
+	}
+	return assignment, assignment.Key != ""
 }
 
 func deployAppMapKey(m deployv1.Metadata) string {
@@ -184,8 +211,8 @@ func (f *schedulingFSM) listDeployApps() *list.List[deployv1.App] {
 		return list.NewList[deployv1.App]()
 	}
 	out := list.NewListWithCapacity[deployv1.App](len(f.state.DeployApps))
-	for _, app := range f.state.DeployApps {
-		out.Add(app)
+	for key := range f.state.DeployApps {
+		out.Add(f.state.DeployApps[key])
 	}
 	return out
 }
@@ -197,8 +224,8 @@ func (f *schedulingFSM) listAssignments() *list.List[workloadmeta.Assignment] {
 		return list.NewList[workloadmeta.Assignment]()
 	}
 	out := list.NewListWithCapacity[workloadmeta.Assignment](len(f.state.Assignments))
-	for _, a := range f.state.Assignments {
-		out.Add(a)
+	for key := range f.state.Assignments {
+		out.Add(f.state.Assignments[key])
 	}
 	return out
 }
@@ -245,36 +272,4 @@ func (f *schedulingFSM) RecoverFromSnapshot(r io.Reader, _ []sm.SnapshotFile, _ 
 
 func (f *schedulingFSM) Close() error {
 	return nil
-}
-
-func (f *schedulingFSM) getNodeCapacity(nodeID string) (nodecapacity.Snapshot, bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.state.NodeCapacity == nil {
-		return nodecapacity.Snapshot{}, false
-	}
-	s, ok := f.state.NodeCapacity[nodeID]
-	return s, ok
-}
-
-func (f *schedulingFSM) lenNodeCapacity() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.state.NodeCapacity == nil {
-		return 0
-	}
-	return len(f.state.NodeCapacity)
-}
-
-func (f *schedulingFSM) nodeCapacityIDs() *list.List[string] {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.state.NodeCapacity == nil {
-		return list.NewList[string]()
-	}
-	out := list.NewListWithCapacity[string](len(f.state.NodeCapacity))
-	for id := range f.state.NodeCapacity {
-		out.Add(id)
-	}
-	return out
 }

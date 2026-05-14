@@ -1,6 +1,7 @@
 package raftsvc
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ import (
 
 // ApplyWorkloadAssignment records the latest scheduler decision/result for one workload.
 // Callers must target the Raft leader.
-func (s *Service) ApplyWorkloadAssignment(assignment workloadmeta.Assignment) error {
+func (s *Service) ApplyWorkloadAssignment(ctx context.Context, assignment workloadmeta.Assignment) error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")
 	}
@@ -50,7 +51,7 @@ func (s *Service) ApplyWorkloadAssignment(assignment workloadmeta.Assignment) er
 		return oopsx.B("raft").Wrapf(err, "marshal workload assignment command")
 	}
 
-	return s.applyCommand(b, 5*time.Second, "not leader: send workload assignment to the raft leader node")
+	return s.applyCommand(ctx, b, 5*time.Second, "not leader: send workload assignment to the raft leader node")
 }
 
 // ListWorkloadAssignments returns a stable snapshot of scheduler assignment records.

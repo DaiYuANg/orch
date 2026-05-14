@@ -1,4 +1,4 @@
-package firecracker
+package firecracker_test
 
 import (
 	"path/filepath"
@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/runtime/firecracker"
 )
 
 func TestBuildConfigDefaults(t *testing.T) {
 	t.Parallel()
 
-	provider := &Provider{root: t.TempDir()}
+	provider := firecracker.NewProviderWithRoot(nil, nil, t.TempDir())
 	meta := deployv1.Metadata{Name: "demo", Namespace: "prod"}
 	workload := deployv1.Workload{
 		Name: "vm",
@@ -25,17 +26,17 @@ func TestBuildConfigDefaults(t *testing.T) {
 		},
 	}
 
-	cfg, err := provider.buildConfig(meta, workload)
+	cfg, err := provider.BuildConfig(meta, workload)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.ID != "prod-demo-vm" {
 		t.Fatalf("id = %q", cfg.ID)
 	}
-	if cfg.BinaryPath != defaultBinaryPath {
+	if cfg.BinaryPath != "firecracker" {
 		t.Fatalf("binary = %q", cfg.BinaryPath)
 	}
-	if cfg.VCPUCount != defaultVCPUCount || cfg.MemSizeMiB != defaultMemSizeMiB {
+	if cfg.VCPUCount != 1 || cfg.MemSizeMiB != 128 {
 		t.Fatalf("machine config = %d/%d", cfg.VCPUCount, cfg.MemSizeMiB)
 	}
 	if !strings.Contains(cfg.BootArgs, "root=/dev/vda") {
@@ -52,7 +53,7 @@ func TestBuildConfigDefaults(t *testing.T) {
 func TestBuildConfigOptions(t *testing.T) {
 	t.Parallel()
 
-	provider := &Provider{root: t.TempDir()}
+	provider := firecracker.NewProviderWithRoot(nil, nil, t.TempDir())
 	workload := deployv1.Workload{
 		Name: "vm",
 		Run: deployv1.RunSpec{
@@ -73,25 +74,40 @@ func TestBuildConfigOptions(t *testing.T) {
 		},
 	}
 
-	cfg, err := provider.buildConfig(deployv1.Metadata{Name: "demo"}, workload)
+	cfg, err := provider.BuildConfig(deployv1.Metadata{Name: "demo"}, workload)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertFirecrackerMachineConfig(t, cfg)
+	assertFirecrackerRootfsConfig(t, cfg)
+	assertFirecrackerNetworkConfig(t, cfg.Network)
+}
+
+func assertFirecrackerMachineConfig(t *testing.T, cfg firecracker.VMConfig) {
+	t.Helper()
 	if cfg.BinaryPath != "/usr/local/bin/firecracker" || cfg.VCPUCount != 2 || cfg.MemSizeMiB != 256 {
 		t.Fatalf("config = %+v", cfg)
 	}
+}
+
+func assertFirecrackerRootfsConfig(t *testing.T, cfg firecracker.VMConfig) {
+	t.Helper()
 	if !cfg.RootfsReadOnly || cfg.BootArgs != "console=ttyS0 root=/dev/vda ro" {
 		t.Fatalf("rootfs/boot config = %+v", cfg)
 	}
-	if cfg.Network == nil || cfg.Network.InterfaceID != "eth0" || cfg.Network.TapDeviceName != "tap-orch0" || cfg.Network.GuestMAC != "AA:FC:00:00:00:01" {
-		t.Fatalf("network config = %+v", cfg.Network)
+}
+
+func assertFirecrackerNetworkConfig(t *testing.T, cfg *firecracker.NetworkConfig) {
+	t.Helper()
+	if cfg == nil || cfg.InterfaceID != "eth0" || cfg.TapDeviceName != "tap-orch0" || cfg.GuestMAC != "AA:FC:00:00:00:01" {
+		t.Fatalf("network config = %+v", cfg)
 	}
 }
 
 func TestBuildConfigReadOnlyDefaultBootArgs(t *testing.T) {
 	t.Parallel()
 
-	provider := &Provider{root: t.TempDir()}
+	provider := firecracker.NewProviderWithRoot(nil, nil, t.TempDir())
 	workload := deployv1.Workload{
 		Name: "vm",
 		Run: deployv1.RunSpec{
@@ -105,7 +121,7 @@ func TestBuildConfigReadOnlyDefaultBootArgs(t *testing.T) {
 		},
 	}
 
-	cfg, err := provider.buildConfig(deployv1.Metadata{Name: "demo"}, workload)
+	cfg, err := provider.BuildConfig(deployv1.Metadata{Name: "demo"}, workload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +133,7 @@ func TestBuildConfigReadOnlyDefaultBootArgs(t *testing.T) {
 func TestBuildConfigNetworkRequiresTapDevice(t *testing.T) {
 	t.Parallel()
 
-	provider := &Provider{root: t.TempDir()}
+	provider := firecracker.NewProviderWithRoot(nil, nil, t.TempDir())
 	workload := deployv1.Workload{
 		Name: "vm",
 		Run: deployv1.RunSpec{
@@ -131,7 +147,7 @@ func TestBuildConfigNetworkRequiresTapDevice(t *testing.T) {
 		},
 	}
 
-	_, err := provider.buildConfig(deployv1.Metadata{Name: "demo"}, workload)
+	_, err := provider.BuildConfig(deployv1.Metadata{Name: "demo"}, workload)
 	if err == nil || !strings.Contains(err.Error(), "tap_device_name is required") {
 		t.Fatalf("buildConfig error = %v, want tap device error", err)
 	}
@@ -145,7 +161,7 @@ func TestFirecrackerArtifactSummaryFallsBackToRootfs(t *testing.T) {
 			Firecracker: &deployv1.FirecrackerOptions{RootfsPath: "/rootfs.ext4"},
 		},
 	}
-	if got := firecrackerArtifactSummary(run); got != "/rootfs.ext4" {
+	if got := firecracker.ArtifactSummary(run); got != "/rootfs.ext4" {
 		t.Fatalf("summary = %q", got)
 	}
 }

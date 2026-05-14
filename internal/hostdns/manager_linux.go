@@ -75,10 +75,10 @@ func (m *linuxManager) Status(_ context.Context, cfg Config) (Status, error) {
 }
 
 func linuxResolvedDropIn(cfg Config) (string, error) {
-	return renderHostDNSTemplate("linux-resolved.conf.tmpl", hostDNSTemplateData{
+	return RenderTemplate("linux-resolved.conf.tmpl", TemplateData{
 		Zone:       cfg.Zone,
 		Nameserver: cfg.Nameserver,
-		DNSServer:  dnsServerEndpoint(cfg),
+		DNSServer:  DNSServerEndpoint(cfg),
 	})
 }
 

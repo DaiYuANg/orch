@@ -46,7 +46,7 @@ func (f *LeaderForwarder) leaderBaseURL(ctx context.Context) (string, bool, erro
 	}
 	status, err := f.raft.Status(ctx)
 	if err != nil {
-		return "", false, err
+		return "", false, oopsx.B("api", "raft").Wrapf(err, "get raft status")
 	}
 	if !status.Ready || status.IsLeader {
 		return "", false, nil
@@ -68,6 +68,23 @@ func (f *LeaderForwarder) forwardJSON(ctx context.Context, method, path string, 
 		return ok, err
 	}
 
+	client, err := f.newLeaderClient(baseURL)
+	if err != nil {
+		return true, err
+	}
+	defer closeLeaderClient(client)
+
+	resp, err := executeForwardedJSON(ctx, client, method, path, body)
+	if err != nil {
+		return true, err
+	}
+	if err := decodeForwardedJSON(resp, out); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+func (f *LeaderForwarder) newLeaderClient(baseURL string) (clientxhttp.Client, error) {
 	var opts []clientxhttp.Option
 	if tok := strings.TrimSpace(f.cfg.Cluster.WorkerToken); tok != "" {
 		opts = append(opts, clientxhttp.WithHeader("Authorization", "Bearer "+tok))
@@ -77,31 +94,50 @@ func (f *LeaderForwarder) forwardJSON(ctx context.Context, method, path string, 
 		Timeout: 60 * time.Second,
 	}, opts...)
 	if err != nil {
-		return true, oopsx.B("api", "raft").Wrapf(err, "create leader HTTP client")
+		return nil, oopsx.B("api", "raft").Wrapf(err, "create leader HTTP client")
 	}
-	defer func() { _ = client.Close() }()
+	return client, nil
+}
 
+func executeForwardedJSON(ctx context.Context, client clientxhttp.Client, method, path string, body any) (forwardedResponse, error) {
 	req := client.R()
 	if body != nil {
-		raw, err := clientcodec.JSON.Marshal(body)
-		if err != nil {
-			return true, oopsx.B("api", "raft").Wrapf(err, "encode forwarded request")
+		raw, marshalErr := clientcodec.JSON.Marshal(body)
+		if marshalErr != nil {
+			return forwardedResponse{}, oopsx.B("api", "raft").Wrapf(marshalErr, "encode forwarded request")
 		}
 		req.SetHeader("Content-Type", "application/json").SetBody(raw)
 	}
 
 	resp, err := client.Execute(ctx, req, method, path)
 	if err != nil {
-		return true, oopsx.B("api", "raft").Wrapf(err, "forward request to raft leader")
+		return forwardedResponse{}, oopsx.B("api", "raft").Wrapf(err, "forward request to raft leader")
 	}
-	if !resp.IsSuccess() {
-		msg := strings.TrimSpace(string(resp.Bytes()))
-		return true, oopsx.B("api", "raft").Errorf("forwarded request failed: %s: %s", resp.Status(), msg)
+	return forwardedResponse{status: resp.Status(), body: resp.Bytes(), success: resp.IsSuccess()}, nil
+}
+
+type forwardedResponse struct {
+	status  string
+	body    []byte
+	success bool
+}
+
+func decodeForwardedJSON(resp forwardedResponse, out any) error {
+	if !resp.success {
+		msg := strings.TrimSpace(string(resp.body))
+		return oopsx.B("api", "raft").Errorf("forwarded request failed: %s: %s", resp.status, msg)
 	}
-	if out != nil && len(resp.Bytes()) > 0 {
-		if err := clientcodec.JSON.Unmarshal(resp.Bytes(), out); err != nil {
-			return true, oopsx.B("api", "raft").Wrapf(err, "decode forwarded response")
-		}
+	if out == nil || len(resp.body) == 0 {
+		return nil
 	}
-	return true, nil
+	if err := clientcodec.JSON.Unmarshal(resp.body, out); err != nil {
+		return oopsx.B("api", "raft").Wrapf(err, "decode forwarded response")
+	}
+	return nil
+}
+
+func closeLeaderClient(client clientxhttp.Client) {
+	if err := client.Close(); err != nil {
+		return
+	}
 }

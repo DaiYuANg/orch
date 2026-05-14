@@ -1,14 +1,14 @@
-package process
+package process_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"os"
 	"testing"
 	"time"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/internal/runtime/process"
 )
 
 func TestProviderDeployStop(t *testing.T) {
@@ -17,10 +17,7 @@ func TestProviderDeployStop(t *testing.T) {
 		return
 	}
 
-	provider := &Provider{
-		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		root:   t.TempDir(),
-	}
+	provider := process.NewProviderWithRoot(slog.New(slog.DiscardHandler), nil, t.TempDir())
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -45,13 +42,13 @@ func TestProviderDeployStop(t *testing.T) {
 	if err := provider.Deploy(context.Background(), meta, workload); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(provider.statePath(meta, workload.Name)); err != nil {
+	if _, err := os.Stat(provider.StatePath(meta, workload.Name)); err != nil {
 		t.Fatalf("state file: %v", err)
 	}
 	if err := provider.Stop(context.Background(), meta, workload.Name); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(provider.statePath(meta, workload.Name)); !os.IsNotExist(err) {
+	if _, err := os.Stat(provider.StatePath(meta, workload.Name)); !os.IsNotExist(err) {
 		t.Fatalf("state file after stop error = %v, want not exist", err)
 	}
 }

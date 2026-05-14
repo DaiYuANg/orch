@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	"net"
 	"regexp"
 	"strings"
 
@@ -33,7 +32,7 @@ func (a *App) Validate() error {
 		return validateErr
 	}
 
-	if err := a.validateWorkloadCrossRefs(seenWorkloads); err != nil {
+	if err := a.validateWorkloadCrossRefs(); err != nil {
 		return err
 	}
 	if err := a.validateIngresses(seenWorkloads); err != nil {
@@ -55,7 +54,7 @@ func (a *App) validateMetadata() error {
 	return nil
 }
 
-func (a *App) validateWorkloadCrossRefs(seenWorkloads *set.Set[string]) error {
+func (a *App) validateWorkloadCrossRefs() error {
 	if err := a.validateWorkloadDepends(); err != nil {
 		return err
 	}
@@ -145,6 +144,24 @@ func (a *App) validateIngressOne(ingIndex int, ing Ingress, seenWorkloads *set.S
 }
 
 func (w *Workload) validate(seen *set.Set[string]) error {
+	validators := []func() error{
+		func() error { return w.validateName(seen) },
+		w.validateKind,
+		w.validateRuntime,
+		w.validateRunForRuntime,
+		w.validateEnv,
+		w.validateReplicaCount,
+		w.validateResources,
+	}
+	for _, validate := range validators {
+		if err := validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Workload) validateName(seen *set.Set[string]) error {
 	if strings.TrimSpace(w.Name) == "" {
 		return oopsx.B("deploy").Errorf("name is required")
 	}
@@ -155,20 +172,28 @@ func (w *Workload) validate(seen *set.Set[string]) error {
 		return oopsx.B("deploy").Errorf("duplicate workload name %q", w.Name)
 	}
 	seen.Add(w.Name)
+	return nil
+}
 
+func (w *Workload) validateKind() error {
 	switch w.Kind {
 	case WorkloadKindService, WorkloadKindWorker, WorkloadKindJob, WorkloadKindCron, WorkloadKindStateful:
+		return nil
 	default:
 		return oopsx.B("deploy").Errorf("invalid kind %q", w.Kind)
 	}
+}
+
+func (w *Workload) validateRuntime() error {
 	switch w.Runtime {
 	case RuntimeDocker, RuntimeContainerd, RuntimeFirecracker, RuntimeProcess, RuntimeSystemd, RuntimeWindowsService:
+		return nil
 	default:
 		return oopsx.B("deploy").Errorf("invalid runtime %q", w.Runtime)
 	}
-	if err := w.validateRunForRuntime(); err != nil {
-		return err
-	}
+}
+
+func (w *Workload) validateEnv() error {
 	var validateErr error
 	w.EnvList().Range(func(i int, env EnvVar) bool {
 		if strings.TrimSpace(env.Name) == "" {
@@ -177,74 +202,25 @@ func (w *Workload) validate(seen *set.Set[string]) error {
 		}
 		return true
 	})
-	if validateErr != nil {
-		return validateErr
-	}
+	return validateErr
+}
+
+func (w *Workload) validateReplicaCount() error {
 	if w.Replicas < 0 {
 		return oopsx.B("deploy").Errorf("replicas must be >= 0")
 	}
-	if w.Resources != nil {
-		if w.Resources.CPUMillis < 0 {
-			return oopsx.B("deploy").Errorf("resources.cpuMillis must be >= 0")
-		}
-		if w.Resources.MemoryBytes < 0 {
-			return oopsx.B("deploy").Errorf("resources.memoryBytes must be >= 0")
-		}
-	}
 	return nil
 }
 
-func (w *Workload) validateRunForRuntime() error {
-	switch w.Runtime {
-	case RuntimeDocker, RuntimeContainerd:
-		if strings.TrimSpace(w.Run.Artifact.Image) == "" {
-			return oopsx.B("deploy").Errorf("run.artifact.image is required for runtime %q", w.Runtime)
-		}
-	case RuntimeFirecracker:
-		if w.Run.Options.Firecracker == nil {
-			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker is required for runtime %q", w.Runtime)
-		}
-		if strings.TrimSpace(w.Run.Options.Firecracker.KernelImagePath) == "" {
-			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.kernelImagePath is required")
-		}
-		if strings.TrimSpace(w.Run.Options.Firecracker.RootfsPath) == "" {
-			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.rootfsPath is required")
-		}
-		if err := validateFirecrackerNetwork(w.Run.Options.Firecracker); err != nil {
-			return err
-		}
-		if w.Run.Options.Firecracker.VCPUCount < 0 {
-			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.vcpuCount must be >= 0")
-		}
-		if w.Run.Options.Firecracker.MemSizeMiB < 0 {
-			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.memSizeMiB must be >= 0")
-		}
-	case RuntimeProcess, RuntimeSystemd, RuntimeWindowsService:
-		if len(w.Run.Exec.Command) == 0 && strings.TrimSpace(w.Run.Artifact.Path) == "" {
-			return oopsx.B("deploy").Errorf("run.exec.command or run.artifact.path is required for runtime %q", w.Runtime)
-		}
-	}
-	return nil
-}
-
-func validateFirecrackerNetwork(opts *FirecrackerOptions) error {
-	if opts == nil {
+func (w *Workload) validateResources() error {
+	if w.Resources == nil {
 		return nil
 	}
-	hasNetworkFields := strings.TrimSpace(opts.NetworkInterfaceID) != "" ||
-		strings.TrimSpace(opts.TapDeviceName) != "" ||
-		strings.TrimSpace(opts.GuestMAC) != "" ||
-		opts.AllowMMDSRequests
-	if !hasNetworkFields {
-		return nil
+	if w.Resources.CPUMillis < 0 {
+		return oopsx.B("deploy").Errorf("resources.cpuMillis must be >= 0")
 	}
-	if strings.TrimSpace(opts.TapDeviceName) == "" {
-		return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.tapDeviceName is required when firecracker network is configured")
-	}
-	if mac := strings.TrimSpace(opts.GuestMAC); mac != "" {
-		if _, err := net.ParseMAC(mac); err != nil {
-			return oopsx.B("deploy").Errorf("run.runtimeOptions.firecracker.guestMAC is invalid: %q", mac)
-		}
+	if w.Resources.MemoryBytes < 0 {
+		return oopsx.B("deploy").Errorf("resources.memoryBytes must be >= 0")
 	}
 	return nil
 }

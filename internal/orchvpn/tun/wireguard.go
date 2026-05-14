@@ -3,6 +3,7 @@
 package tun
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -23,18 +24,13 @@ func New(cfg Config) (Device, error) {
 	}
 	ifName, err := d.Name()
 	if err != nil {
-		d.Close()
-		return nil, fmt.Errorf("tun name: %w", err)
+		return nil, closeCreatedTUN(d, fmt.Errorf("tun name: %w", err))
 	}
 	mtuEff, err := d.MTU()
 	if err != nil {
-		d.Close()
-		return nil, fmt.Errorf("tun mtu: %w", err)
+		return nil, closeCreatedTUN(d, fmt.Errorf("tun mtu: %w", err))
 	}
-	batch := d.BatchSize()
-	if batch < 1 {
-		batch = 1
-	}
+	batch := max(d.BatchSize(), 1)
 	bufs := make([][]byte, batch)
 	for i := range bufs {
 		bufs[i] = make([]byte, 65535)
@@ -48,6 +44,13 @@ func New(cfg Config) (Device, error) {
 	}, nil
 }
 
+func closeCreatedTUN(d wgTun.Device, cause error) error {
+	if err := d.Close(); err != nil {
+		return errors.Join(cause, fmt.Errorf("tun close: %w", err))
+	}
+	return cause
+}
+
 type wireguardDevice struct {
 	dev   wgTun.Device
 	name  string
@@ -59,7 +62,7 @@ type wireguardDevice struct {
 func (w *wireguardDevice) ReadPacket(b []byte) (int, error) {
 	n, err := w.dev.Read(w.bufs[:1], w.sizes[:1], 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("tun read: %w", err)
 	}
 	if n == 0 {
 		return 0, nil
@@ -78,13 +81,16 @@ func (w *wireguardDevice) ReadPacket(b []byte) (int, error) {
 func (w *wireguardDevice) WritePacket(b []byte) (int, error) {
 	_, err := w.dev.Write([][]byte{b}, 0)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("tun write: %w", err)
 	}
 	return len(b), nil
 }
 
 func (w *wireguardDevice) Close() error {
-	return w.dev.Close()
+	if err := w.dev.Close(); err != nil {
+		return fmt.Errorf("tun close: %w", err)
+	}
+	return nil
 }
 
 func (w *wireguardDevice) InterfaceName() string {

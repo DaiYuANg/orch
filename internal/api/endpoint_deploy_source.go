@@ -19,8 +19,8 @@ type DeploySourceEndpoint struct {
 	openAPIAuthApply bool
 }
 
-func NewDeploySourceEndpoint(loader *loader.Loader, tasks *task.Service, leader *LeaderForwarder, openAPIAuthApply bool) *DeploySourceEndpoint {
-	return &DeploySourceEndpoint{loader: loader, tasks: tasks, leader: leader, openAPIAuthApply: openAPIAuthApply}
+func NewDeploySourceEndpoint(manifestLoader *loader.Loader, tasks *task.Service, leader *LeaderForwarder, openAPIAuthApply bool) *DeploySourceEndpoint {
+	return &DeploySourceEndpoint{loader: manifestLoader, tasks: tasks, leader: leader, openAPIAuthApply: openAPIAuthApply}
 }
 
 func (e *DeploySourceEndpoint) EndpointSpec() httpx.EndpointSpec {

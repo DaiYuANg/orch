@@ -77,76 +77,113 @@ func (d *WorkstationDaemon) maybeRestartTunnelForward(parent context.Context, pe
 
 func (d *WorkstationDaemon) runTunnelForward(ctx context.Context, peer string, boot *api.OrchVPNBootstrapOutput) {
 	log := d.log.With(slog.String("subcomponent", "tun-forward"))
-	mtu := boot.Body.MTU
-	dev, err := orchtun.New(orchtun.Config{Name: d.cfg.TUNName, MTU: mtu})
-	if err != nil {
-		if errors.Is(err, orchtun.ErrUnsupported) {
-			log.Warn("TUN not available on this GOOS")
-		} else {
-			log.Warn("orch-vpn TUN error", "error", err)
-		}
+	dev, ok := openTunnelDevice(log, d.cfg.TUNName, boot.Body.MTU)
+	if !ok {
 		return
 	}
 
-	conn, err := net.Dial("udp", peer)
-	if err != nil {
-		_ = dev.Close()
-		log.Warn("tunnel UDP dial failed", "peer", peer, "error", err)
+	conn, ok := dialTunnelPeer(ctx, log, peer)
+	if !ok {
+		closeTUNDevice(log, dev)
 		return
 	}
-
-	go func() {
-		<-ctx.Done()
-		_ = conn.Close()
-		_ = dev.Close()
-	}()
+	startTunnelCleanup(ctx, log, dev, conn)
 
 	log.Info("TUN up", "if_name", dev.InterfaceName(), "mtu", dev.MTU())
 	printRouteHints(log, dev.InterfaceName(), boot.Body.ContainerRoutes)
+	runTunnelPumps(log, dev, conn)
+}
 
-	buf := make([]byte, 65535)
-	packet := make([]byte, 65535)
+func openTunnelDevice(log *slog.Logger, name string, mtu int) (orchtun.Device, bool) {
+	dev, err := orchtun.New(orchtun.Config{Name: name, MTU: mtu})
+	if err == nil {
+		return dev, true
+	}
+	if errors.Is(err, orchtun.ErrUnsupported) {
+		log.Warn("TUN not available on this GOOS")
+	} else {
+		log.Warn("orch-vpn TUN error", "error", err)
+	}
+	return nil, false
+}
+
+func dialTunnelPeer(ctx context.Context, log *slog.Logger, peer string) (net.Conn, bool) {
+	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", peer)
+	if err != nil {
+		log.Warn("tunnel UDP dial failed", "peer", peer, "error", err)
+		return nil, false
+	}
+	return conn, true
+}
+
+func startTunnelCleanup(ctx context.Context, log *slog.Logger, dev orchtun.Device, conn net.Conn) {
+	go func() {
+		<-ctx.Done()
+		if err := conn.Close(); err != nil {
+			log.Debug("tunnel UDP close", "error", err)
+		}
+		closeTUNDevice(log, dev)
+	}()
+}
+
+func runTunnelPumps(log *slog.Logger, dev orchtun.Device, conn net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for {
-			n, err := dev.ReadPacket(packet)
-			if err != nil {
-				return
-			}
-			if n == 0 {
-				continue
-			}
-			if n >= 1 && (packet[0]>>4) != 4 {
-				continue
-			}
-			frame := EncodeEncapV0(EncapV0MsgIPv4Payload, packet[:n])
-			if _, err := conn.Write(frame); err != nil {
-				return
-			}
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for {
-			n, err := conn.Read(buf)
-			if err != nil {
-				return
-			}
-			typ, payload, decErr := DecodeEncapV0(buf[:n])
-			if decErr != nil || typ != EncapV0MsgIPv4Payload {
-				continue
-			}
-			if len(payload) > 0 && (payload[0]>>4) == 4 {
-				if _, werr := dev.WritePacket(payload); werr != nil {
-					log.Debug("tunnel tun write", "error", werr)
-				}
-			}
-		}
-	}()
-
+	go pumpTUNToUDP(dev, conn, &wg)
+	go pumpUDPToTUN(log, dev, conn, &wg)
 	wg.Wait()
+}
+
+func pumpTUNToUDP(dev orchtun.Device, conn net.Conn, wg *sync.WaitGroup) {
+	defer wg.Done()
+	packet := make([]byte, 65535)
+	for {
+		n, err := dev.ReadPacket(packet)
+		if err != nil {
+			return
+		}
+		if !isIPv4Packet(packet[:n]) {
+			continue
+		}
+		frame := EncodeEncapV0(EncapV0MsgIPv4Payload, packet[:n])
+		if _, err := conn.Write(frame); err != nil {
+			return
+		}
+	}
+}
+
+func pumpUDPToTUN(log *slog.Logger, dev orchtun.Device, conn net.Conn, wg *sync.WaitGroup) {
+	defer wg.Done()
+	buf := make([]byte, 65535)
+	for {
+		n, err := conn.Read(buf)
+		if err != nil {
+			return
+		}
+		payload, ok := decodeIPv4TunnelPayload(buf[:n])
+		if !ok {
+			continue
+		}
+		if _, err := dev.WritePacket(payload); err != nil {
+			log.Debug("tunnel tun write", "error", err)
+		}
+	}
+}
+
+func decodeIPv4TunnelPayload(frame []byte) ([]byte, bool) {
+	typ, payload, err := DecodeEncapV0(frame)
+	if err != nil || typ != EncapV0MsgIPv4Payload {
+		return nil, false
+	}
+	return payload, isIPv4Packet(payload)
+}
+
+func isIPv4Packet(packet []byte) bool {
+	return len(packet) > 0 && (packet[0]>>4) == 4
+}
+
+func closeTUNDevice(log *slog.Logger, dev orchtun.Device) {
+	if err := dev.Close(); err != nil {
+		log.Debug("tunnel TUN close", "error", err)
+	}
 }

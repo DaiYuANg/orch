@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
@@ -54,45 +53,30 @@ func (o *serveEncapObserver) AckWriteFailed(remote net.Addr, err error) {
 	o.log.Debug("heartbeat ack write failed", "to", remote.String(), "error", err)
 }
 
-// Run listens on UDP until ctx is cancelled.
+// Run listens on UDP until ctx is canceled.
 func (s *ServerDaemonService) Run(ctx context.Context) error {
 	addr := s.cfg.ListenUDPOrDefault()
-	pc, err := net.ListenPacket("udp", addr)
+	pc, err := (&net.ListenConfig{}).ListenPacket(ctx, "udp", addr)
 	if err != nil {
 		return oopsx.B("orchvpn").Wrapf(err, "listen udp %s", addr)
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer func() { _ = pc.Close() }()
+	wg.Go(func() {
+		defer func() {
+			if err := pc.Close(); err != nil {
+				s.log.Debug("serve udp close", "error", err)
+			}
+		}()
 		obs := &serveEncapObserver{log: s.log}
-		buf := make([]byte, 65535)
-		for {
-			if ctx.Err() != nil {
-				return
-			}
-			_ = pc.SetReadDeadline(time.Now().Add(2 * time.Second))
-			n, remote, rerr := pc.ReadFrom(buf)
-			if rerr != nil {
-				if ne, ok := rerr.(net.Error); ok && ne.Timeout() {
-					continue
-				}
-				if ctx.Err() != nil {
-					return
-				}
-				s.log.Warn("serve udp read error", "error", rerr)
-				continue
-			}
-			if n > 0 {
-				HandleEncapUDP(pc, remote, buf[:n], obs)
-			}
-		}
-	}()
+		runEncapReadLoop(ctx, s.log, pc, obs, encapReadLogMessages{
+			deadline: "serve udp read deadline",
+			read:     "serve udp read error",
+		})
+	})
 
 	s.log.Info("orch-vpn serve listening", "udp", pc.LocalAddr().String(), "encap", "orch-vpn/encap-v0")
 	<-ctx.Done()
 	wg.Wait()
-	return ctx.Err()
+	return oopsx.B("orchvpn").Wrapf(ctx.Err(), "serve context")
 }

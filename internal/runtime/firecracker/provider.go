@@ -2,15 +2,10 @@ package firecracker
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/daiyuang/orch/internal/config"
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
@@ -29,30 +24,14 @@ const (
 )
 
 type Provider struct {
-	logger    *slog.Logger
-	dns       *dnssvc.Service
-	root      string
-	runningMu sync.Mutex
-	running   map[string]runningVMM
+	logger  *slog.Logger
+	dns     *dnssvc.Service
+	root    string
+	running runningState
 }
 
-type runningVMM struct {
-	pid  int
-	stop func() error
-}
-
-type state struct {
-	PID       int                  `json:"pid"`
-	APISocket string               `json:"apiSocket"`
-	Network   *networkConfig       `json:"network,omitempty"`
-	Metadata  deployv1.Metadata    `json:"metadata"`
-	Workload  string               `json:"workload"`
-	Runtime   deployv1.RuntimeKind `json:"runtime"`
-	Artifact  string               `json:"artifact,omitempty"`
-	StartedAt time.Time            `json:"startedAt"`
-}
-
-type vmConfig struct {
+// VMConfig is the Firecracker machine configuration derived from an orch workload.
+type VMConfig struct {
 	ID             string
 	BinaryPath     string
 	APISocket      string
@@ -62,12 +41,13 @@ type vmConfig struct {
 	BootArgs       string
 	VCPUCount      int
 	MemSizeMiB     int
-	Network        *networkConfig
+	Network        *NetworkConfig
 	StdoutPath     string
 	StderrPath     string
 }
 
-type networkConfig struct {
+// NetworkConfig is the Firecracker network interface configuration.
+type NetworkConfig struct {
 	InterfaceID       string `json:"interfaceID"`
 	TapDeviceName     string `json:"tapDeviceName"`
 	GuestMAC          string `json:"guestMAC,omitempty"`
@@ -75,11 +55,16 @@ type networkConfig struct {
 }
 
 func NewProvider(logger *slog.Logger, dns *dnssvc.Service) *Provider {
+	return NewProviderWithRoot(logger, dns, filepath.Join(config.DefaultDataRoot(), "runtime", "firecracker"))
+}
+
+// NewProviderWithRoot creates a Firecracker provider using an explicit runtime root.
+func NewProviderWithRoot(logger *slog.Logger, dns *dnssvc.Service, root string) *Provider {
 	return &Provider{
 		logger:  logger,
 		dns:     dns,
-		root:    filepath.Join(config.DefaultDataRoot(), "runtime", "firecracker"),
-		running: make(map[string]runningVMM),
+		root:    root,
+		running: newRunningState(),
 	}
 }
 
@@ -113,13 +98,23 @@ func (p *Provider) Logs(_ context.Context, meta deployv1.Metadata, workloadName 
 	}, nil
 }
 
-func (p *Provider) buildConfig(meta deployv1.Metadata, w deployv1.Workload) (vmConfig, error) {
+// BuildConfig converts an orch workload into a Firecracker VM configuration.
+func (p *Provider) BuildConfig(meta deployv1.Metadata, w deployv1.Workload) (VMConfig, error) {
 	if w.Run.Options.Firecracker == nil {
-		return vmConfig{}, oopsx.B("runtime", "firecracker").Errorf("workload %q: run.runtimeOptions.firecracker is required", w.Name)
+		return VMConfig{}, oopsx.B("runtime", "firecracker").Errorf("workload %q: run.runtimeOptions.firecracker is required", w.Name)
 	}
+	cfg := p.baseVMConfig(meta, w)
+	p.applyVMConfigDefaults(&cfg)
+	if err := validateVMConfig(w.Name, cfg); err != nil {
+		return VMConfig{}, err
+	}
+	return cfg, nil
+}
+
+func (p *Provider) baseVMConfig(meta deployv1.Metadata, w deployv1.Workload) VMConfig {
 	opts := w.Run.Options.Firecracker
 	id := p.nameBase(meta, w.Name)
-	cfg := vmConfig{
+	return VMConfig{
 		ID:             id,
 		BinaryPath:     strings.TrimSpace(opts.BinaryPath),
 		APISocket:      strings.TrimSpace(opts.SocketPath),
@@ -133,20 +128,14 @@ func (p *Provider) buildConfig(meta deployv1.Metadata, w deployv1.Workload) (vmC
 		StdoutPath:     filepath.Join(p.rootOrDefault(), "logs", id+".stdout.log"),
 		StderrPath:     filepath.Join(p.rootOrDefault(), "logs", id+".stderr.log"),
 	}
+}
+
+func (p *Provider) applyVMConfigDefaults(cfg *VMConfig) {
 	if cfg.BinaryPath == "" {
 		cfg.BinaryPath = defaultBinaryPath
 	}
 	if cfg.APISocket == "" {
-		cfg.APISocket = filepath.Join(p.rootOrDefault(), "sockets", id+".sock")
-	}
-	if cfg.KernelImage == "" {
-		return vmConfig{}, oopsx.B("runtime", "firecracker").Errorf("workload %q: kernel_image_path is required", w.Name)
-	}
-	if cfg.RootfsPath == "" {
-		return vmConfig{}, oopsx.B("runtime", "firecracker").Errorf("workload %q: rootfs_path is required", w.Name)
-	}
-	if cfg.Network != nil && cfg.Network.TapDeviceName == "" {
-		return vmConfig{}, oopsx.B("runtime", "firecracker").Errorf("workload %q: tap_device_name is required when firecracker network is configured", w.Name)
+		cfg.APISocket = filepath.Join(p.rootOrDefault(), "sockets", cfg.ID+".sock")
 	}
 	if cfg.BootArgs == "" {
 		cfg.BootArgs = defaultBootArgsForRootfs(cfg.RootfsReadOnly)
@@ -157,10 +146,22 @@ func (p *Provider) buildConfig(meta deployv1.Metadata, w deployv1.Workload) (vmC
 	if cfg.MemSizeMiB <= 0 {
 		cfg.MemSizeMiB = defaultMemSizeMiB
 	}
-	return cfg, nil
 }
 
-func firecrackerNetworkConfig(opts *deployv1.FirecrackerOptions) *networkConfig {
+func validateVMConfig(workloadName string, cfg VMConfig) error {
+	if cfg.KernelImage == "" {
+		return oopsx.B("runtime", "firecracker").Errorf("workload %q: kernel_image_path is required", workloadName)
+	}
+	if cfg.RootfsPath == "" {
+		return oopsx.B("runtime", "firecracker").Errorf("workload %q: rootfs_path is required", workloadName)
+	}
+	if cfg.Network != nil && cfg.Network.TapDeviceName == "" {
+		return oopsx.B("runtime", "firecracker").Errorf("workload %q: tap_device_name is required when firecracker network is configured", workloadName)
+	}
+	return nil
+}
+
+func firecrackerNetworkConfig(opts *deployv1.FirecrackerOptions) *NetworkConfig {
 	if opts == nil {
 		return nil
 	}
@@ -172,7 +173,7 @@ func firecrackerNetworkConfig(opts *deployv1.FirecrackerOptions) *networkConfig 
 	if id == "" {
 		id = "eth0"
 	}
-	return &networkConfig{
+	return &NetworkConfig{
 		InterfaceID:       id,
 		TapDeviceName:     tap,
 		GuestMAC:          strings.TrimSpace(opts.GuestMAC),
@@ -185,110 +186,6 @@ func defaultBootArgsForRootfs(readOnly bool) string {
 		return defaultBootArgs + " ro"
 	}
 	return defaultBootArgs + " rw"
-}
-
-func (p *Provider) openLogs(cfg vmConfig) (*os.File, *os.File, func(), error) {
-	stdout, err := openAppend(cfg.StdoutPath)
-	if err != nil {
-		return nil, nil, func() {}, err
-	}
-	stderr, err := openAppend(cfg.StderrPath)
-	if err != nil {
-		_ = stdout.Close()
-		return nil, nil, func() {}, err
-	}
-	closeLogs := func() {
-		_ = stdout.Close()
-		_ = stderr.Close()
-	}
-	return stdout, stderr, closeLogs, nil
-}
-
-func openAppend(path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, oopsx.B("runtime", "firecracker").Wrapf(err, "create log dir")
-	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return nil, oopsx.B("runtime", "firecracker").Wrapf(err, "open log %s", filepath.Base(path))
-	}
-	return f, nil
-}
-
-func (p *Provider) readState(meta deployv1.Metadata, workloadName string) (state, error) {
-	var st state
-	b, err := os.ReadFile(p.statePath(meta, workloadName))
-	if err != nil {
-		return st, err
-	}
-	if err := json.Unmarshal(b, &st); err != nil {
-		return st, oopsx.B("runtime", "firecracker").Wrapf(err, "decode firecracker state")
-	}
-	return st, nil
-}
-
-func (p *Provider) writeState(meta deployv1.Metadata, workloadName string, st state) error {
-	path := p.statePath(meta, workloadName)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return oopsx.B("runtime", "firecracker").Wrapf(err, "create state dir")
-	}
-	b, err := json.MarshalIndent(st, "", "  ")
-	if err != nil {
-		return oopsx.B("runtime", "firecracker").Wrapf(err, "encode firecracker state")
-	}
-	if err := os.WriteFile(path, b, 0o600); err != nil {
-		return oopsx.B("runtime", "firecracker").Wrapf(err, "write firecracker state")
-	}
-	return nil
-}
-
-func (p *Provider) removeState(meta deployv1.Metadata, workloadName string) error {
-	err := os.Remove(p.statePath(meta, workloadName))
-	if err == nil || errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	return oopsx.B("runtime", "firecracker").Wrapf(err, "remove firecracker state")
-}
-
-func (p *Provider) removeStateIfPID(meta deployv1.Metadata, workloadName string, pid int) error {
-	st, err := p.readState(meta, workloadName)
-	if err != nil || st.PID != pid {
-		return nil
-	}
-	return p.removeState(meta, workloadName)
-}
-
-func (p *Provider) trackRunningVMM(meta deployv1.Metadata, workloadName string, vm runningVMM) {
-	p.runningMu.Lock()
-	defer p.runningMu.Unlock()
-	if p.running == nil {
-		p.running = make(map[string]runningVMM)
-	}
-	p.running[p.runningKey(meta, workloadName)] = vm
-}
-
-func (p *Provider) untrackRunningVMM(meta deployv1.Metadata, workloadName string, pid int) {
-	p.runningMu.Lock()
-	defer p.runningMu.Unlock()
-	key := p.runningKey(meta, workloadName)
-	if vm, ok := p.running[key]; ok && vm.pid == pid {
-		delete(p.running, key)
-	}
-}
-
-func (p *Provider) runningVMM(meta deployv1.Metadata, workloadName string) (runningVMM, bool) {
-	p.runningMu.Lock()
-	defer p.runningMu.Unlock()
-	vm, ok := p.running[p.runningKey(meta, workloadName)]
-	return vm, ok
-}
-
-func (p *Provider) runningKey(meta deployv1.Metadata, workloadName string) string {
-	return p.nameBase(meta, workloadName)
-}
-
-func (p *Provider) statePath(meta deployv1.Metadata, workloadName string) string {
-	return filepath.Join(p.rootOrDefault(), "state", p.nameBase(meta, workloadName)+".json")
 }
 
 func (p *Provider) nameBase(meta deployv1.Metadata, workloadName string) string {
@@ -306,7 +203,8 @@ func (p *Provider) rootOrDefault() string {
 	return filepath.Join(config.DefaultDataRoot(), "runtime", "firecracker")
 }
 
-func firecrackerArtifactSummary(run deployv1.RunSpec) string {
+// ArtifactSummary returns the Firecracker artifact label for status/state output.
+func ArtifactSummary(run deployv1.RunSpec) string {
 	if summary := runconfig.ArtifactSummary(run); summary != "" {
 		return summary
 	}

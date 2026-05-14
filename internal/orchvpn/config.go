@@ -21,6 +21,11 @@ type ClientConfig struct {
 }
 
 func (c *ClientConfig) normalized() (ClientConfig, error) {
+	return c.Normalize()
+}
+
+// Normalize returns ClientConfig with defaults applied and invalid required fields rejected.
+func (c *ClientConfig) Normalize() (ClientConfig, error) {
 	out := *c
 	out.ControlPlaneURL = strings.TrimRight(strings.TrimSpace(c.ControlPlaneURL), "/")
 	if out.ControlPlaneURL == "" {

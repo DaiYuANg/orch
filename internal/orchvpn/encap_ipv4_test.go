@@ -1,6 +1,10 @@
-package orchvpn
+package orchvpn_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/daiyuang/orch/internal/orchvpn"
+)
 
 func TestSummarizeEncapIPv4Payload(t *testing.T) {
 	t.Parallel()
@@ -12,7 +16,7 @@ func TestSummarizeEncapIPv4Payload(t *testing.T) {
 		10, 1, 0, 1,
 		10, 2, 0, 2,
 	}
-	src, dst, ok := SummarizeEncapIPv4Payload(pkt)
+	src, dst, ok := orchvpn.SummarizeEncapIPv4Payload(pkt)
 	if !ok || src != "10.1.0.1" || dst != "10.2.0.2" {
 		t.Fatalf("got %s %s %v", src, dst, ok)
 	}

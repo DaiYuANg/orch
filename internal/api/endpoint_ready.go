@@ -40,50 +40,58 @@ func (e *ReadyEndpoint) handle(ctx context.Context, _ *EmptyInput) (*ReadyOutput
 	checks := list.NewList[ReadyCheckItem]()
 	checks.Add(ReadyCheckItem{Name: "http", Ready: true, Status: "ok"})
 
-	raftReady := false
-	writeReady := false
-	if e == nil || e.raft == nil {
-		checks.Add(ReadyCheckItem{Name: "raft", Ready: false, Status: "not_ready", Detail: "raft service unavailable"})
-		checks.Add(ReadyCheckItem{Name: "writes", Ready: false, Status: "not_ready", Detail: "raft service unavailable"})
-	} else {
-		status, err := e.raft.Status(ctx)
-		if err != nil {
-			detail := err.Error()
-			checks.Add(ReadyCheckItem{Name: "raft", Ready: false, Status: "error", Detail: detail})
-			checks.Add(ReadyCheckItem{Name: "writes", Ready: false, Status: "error", Detail: detail})
-		} else {
-			raftReady = status.Ready && status.LeaderID != ""
-			checks.Add(ReadyCheckItem{Name: "raft", Ready: raftReady, Status: status.State, Detail: status.Message})
-			writeReady = status.IsLeader
-			writeDetail := ""
-			if !writeReady {
-				if status.LeaderID == "" {
-					writeDetail = "leader is not known"
-				} else if leaderURL, ok := e.cfg.Cluster.NodeURL(status.LeaderID); ok {
-					writeReady = true
-					writeDetail = "writes forward to " + leaderURL
-				} else {
-					writeDetail = "configure cluster.nodes." + status.LeaderID + " or target the leader API"
-				}
-			}
-			checks.Add(ReadyCheckItem{Name: "writes", Ready: writeReady, Status: readyStatus(writeReady), Detail: writeDetail})
-		}
-	}
-
-	dixReady := true
-	if e != nil && e.diag != nil {
-		report := e.diag.CheckReadiness(ctx)
-		dixReady = report.Healthy()
-		addDixHealthItems(checks, "dix/", report)
-	}
-
+	raftReady, writeReady := e.addRaftReadiness(ctx, checks)
+	dixReady := e.addDixReadiness(ctx, checks)
 	ready := raftReady && writeReady && dixReady
+
 	out := &ReadyOutput{}
 	out.Body.Ready = ready
 	out.Body.Status = readyStatus(ready)
 	out.Body.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	out.Body.Checks = checks
 	return out, nil
+}
+
+func (e *ReadyEndpoint) addRaftReadiness(ctx context.Context, checks *list.List[ReadyCheckItem]) (bool, bool) {
+	if e == nil || e.raft == nil {
+		checks.Add(ReadyCheckItem{Name: "raft", Ready: false, Status: "not_ready", Detail: "raft service unavailable"})
+		checks.Add(ReadyCheckItem{Name: "writes", Ready: false, Status: "not_ready", Detail: "raft service unavailable"})
+		return false, false
+	}
+	status, err := e.raft.Status(ctx)
+	if err != nil {
+		detail := err.Error()
+		checks.Add(ReadyCheckItem{Name: "raft", Ready: false, Status: "error", Detail: detail})
+		checks.Add(ReadyCheckItem{Name: "writes", Ready: false, Status: "error", Detail: detail})
+		return false, false
+	}
+	raftReady := status.Ready && status.LeaderID != ""
+	checks.Add(ReadyCheckItem{Name: "raft", Ready: raftReady, Status: status.State, Detail: status.Message})
+	writeReady, writeDetail := e.writeReadiness(status)
+	checks.Add(ReadyCheckItem{Name: "writes", Ready: writeReady, Status: readyStatus(writeReady), Detail: writeDetail})
+	return raftReady, writeReady
+}
+
+func (e *ReadyEndpoint) writeReadiness(status raftsvc.Status) (bool, string) {
+	if status.IsLeader {
+		return true, ""
+	}
+	if status.LeaderID == "" {
+		return false, "leader is not known"
+	}
+	if leaderURL, ok := e.cfg.Cluster.NodeURL(status.LeaderID); ok {
+		return true, "writes forward to " + leaderURL
+	}
+	return false, "configure cluster.nodes." + status.LeaderID + " or target the leader API"
+}
+
+func (e *ReadyEndpoint) addDixReadiness(ctx context.Context, checks *list.List[ReadyCheckItem]) bool {
+	if e == nil || e.diag == nil {
+		return true
+	}
+	report := e.diag.CheckReadiness(ctx)
+	addDixHealthItems(checks, "dix/", report)
+	return report.Healthy()
 }
 
 func readyStatus(ready bool) string {

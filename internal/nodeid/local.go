@@ -2,7 +2,7 @@ package nodeid
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/daiyuang/orch/internal/config"
@@ -30,7 +30,7 @@ func Resolve(ctx context.Context, cfg config.Config) (Local, error) {
 		return Local{}, err
 	}
 	if strings.TrimSpace(v) == "" {
-		return Local{}, fmt.Errorf("nodeid: hardware id resolved empty")
+		return Local{}, errors.New("nodeid: hardware id resolved empty")
 	}
 	return Local{Value: v}, nil
 }

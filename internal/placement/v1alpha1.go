@@ -2,6 +2,7 @@ package placement
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -17,70 +18,112 @@ import (
 func chooseV1Alpha1(ctx context.Context, w deployv1.Workload, catalog *nodecapacity.Catalog, localNodeID string) (string, error) {
 	_ = ctx
 	if catalog == nil || catalog.Len() == 0 {
-		id := strings.TrimSpace(localNodeID)
-		if id == "" {
-			id = "local"
-		}
-		return id, nil
+		return fallbackNodeID(localNodeID), nil
 	}
 
-	candidates := catalog.NodeIDs()
-	want, restrictPreferred := preferredNames(w)
-	if restrictPreferred {
-		if want.IsEmpty() {
-			return "", fmt.Errorf("placement: scheduling.preferredNodes has no valid names")
-		}
-		candidates = list.FilterList(candidates, func(_ int, id string) bool {
-			return want.Contains(strings.TrimSpace(id))
-		})
-		if candidates.Len() == 0 {
-			return "", fmt.Errorf("placement: no catalog nodes match scheduling.preferredNodes")
-		}
+	candidates, preferences, restricted, err := placementCandidates(w, catalog)
+	if err != nil {
+		return "", err
 	}
-
-	var reqCPU, reqMem int64
-	if w.Resources != nil {
-		reqCPU = w.Resources.CPUMillis
-		reqMem = w.Resources.MemoryBytes
-	}
-
-	var best mo.Option[scoredNode]
-	candidates.Range(func(_ int, id string) bool {
-		snap, ok := catalog.Get(id)
-		if !ok {
-			return true
-		}
-		if !feasible(reqCPU, reqMem, snap) {
-			return true
-		}
-		cur := scoredNode{id: id, snap: snap}
-		if best.IsAbsent() {
-			best = mo.Some(cur)
-			return true
-		}
-		prev, _ := best.Get()
-		if better(cur.snap, prev.snap) {
-			best = mo.Some(cur)
-			return true
-		}
-		if restrictPreferred && snapEqual(cur.snap, prev.snap) {
-			if preferredRank(want, cur.id) < preferredRank(want, prev.id) {
-				best = mo.Some(cur)
-			}
-		}
-		return true
-	})
-
-	v, ok := best.Get()
+	best := bestPlacementCandidate(candidates, catalog, workloadRequest(w), preferences, restricted)
+	node, ok := best.Get()
 	if !ok {
 		return "", fmt.Errorf("placement: no feasible node for workload %q (resources / stale catalog)", w.Name)
 	}
-	return v.id, nil
+	return node.id, nil
 }
 
 type scoredNode struct {
 	id   string
 	snap nodecapacity.Snapshot
+}
+
+type workloadResourceRequest struct {
+	cpuMillis  int64
+	memoryByte int64
+}
+
+func fallbackNodeID(localNodeID string) string {
+	id := strings.TrimSpace(localNodeID)
+	if id == "" {
+		return "local"
+	}
+	return id
+}
+
+func placementCandidates(
+	w deployv1.Workload,
+	catalog *nodecapacity.Catalog,
+) (*list.List[string], *set.OrderedSet[string], bool, error) {
+	candidates := catalog.NodeIDs()
+	want, restricted := preferredNames(w)
+	if !restricted {
+		return candidates, want, false, nil
+	}
+	if want.IsEmpty() {
+		return nil, nil, true, errors.New("placement: scheduling.preferredNodes has no valid names")
+	}
+	filtered := list.FilterList(candidates, func(_ int, id string) bool {
+		return want.Contains(strings.TrimSpace(id))
+	})
+	if filtered.Len() == 0 {
+		return nil, nil, true, errors.New("placement: no catalog nodes match scheduling.preferredNodes")
+	}
+	return filtered, want, true, nil
+}
+
+func workloadRequest(w deployv1.Workload) workloadResourceRequest {
+	if w.Resources == nil {
+		return workloadResourceRequest{}
+	}
+	return workloadResourceRequest{
+		cpuMillis:  w.Resources.CPUMillis,
+		memoryByte: w.Resources.MemoryBytes,
+	}
+}
+
+func bestPlacementCandidate(
+	candidates *list.List[string],
+	catalog *nodecapacity.Catalog,
+	request workloadResourceRequest,
+	preferences *set.OrderedSet[string],
+	restricted bool,
+) mo.Option[scoredNode] {
+	var best mo.Option[scoredNode]
+	candidates.Range(func(_ int, id string) bool {
+		best = chooseBetterCandidate(best, catalog, request, preferences, restricted, id)
+		return true
+	})
+	return best
+}
+
+func chooseBetterCandidate(
+	best mo.Option[scoredNode],
+	catalog *nodecapacity.Catalog,
+	request workloadResourceRequest,
+	preferences *set.OrderedSet[string],
+	restricted bool,
+	id string,
+) mo.Option[scoredNode] {
+	snap, ok := catalog.Get(id)
+	if !ok || !feasible(request.cpuMillis, request.memoryByte, snap) {
+		return best
+	}
+	cur := scoredNode{id: id, snap: snap}
+	prev, ok := best.Get()
+	if !ok || shouldReplaceCandidate(cur, prev, preferences, restricted) {
+		return mo.Some(cur)
+	}
+	return best
+}
+
+func shouldReplaceCandidate(cur, prev scoredNode, preferences *set.OrderedSet[string], restricted bool) bool {
+	if better(cur.snap, prev.snap) {
+		return true
+	}
+	return restricted &&
+		snapEqual(cur.snap, prev.snap) &&
+		preferredRank(preferences, cur.id) < preferredRank(preferences, prev.id)
 }
 
 // preferredNames returns the normalized preferred-node names in YAML/list order (deduplicated) and
@@ -124,7 +167,7 @@ func preferredRank(want *set.OrderedSet[string], nodeID string) int {
 }
 
 func feasible(reqCPUmillis, reqMemBytes int64, s nodecapacity.Snapshot) bool {
-	if reqMemBytes > 0 && int64(s.MemoryAvailBytes) < reqMemBytes {
+	if reqMemBytes > 0 && s.MemoryAvailBytes < uint64(reqMemBytes) {
 		return false
 	}
 	if reqCPUmillis <= 0 {

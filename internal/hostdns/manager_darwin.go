@@ -70,7 +70,7 @@ func darwinResolverPath(cfg Config) string {
 }
 
 func darwinResolverFile(cfg Config) (string, error) {
-	return renderHostDNSTemplate("darwin-resolver.tmpl", hostDNSTemplateData{
+	return RenderTemplate("darwin-resolver.tmpl", TemplateData{
 		Nameserver: cfg.Nameserver,
 		Port:       cfg.Port,
 	})

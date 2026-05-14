@@ -1,4 +1,4 @@
-package docker
+package docker_test
 
 import (
 	"testing"
@@ -7,10 +7,11 @@ import (
 	"github.com/docker/docker/api/types/container"
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	runtimedocker "github.com/daiyuang/orch/internal/runtime/docker"
 )
 
 func TestContainerLabelsMergesDockerLabels(t *testing.T) {
-	labels := containerLabels(
+	labels := runtimedocker.ContainerLabels(
 		deployv1.Metadata{Name: "app", Namespace: "demo"},
 		deployv1.Workload{
 			Name:    "api",
@@ -19,9 +20,9 @@ func TestContainerLabelsMergesDockerLabels(t *testing.T) {
 				Options: deployv1.RunOptions{
 					Docker: &deployv1.DockerOptions{
 						Labels: map[string]string{
-							"team":              "platform",
-							" orch.io/workload": "ignored",
-							"orch.io/app":       "ignored",
+							"team":                    "platform",
+							"custom.orch.io/workload": "ignored",
+							"orch.io/app":             "ignored",
 						},
 					},
 				},
@@ -46,15 +47,15 @@ func TestContainerLabelsMergesDockerLabels(t *testing.T) {
 func TestWorkloadLabelsMatch(t *testing.T) {
 	meta := deployv1.Metadata{Name: "app", Namespace: "demo"}
 	workload := deployv1.Workload{Name: "api", Runtime: deployv1.RuntimeDocker}
-	labels := containerLabels(meta, workload)
+	labels := runtimedocker.ContainerLabels(meta, workload)
 
-	if !workloadLabelsMatch(labels, meta, workload) {
+	if !runtimedocker.WorkloadLabelsMatch(labels, meta, workload) {
 		t.Fatal("expected labels to match app/workload identity")
 	}
-	if workloadLabelsMatch(labels, deployv1.Metadata{Name: "other", Namespace: "demo"}, workload) {
+	if runtimedocker.WorkloadLabelsMatch(labels, deployv1.Metadata{Name: "other", Namespace: "demo"}, workload) {
 		t.Fatal("expected app mismatch to fail")
 	}
-	if workloadLabelsMatch(labels, meta, deployv1.Workload{Name: "other", Runtime: deployv1.RuntimeDocker}) {
+	if runtimedocker.WorkloadLabelsMatch(labels, meta, deployv1.Workload{Name: "other", Runtime: deployv1.RuntimeDocker}) {
 		t.Fatal("expected workload mismatch to fail")
 	}
 }
@@ -71,7 +72,7 @@ func (fakeWorkloadDNS) WorkloadSearchDomains(namespace string) *list.List[string
 
 func TestApplyWorkloadDNS(t *testing.T) {
 	hostCfg := &container.HostConfig{}
-	applyWorkloadDNS(hostCfg, fakeWorkloadDNS{}, "demo")
+	runtimedocker.ApplyWorkloadDNS(hostCfg, fakeWorkloadDNS{}, "demo")
 
 	if len(hostCfg.DNS) != 1 || hostCfg.DNS[0] != "172.17.0.1" {
 		t.Fatalf("DNS = %#v", hostCfg.DNS)

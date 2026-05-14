@@ -33,38 +33,49 @@ func (s *Service) ListMembers(ctx context.Context) (*list.List[Member], error) {
 	if err != nil {
 		return nil, oopsx.B("raft").Wrapf(err, "get raft membership")
 	}
-	replicaIDs := make([]uint64, 0, len(membership.Nodes)+len(membership.NonVotings)+len(membership.Witnesses))
-	for replicaID := range membership.Nodes {
-		replicaIDs = append(replicaIDs, replicaID)
-	}
-	for replicaID := range membership.NonVotings {
-		replicaIDs = append(replicaIDs, replicaID)
-	}
-	for replicaID := range membership.Witnesses {
-		replicaIDs = append(replicaIDs, replicaID)
-	}
-	sort.Slice(replicaIDs, func(i, j int) bool {
-		return strings.Compare(s.nodeIDForMember(replicaIDs[i], ""), s.nodeIDForMember(replicaIDs[j], "")) < 0
-	})
+	replicaIDs := s.sortedMembershipReplicaIDs(membership.Nodes, membership.NonVotings, membership.Witnesses)
 	out := list.NewListWithCapacity[Member](len(replicaIDs))
 	for _, replicaID := range replicaIDs {
-		address := membership.Nodes[replicaID]
-		suffrage := "Voter"
-		if v, ok := membership.NonVotings[replicaID]; ok {
-			address = v
-			suffrage = "NonVoter"
-		}
-		if v, ok := membership.Witnesses[replicaID]; ok {
-			address = v
-			suffrage = "Witness"
-		}
-		out.Add(Member{
-			ID:       s.nodeIDForMember(replicaID, address),
-			Address:  address,
-			Suffrage: suffrage,
-		})
+		out.Add(s.memberFromReplicaID(replicaID, membership.Nodes, membership.NonVotings, membership.Witnesses))
 	}
 	return out, nil
+}
+
+func (s *Service) sortedMembershipReplicaIDs(nodes, nonVotings, witnesses map[uint64]string) []uint64 {
+	replicaIDs := make([]uint64, 0, len(nodes)+len(nonVotings)+len(witnesses))
+	replicaIDs = appendReplicaIDs(replicaIDs, nodes)
+	replicaIDs = appendReplicaIDs(replicaIDs, nonVotings)
+	replicaIDs = appendReplicaIDs(replicaIDs, witnesses)
+	sort.Slice(replicaIDs, func(i, j int) bool {
+		return s.nodeIDForMember(replicaIDs[i], "") < s.nodeIDForMember(replicaIDs[j], "")
+	})
+	return replicaIDs
+}
+
+func appendReplicaIDs(replicaIDs []uint64, targets map[uint64]string) []uint64 {
+	for replicaID := range targets {
+		replicaIDs = append(replicaIDs, replicaID)
+	}
+	return replicaIDs
+}
+
+func (s *Service) memberFromReplicaID(replicaID uint64, nodes, nonVotings, witnesses map[uint64]string) Member {
+	address, suffrage := memberAddressAndSuffrage(replicaID, nodes, nonVotings, witnesses)
+	return Member{
+		ID:       s.nodeIDForMember(replicaID, address),
+		Address:  address,
+		Suffrage: suffrage,
+	}
+}
+
+func memberAddressAndSuffrage(replicaID uint64, nodes, nonVotings, witnesses map[uint64]string) (string, string) {
+	if address, ok := nonVotings[replicaID]; ok {
+		return address, "NonVoter"
+	}
+	if address, ok := witnesses[replicaID]; ok {
+		return address, "Witness"
+	}
+	return nodes[replicaID], "Voter"
 }
 
 func (s *Service) AddVoter(ctx context.Context, id, address string) error {

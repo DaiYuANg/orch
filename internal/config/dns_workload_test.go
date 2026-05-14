@@ -1,14 +1,16 @@
-package config
+package config_test
 
 import (
 	"slices"
 	"testing"
+
+	"github.com/daiyuang/orch/internal/config"
 )
 
 func TestDNSWorkloadNameserver(t *testing.T) {
 	t.Parallel()
 
-	cfg := DNSConfig{Listen: "127.0.0.1:15353"}
+	cfg := config.DNSConfig{Listen: "127.0.0.1:15353"}
 	if got, ok := cfg.WorkloadNameserver(); ok || got != "" {
 		t.Fatalf("default workload nameserver = %q %v, want disabled", got, ok)
 	}
@@ -30,7 +32,7 @@ func TestDNSWorkloadNameserver(t *testing.T) {
 func TestDNSWorkloadSearchDomainList(t *testing.T) {
 	t.Parallel()
 
-	cfg := DNSConfig{Zone: "Orch.Local."}
+	cfg := config.DNSConfig{Zone: "Orch.Local."}
 	got := cfg.WorkloadSearchDomainList("Demo").Values()
 	want := []string{"demo.svc.orch.local", "svc.orch.local", "orch.local"}
 	if !slices.Equal(got, want) {
@@ -48,7 +50,7 @@ func TestDNSWorkloadSearchDomainList(t *testing.T) {
 func TestDNSWorkloadUpstreamList(t *testing.T) {
 	t.Parallel()
 
-	cfg := DNSConfig{}
+	cfg := config.DNSConfig{}
 	cfg.Workload.Upstream = []string{
 		"1.1.1.1",
 		"8.8.8.8:5353",
@@ -57,7 +59,7 @@ func TestDNSWorkloadUpstreamList(t *testing.T) {
 		"not-an-ip",
 	}
 
-	got := cfg.WorkloadUpstreamList().Values()
+	got := cfg.WorkloadUpstreamList(t.Context()).Values()
 	want := []string{
 		"1.1.1.1:53",
 		"8.8.8.8:5353",

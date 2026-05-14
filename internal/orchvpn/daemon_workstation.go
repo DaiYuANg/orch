@@ -12,6 +12,7 @@ import (
 
 	"github.com/daiyuang/orch/internal/api"
 	"github.com/daiyuang/orch/internal/apiclient"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // WorkstationDaemon is the long-running workstation side (health + bootstrap; optional TUN data plane).
@@ -38,7 +39,7 @@ func NewWorkstationDaemon(cfg ClientConfig, hc *apiclient.Client, log *slog.Logg
 	return &WorkstationDaemon{cfg: cfg, client: hc, log: log.With(slog.String("component", "orchvpn-workstation"))}
 }
 
-// Run blocks until ctx is cancelled.
+// Run blocks until ctx is canceled.
 func (d *WorkstationDaemon) Run(ctx context.Context) error {
 	tick := time.NewTicker(time.Duration(d.cfg.HealthPeriodSec) * time.Second)
 	defer tick.Stop()
@@ -47,48 +48,87 @@ func (d *WorkstationDaemon) Run(ctx context.Context) error {
 	d.log.Debug("poll loop: UDP encap-v0 heartbeats when server has orch_vpn.enabled and tunnel peer is known")
 
 	for {
-		if ctx.Err() != nil {
-			return ctx.Err()
+		if err := d.pollControlPlane(ctx); err != nil {
+			return err
 		}
-		hctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-		_, err := d.client.Health(hctx)
-		if err != nil {
-			d.log.Warn("control plane health check failed", "error", err)
-			d.stopTunnelDataPlane()
-		} else {
-			bctx, bcancel := context.WithTimeout(ctx, 15*time.Second)
-			boot, berr := d.client.OrchVPNBootstrap(bctx)
-			bcancel()
-			if berr != nil {
-				d.stopTunnelDataPlane()
-				if d.lastTunnelOK {
-					d.log.Warn("orch-vpn bootstrap failed (tunnel down)", "error", berr)
-				} else {
-					d.log.Warn("orch-vpn bootstrap failed", "error", berr)
-				}
-				d.lastTunnelOK = false
-				d.lastTunnelPeer = ""
-			} else {
-				d.logBootstrap(boot)
-				if peer, ok := tunnelPeerFromBootstrap(d.cfg.ControlPlaneURL, boot); ok {
-					d.pulseTunnel(ctx, peer, boot)
-				} else {
-					d.stopTunnelDataPlane()
-					if d.lastTunnelOK {
-						d.log.Info("tunnel stopped: orch-vpn disabled or no peer in bootstrap")
-					}
-					d.lastTunnelOK = false
-					d.lastTunnelPeer = ""
-				}
-			}
+		if !waitWorkstationTick(ctx, tick) {
+			return oopsx.B("orchvpn").Wrapf(ctx.Err(), "workstation context")
 		}
-		cancel()
+	}
+}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-tick.C:
+func (d *WorkstationDaemon) pollControlPlane(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return oopsx.B("orchvpn").Wrapf(err, "workstation context")
+	}
+	if err := d.checkControlPlaneHealth(ctx); err != nil {
+		if ctx.Err() != nil {
+			return oopsx.B("orchvpn").Wrapf(ctx.Err(), "workstation context")
 		}
+		d.log.Warn("control plane health check failed", "error", err)
+		d.stopTunnelDataPlane()
+		return nil
+	}
+	return d.refreshTunnelBootstrap(ctx)
+}
+
+func (d *WorkstationDaemon) checkControlPlaneHealth(ctx context.Context) error {
+	hctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	_, err := d.client.Health(hctx)
+	if err != nil {
+		return oopsx.B("orchvpn").Wrapf(err, "check control plane health")
+	}
+	return nil
+}
+
+func (d *WorkstationDaemon) refreshTunnelBootstrap(ctx context.Context) error {
+	bctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	boot, err := d.client.OrchVPNBootstrap(bctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return oopsx.B("orchvpn").Wrapf(ctx.Err(), "workstation context")
+		}
+		d.handleBootstrapError(err)
+		return nil
+	}
+	d.handleBootstrap(ctx, boot)
+	return nil
+}
+
+func (d *WorkstationDaemon) handleBootstrapError(err error) {
+	d.stopTunnelDataPlane()
+	if d.lastTunnelOK {
+		d.log.Warn("orch-vpn bootstrap failed (tunnel down)", "error", err)
+	} else {
+		d.log.Warn("orch-vpn bootstrap failed", "error", err)
+	}
+	d.lastTunnelOK = false
+	d.lastTunnelPeer = ""
+}
+
+func (d *WorkstationDaemon) handleBootstrap(ctx context.Context, boot *api.OrchVPNBootstrapOutput) {
+	d.logBootstrap(boot)
+	peer, ok := tunnelPeerFromBootstrap(d.cfg.ControlPlaneURL, boot)
+	if ok {
+		d.pulseTunnel(ctx, peer, boot)
+		return
+	}
+	d.stopTunnelDataPlane()
+	if d.lastTunnelOK {
+		d.log.Info("tunnel stopped: orch-vpn disabled or no peer in bootstrap")
+	}
+	d.lastTunnelOK = false
+	d.lastTunnelPeer = ""
+}
+
+func waitWorkstationTick(ctx context.Context, tick *time.Ticker) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-tick.C:
+		return true
 	}
 }
 
@@ -135,14 +175,21 @@ func (d *WorkstationDaemon) sendEncapHeartbeat(parent context.Context, peer stri
 		d.log.Debug("tunnel udp dial", "peer", peer, "error", err)
 		return false
 	}
-	defer c.Close()
+	defer func() {
+		if closeErr := c.Close(); closeErr != nil {
+			d.log.Debug("tunnel udp close", "peer", peer, "error", closeErr)
+		}
+	}()
 
 	pkt := EncodeEncapV0(EncapV0MsgHeartbeat, nil)
-	if _, err := c.Write(pkt); err != nil {
-		d.log.Debug("tunnel heartbeat write", "error", err)
+	if _, writeErr := c.Write(pkt); writeErr != nil {
+		d.log.Debug("tunnel heartbeat write", "error", writeErr)
 		return false
 	}
-	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if deadlineErr := c.SetReadDeadline(time.Now().Add(2 * time.Second)); deadlineErr != nil {
+		d.log.Debug("tunnel heartbeat deadline", "error", deadlineErr)
+		return false
+	}
 	ackBuf := make([]byte, 2048)
 	n, err := c.Read(ackBuf)
 	if err != nil {

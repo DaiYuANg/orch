@@ -1,6 +1,7 @@
 package raftsvc
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -35,7 +36,7 @@ func (s *Service) GetDesiredDeployApp(meta deployv1.Metadata) (deployv1.App, boo
 
 // ApplyDeployApp replicates a validated [deployv1.App] through Raft; the local FSM is updated on every peer after commit.
 // Callers must target the Raft leader.
-func (s *Service) ApplyDeployApp(app deployv1.App) error {
+func (s *Service) ApplyDeployApp(ctx context.Context, app deployv1.App) error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")
 	}
@@ -50,10 +51,10 @@ func (s *Service) ApplyDeployApp(app deployv1.App) error {
 		return oopsx.B("raft").Wrapf(err, "marshal deploy app command")
 	}
 
-	return s.applyCommand(b, 30*time.Second, "not leader: send deploy to the raft leader node")
+	return s.applyCommand(ctx, b, 30*time.Second, "not leader: send deploy to the raft leader node")
 }
 
-func (s *Service) ApplyDeleteDeployApp(meta deployv1.Metadata) error {
+func (s *Service) ApplyDeleteDeployApp(ctx context.Context, meta deployv1.Metadata) error {
 	if s == nil {
 		return oopsx.B("raft").Errorf("nil service")
 	}
@@ -70,5 +71,5 @@ func (s *Service) ApplyDeleteDeployApp(meta deployv1.Metadata) error {
 	if err != nil {
 		return oopsx.B("raft").Wrapf(err, "marshal delete deploy app command")
 	}
-	return s.applyCommand(b, 30*time.Second, "not leader: send delete to the raft leader node")
+	return s.applyCommand(ctx, b, 30*time.Second, "not leader: send delete to the raft leader node")
 }

@@ -58,7 +58,7 @@ func (s *Service) CheckReadiness(ctx context.Context) dix.HealthReport {
 
 func CheckControlPlaneReady(ctx context.Context, cfg config.Config, raft *raftsvc.Service) error {
 	if err := ctx.Err(); err != nil {
-		return err
+		return fmt.Errorf("control plane readiness context: %w", err)
 	}
 	if raft == nil {
 		return errors.New("raft service unavailable")

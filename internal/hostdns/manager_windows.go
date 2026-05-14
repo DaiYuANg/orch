@@ -3,7 +3,9 @@
 package hostdns
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -36,9 +38,9 @@ func (m *windowsManager) Uninstall(ctx context.Context, cfg Config) error {
 
 func (m *windowsManager) Status(ctx context.Context, cfg Config) (Status, error) {
 	st := Status{Supported: true, Config: cfg}
-	if err := requirePort53(cfg, "Windows NRPT"); err != nil {
+	if detail, ok := windowsNRPTSupported(cfg); !ok {
 		st.Supported = false
-		st.Detail = err.Error()
+		st.Detail = detail
 		return st, nil
 	}
 	script, err := renderWindowsScript("windows-status.ps1", cfg)
@@ -58,8 +60,15 @@ func (m *windowsManager) Status(ctx context.Context, cfg Config) (Status, error)
 	return st, nil
 }
 
+func windowsNRPTSupported(cfg Config) (string, bool) {
+	if err := requirePort53(cfg, "Windows NRPT"); err != nil {
+		return err.Error(), false
+	}
+	return "", true
+}
+
 func renderWindowsScript(name string, cfg Config) (string, error) {
-	return renderHostDNSTemplate(name, hostDNSTemplateData{
+	return RenderTemplate(name, TemplateData{
 		Namespace:  "." + escapePowerShell(cfg.Zone),
 		Nameserver: escapePowerShell(cfg.Nameserver),
 	})
@@ -77,12 +86,39 @@ func runPowerShellOutput(ctx context.Context, script string) (string, error) {
 			name = "pwsh.exe"
 		}
 	}
-	cmd := exec.CommandContext(ctx, name, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
-	out, err := cmd.CombinedOutput()
+	cmd := &exec.Cmd{
+		Path: name,
+		Args: []string{name, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script},
+	}
+	out, err := combinedOutputContext(ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("run PowerShell host DNS command: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
+}
+
+func combinedOutputContext(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Start(); err != nil {
+		return out.Bytes(), err
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+	select {
+	case err := <-done:
+		return out.Bytes(), err
+	case <-ctx.Done():
+		var killErr error
+		if cmd.Process != nil {
+			killErr = cmd.Process.Kill()
+		}
+		waitErr := <-done
+		return out.Bytes(), errors.Join(ctx.Err(), killErr, waitErr)
+	}
 }
 
 func escapePowerShell(s string) string {

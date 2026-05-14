@@ -2,12 +2,13 @@ package loader
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"strings"
 
 	"github.com/daiyuang/orch/internal/deploy/orch"
 	v1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 // Loader selects the manifest path (.orch vs YAML) and returns a canonical [v1.App].
@@ -18,7 +19,7 @@ type Loader struct {
 // NewLoader wires [.orch] loading via [orch.Orch]. orch must be non-nil when loading .orch sources.
 func NewLoader(o *orch.Orch) (*Loader, error) {
 	if o == nil {
-		return nil, fmt.Errorf("deploy loader: nil orch.Orch")
+		return nil, errors.New("deploy loader: nil orch.Orch")
 	}
 	return &Loader{orch: o}, nil
 }
@@ -27,22 +28,38 @@ func NewLoader(o *orch.Orch) (*Loader, error) {
 func (l *Loader) LoadApp(ctx context.Context, path string) (*v1.App, error) {
 	if strings.EqualFold(filepath.Ext(path), ".orch") {
 		if l == nil || l.orch == nil {
-			return nil, fmt.Errorf("deploy loader: orch.Orch is required for .orch files")
+			return nil, errors.New("deploy loader: orch.Orch is required for .orch files")
 		}
-		return l.orch.LoadAppFile(ctx, path)
+		app, err := l.orch.LoadAppFile(ctx, path)
+		if err != nil {
+			return nil, oopsx.B("deploy", "loader").Wrapf(err, "load orch file")
+		}
+		return app, nil
 	}
-	return v1.LoadAppFile(path)
+	app, err := v1.LoadAppFile(path)
+	if err != nil {
+		return nil, oopsx.B("deploy", "loader").Wrapf(err, "load app file")
+	}
+	return app, nil
 }
 
 // LoadAppBytes loads from memory. virtualPath ending in ".orch" uses [orch.Orch]; otherwise [v1.ParseAppYAML].
 func (l *Loader) LoadAppBytes(ctx context.Context, virtualPath string, src []byte) (*v1.App, error) {
 	if strings.EqualFold(filepath.Ext(virtualPath), ".orch") {
 		if l == nil || l.orch == nil {
-			return nil, fmt.Errorf("deploy loader: orch.Orch is required for .orch sources")
+			return nil, errors.New("deploy loader: orch.Orch is required for .orch sources")
 		}
-		return l.orch.LoadAppBytes(ctx, virtualPath, src)
+		app, err := l.orch.LoadAppBytes(ctx, virtualPath, src)
+		if err != nil {
+			return nil, oopsx.B("deploy", "loader").Wrapf(err, "load orch source")
+		}
+		return app, nil
 	}
-	return v1.ParseAppYAML(src)
+	app, err := v1.ParseAppYAML(src)
+	if err != nil {
+		return nil, oopsx.B("deploy", "loader").Wrapf(err, "parse app yaml")
+	}
+	return app, nil
 }
 
 // LoadAppString is [Loader.LoadAppBytes] with string source.

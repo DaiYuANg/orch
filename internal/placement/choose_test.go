@@ -1,4 +1,4 @@
-package placement
+package placement_test
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/internal/nodecapacity"
+	"github.com/daiyuang/orch/internal/placement"
 )
 
 // testSnapshotStore is a minimal in-test [nodecapacity.SnapshotStore] (not for production).
@@ -48,7 +49,9 @@ func testCatalog(snaps ...nodecapacity.Snapshot) *nodecapacity.Catalog {
 	mem := newTestSnapshotStore()
 	ctx := context.Background()
 	for _, s := range snaps {
-		_ = mem.Upsert(ctx, s)
+		if err := mem.Upsert(ctx, s); err != nil {
+			panic(err)
+		}
 	}
 	return nodecapacity.NewCatalog(mem)
 }
@@ -66,7 +69,7 @@ func TestChoose_prefersLowerCPU(t *testing.T) {
 		},
 	)
 
-	eng := NewEngine()
+	eng := placement.NewEngine()
 	got, err := eng.Choose(context.Background(), deployv1.Workload{Name: "w"}, cat, "local")
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +98,7 @@ func TestChoose_tieBreakByPreferredOrder(t *testing.T) {
 			PreferredNodes: []string{"y", "x"},
 		},
 	}
-	eng := NewEngine()
+	eng := placement.NewEngine()
 	got, err := eng.Choose(context.Background(), w, cat, "local")
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +127,7 @@ func TestChoose_respectsPreferredNodes(t *testing.T) {
 			PreferredNodes: []string{"cold"},
 		},
 	}
-	eng := NewEngine()
+	eng := placement.NewEngine()
 	got, err := eng.Choose(context.Background(), w, cat, "local")
 	if err != nil {
 		t.Fatal(err)

@@ -1,4 +1,4 @@
-package logging
+package logging_test
 
 import (
 	"bytes"
@@ -7,12 +7,14 @@ import (
 	"testing"
 
 	dblogger "github.com/lni/dragonboat/v4/logger"
+
+	"github.com/daiyuang/orch/internal/logging"
 )
 
 func TestDragonboatSlogLoggerWritesStructuredRecord(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	adapter := newDragonboatSlogLogger(logger, "raft")
+	adapter := logging.NewDragonboatLogger(logger, "raft")
 
 	adapter.Infof("node %d ready", 1)
 
@@ -32,7 +34,7 @@ func TestDragonboatSlogLoggerWritesStructuredRecord(t *testing.T) {
 func TestDragonboatSlogLoggerFiltersByDragonboatLevel(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	adapter := newDragonboatSlogLogger(logger, "raft")
+	adapter := logging.NewDragonboatLogger(logger, "raft")
 	adapter.SetLevel(dblogger.ERROR)
 
 	adapter.Warningf("skip warning")

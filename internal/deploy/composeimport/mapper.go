@@ -1,6 +1,7 @@
 package composeimport
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -16,7 +17,7 @@ import (
 // [deployv1.App]. Runtime scheduling uses only the App; this function is the compatibility edge.
 func MapProject(proj *composetypes.Project) (*Result, error) {
 	if proj == nil {
-		return nil, fmt.Errorf("compose project is nil")
+		return nil, errors.New("compose project is nil")
 	}
 	var rep Report
 	app := &deployv1.App{
@@ -31,7 +32,7 @@ func MapProject(proj *composetypes.Project) (*Result, error) {
 		},
 	}
 
-	if proj.Networks != nil && len(proj.Networks) > 0 {
+	if len(proj.Networks) > 0 {
 		rep.warnf("compose networks are not mapped into the canonical model yet (%d defined)", len(proj.Networks))
 	}
 
@@ -51,7 +52,7 @@ func MapProject(proj *composetypes.Project) (*Result, error) {
 	app.Workloads = wloads.Values()
 
 	if len(app.Workloads) == 0 {
-		return nil, fmt.Errorf("compose import produced no workloads (need image per service)")
+		return nil, errors.New("compose import produced no workloads (need image per service)")
 	}
 
 	return &Result{App: app, Report: rep}, nil
@@ -62,23 +63,22 @@ func sanitizeProjectName(name string) string {
 	if n == "" {
 		return "compose-import"
 	}
-	// Match deploy name validation loosely: letters/digits/separator.
-	var b strings.Builder
-	for _, r := range n {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-			b.WriteRune(r)
-		case r == '_' || r == '-' || r == '.':
-			b.WriteRune(r)
-		default:
-			b.WriteRune('-')
-		}
-	}
-	out := b.String()
+	out := strings.Map(sanitizeProjectRune, n)
 	if out == "" || out[0] < 'A' || (out[0] > 'Z' && out[0] < 'a') {
 		return "compose-" + out
 	}
 	return out
+}
+
+func sanitizeProjectRune(r rune) rune {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return r
+	case r == '_' || r == '-' || r == '.':
+		return r
+	default:
+		return '-'
+	}
 }
 
 func mapComposeVolumes(proj *composetypes.Project) []deployv1.Volume {
@@ -90,7 +90,7 @@ func mapComposeVolumes(proj *composetypes.Project) []deployv1.Volume {
 	}).Values()
 }
 
-func mergeVolumesDedup(existing []deployv1.Volume, add []deployv1.Volume) []deployv1.Volume {
+func mergeVolumesDedup(existing, add []deployv1.Volume) []deployv1.Volume {
 	seen := set.NewSetWithCapacity[string](len(existing) + len(add))
 	for _, v := range existing {
 		seen.Add(v.Name)
@@ -170,43 +170,6 @@ func replicasFromCompose(s *composetypes.ServiceConfig) int {
 	return 1
 }
 
-func dockerOptionsFromCompose(svcName string, s *composetypes.ServiceConfig, rep *Report) *deployv1.DockerOptions {
-	labels := mapping.NewMapWithCapacity[string, string](len(s.Labels))
-	labels.SetAll(s.Labels)
-	opts := &deployv1.DockerOptions{
-		NetworkMode: strings.TrimSpace(s.NetworkMode),
-		Privileged:  s.Privileged,
-		Labels:      labels.All(),
-	}
-	if s.Deploy != nil {
-		for k, v := range s.Deploy.Labels {
-			if opts.Labels[k] == "" {
-				opts.Labels[k] = v
-			}
-		}
-	}
-	if len(opts.Labels) == 0 {
-		opts.Labels = nil
-	}
-	if opts.NetworkMode == "" && len(s.Networks) > 0 {
-		nn := networkNamesSorted(s.Networks)
-		if first, ok := nn.GetFirstOption().Get(); ok {
-			opts.NetworkMode = first
-		}
-		if nn.Len() > 1 {
-			rep.warnf("service %q: multiple compose networks; using first only: %v", svcName, nn.Values())
-		}
-	}
-	if opts.NetworkMode == "" && opts.Labels == nil && !opts.Privileged {
-		return nil
-	}
-	return opts
-}
-
-func networkNamesSorted(nets map[string]*composetypes.ServiceNetworkConfig) *list.List[string] {
-	return sortedMapKeys(nets)
-}
-
 func endpointsFromCompose(service string, ports []composetypes.ServicePortConfig, rep *Report) []deployv1.Endpoint {
 	if len(ports) == 0 {
 		return nil
@@ -268,74 +231,4 @@ func sortedMapKeys[V any](m map[string]V) *list.List[string] {
 	keys := list.NewList(mapping.NewMapFrom(m).Keys()...)
 	keys.Sort(strings.Compare)
 	return keys
-}
-
-func resourcesFromCompose(d *composetypes.DeployConfig) *deployv1.Resources {
-	if d == nil {
-		return nil
-	}
-	var r deployv1.Resources
-	if d.Resources.Limits != nil {
-		lim := d.Resources.Limits
-		if lim.NanoCPUs > 0 {
-			r.CPUMillis = int64(lim.NanoCPUs.Value() * 1000)
-		}
-		if lim.MemoryBytes > 0 {
-			r.MemoryBytes = int64(lim.MemoryBytes)
-		}
-	}
-	if r.CPUMillis == 0 && r.MemoryBytes == 0 && d.Resources.Reservations != nil {
-		res := d.Resources.Reservations
-		if res.NanoCPUs > 0 {
-			r.CPUMillis = int64(res.NanoCPUs.Value() * 1000)
-		}
-		if res.MemoryBytes > 0 {
-			r.MemoryBytes = int64(res.MemoryBytes)
-		}
-	}
-	if r.CPUMillis == 0 && r.MemoryBytes == 0 {
-		return nil
-	}
-	return &r
-}
-
-func mountsFromCompose(service string, vols []composetypes.ServiceVolumeConfig, rep *Report) ([]deployv1.Mount, []deployv1.Volume) {
-	var mounts []deployv1.Mount
-	var extraVol []deployv1.Volume
-
-	for i, v := range vols {
-		tgt := strings.TrimSpace(v.Target)
-		if tgt == "" {
-			continue
-		}
-		typ := strings.ToLower(strings.TrimSpace(v.Type))
-		switch typ {
-		case "", "volume":
-			src := strings.TrimSpace(v.Source)
-			if src == "" {
-				rep.warnf("service %q: volumes[%d] anonymous volume not mapped", service, i)
-				continue
-			}
-			mounts = append(mounts, deployv1.Mount{
-				Volume:   deployv1.VolumeRef{Name: src},
-				Target:   tgt,
-				ReadOnly: v.ReadOnly,
-			})
-		case "bind":
-			id := fmt.Sprintf("bind-%s-%d", service, i)
-			rep.warnf("service %q: bind mount %q -> %q mapped as named volume %q (host path not in canonical volume model yet)",
-				service, strings.TrimSpace(v.Source), tgt, id)
-			extraVol = append(extraVol, deployv1.Volume{Name: id})
-			mounts = append(mounts, deployv1.Mount{
-				Volume:   deployv1.VolumeRef{Name: id},
-				Target:   tgt,
-				ReadOnly: v.ReadOnly,
-			})
-		case "tmpfs":
-			rep.warnf("service %q: tmpfs mount %q skipped", service, tgt)
-		default:
-			rep.warnf("service %q: volume type %q not mapped", service, typ)
-		}
-	}
-	return mounts, extraVol
 }

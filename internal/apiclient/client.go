@@ -2,7 +2,6 @@ package apiclient
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -10,11 +9,9 @@ import (
 	"time"
 
 	"github.com/arcgolabs/clientx"
-	clientcodec "github.com/arcgolabs/clientx/codec"
 	clientxhttp "github.com/arcgolabs/clientx/http"
 
 	"github.com/daiyuang/orch/internal/api"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
 	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
@@ -175,114 +172,6 @@ func (c *Client) WorkloadLogs(ctx context.Context, namespace, app, workload stri
 	return &out, nil
 }
 
-// Deploy calls POST /api/v1/deploy with a deploy DSL document.
-func (c *Client) Deploy(ctx context.Context, app *deployv1.App) (*api.DeployOutput, error) {
-	if app == nil {
-		return nil, oopsx.B("cli", "apiclient").Errorf("nil app")
-	}
-	in := api.DeployInput{Body: *app}
-	var out api.DeployOutput
-	if err := c.post(ctx, api.PathV1Deploy, &in.Body, &out.Body); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeploySource calls POST /api/v1/deploy/source with manifest source; virtualPath should end with .orch or .yaml/.yml (or JSON-shaped YAML).
-func (c *Client) DeploySource(ctx context.Context, virtualPath, source string) (*api.DeployOutput, error) {
-	if virtualPath == "" {
-		return nil, oopsx.B("cli", "apiclient").Errorf("empty virtualPath")
-	}
-	var in api.DeploySourceInput
-	in.Body.VirtualPath = virtualPath
-	in.Body.Source = source
-	var out api.DeployOutput
-	if err := c.post(ctx, api.PathV1DeploySource, &in.Body, &out.Body); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *Client) DeleteDeploy(ctx context.Context, namespace, name string) (*api.DeleteDeployOutput, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
-	}
-	namespace = strings.TrimSpace(namespace)
-	if namespace == "" {
-		namespace = "default"
-	}
-	path := api.PathV1DeployDelete + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name)
-	var out api.DeleteDeployOutput
-	if err := c.delete(ctx, path, &out.Body); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *Client) StopDeploy(ctx context.Context, namespace, name string) (*api.StopDeployOutput, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
-	}
-	namespace = strings.TrimSpace(namespace)
-	if namespace == "" {
-		namespace = "default"
-	}
-	path := api.PathV1DeployStop + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/stop"
-	var out api.StopDeployOutput
-	if err := c.post(ctx, path, struct{}{}, &out.Body); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *Client) StartDeploy(ctx context.Context, namespace, name string) (*api.StartDeployOutput, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
-	}
-	namespace = strings.TrimSpace(namespace)
-	if namespace == "" {
-		namespace = "default"
-	}
-	path := api.PathV1DeployStart + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/start"
-	var out api.StartDeployOutput
-	if err := c.post(ctx, path, struct{}{}, &out.Body); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *Client) RestartDeploy(ctx context.Context, namespace, name string) (*api.RestartDeployOutput, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
-	}
-	namespace = strings.TrimSpace(namespace)
-	if namespace == "" {
-		namespace = "default"
-	}
-	path := api.PathV1DeployRestart + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/restart"
-	var out api.RestartDeployOutput
-	if err := c.post(ctx, path, struct{}{}, &out.Body); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *Client) MigrateDeploy(ctx context.Context, namespace, name, targetNode string, workloads []string) (*api.DeployOperationOutput, error) {
-	return c.deployOperation(ctx, api.PathV1DeployMigrate, taskOperationMigrate, namespace, name, targetNode, workloads)
-}
-
-func (c *Client) FailoverDeploy(ctx context.Context, namespace, name, targetNode string, workloads []string) (*api.DeployOperationOutput, error) {
-	return c.deployOperation(ctx, api.PathV1DeployFailover, taskOperationFailover, namespace, name, targetNode, workloads)
-}
-
-func (c *Client) RebalanceDeploy(ctx context.Context, namespace, name string, workloads []string) (*api.DeployOperationOutput, error) {
-	return c.deployOperation(ctx, api.PathV1DeployRebalance, taskOperationRebalance, namespace, name, "", workloads)
-}
-
 func (c *Client) RaftStatus(ctx context.Context) (*api.RaftStatusOutput, error) {
 	var out api.RaftStatusOutput
 	if err := c.get(ctx, api.PathV1RaftStatus, &out.Body); err != nil {
@@ -290,12 +179,6 @@ func (c *Client) RaftStatus(ctx context.Context) (*api.RaftStatusOutput, error) 
 	}
 	return &out, nil
 }
-
-const (
-	taskOperationMigrate   = "migrate"
-	taskOperationFailover  = "failover"
-	taskOperationRebalance = "rebalance"
-)
 
 func normalizeWorkloadPath(namespace, app, workload string) (string, string, string, error) {
 	app = strings.TrimSpace(app)
@@ -311,26 +194,6 @@ func normalizeWorkloadPath(namespace, app, workload string) (string, string, str
 		namespace = "default"
 	}
 	return namespace, app, workload, nil
-}
-
-func (c *Client) deployOperation(ctx context.Context, basePath, operation, namespace, name, targetNode string, workloads []string) (*api.DeployOperationOutput, error) {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
-	}
-	namespace = strings.TrimSpace(namespace)
-	if namespace == "" {
-		namespace = "default"
-	}
-	path := basePath + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name) + "/" + operation
-	var in api.DeployOperationInput
-	in.Body.TargetNode = targetNode
-	in.Body.Workloads = workloads
-	var out api.DeployOperationOutput
-	if err := c.post(ctx, path, &in.Body, &out.Body); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }
 
 func (c *Client) ListRaftMembers(ctx context.Context) (*api.ListRaftMembersOutput, error) {
@@ -377,65 +240,4 @@ func (c *Client) OrchVPNBootstrap(ctx context.Context) (*api.OrchVPNBootstrapOut
 		return nil, err
 	}
 	return &out, nil
-}
-
-func (c *Client) get(ctx context.Context, path string, out any) error {
-	if c == nil || c.hc == nil {
-		return oopsx.B("cli", "apiclient").Errorf("nil client")
-	}
-	resp, err := c.hc.Execute(ctx, c.hc.R(), http.MethodGet, path)
-	if err != nil {
-		return oopsx.B("cli", "apiclient").Wrapf(err, "GET %s", path)
-	}
-	if !resp.IsSuccess() {
-		msg := strings.TrimSpace(string(resp.Bytes()))
-		return oopsx.B("cli", "apiclient").Errorf("GET %s: %s: %s", path, resp.Status(), msg)
-	}
-	if err := clientcodec.JSON.Unmarshal(resp.Bytes(), out); err != nil {
-		return oopsx.B("cli", "apiclient").Wrapf(err, "GET %s response", path)
-	}
-	return nil
-}
-
-func (c *Client) delete(ctx context.Context, path string, out any) error {
-	if c == nil || c.hc == nil {
-		return oopsx.B("cli", "apiclient").Errorf("nil client")
-	}
-	resp, err := c.hc.Execute(ctx, c.hc.R(), http.MethodDelete, path)
-	if err != nil {
-		return oopsx.B("cli", "apiclient").Wrapf(err, "DELETE %s", path)
-	}
-	if !resp.IsSuccess() {
-		msg := strings.TrimSpace(string(resp.Bytes()))
-		return oopsx.B("cli", "apiclient").Errorf("DELETE %s: %s: %s", path, resp.Status(), msg)
-	}
-	if err := clientcodec.JSON.Unmarshal(resp.Bytes(), out); err != nil {
-		return oopsx.B("cli", "apiclient").Wrapf(err, "DELETE %s response", path)
-	}
-	return nil
-}
-
-func (c *Client) post(ctx context.Context, path string, body, out any) error {
-	if c == nil || c.hc == nil {
-		return oopsx.B("cli", "apiclient").Errorf("nil client")
-	}
-	raw, err := clientcodec.JSON.Marshal(body)
-	if err != nil {
-		return oopsx.B("cli", "apiclient").Wrapf(err, "POST %s body", path)
-	}
-	req := c.hc.R().
-		SetHeader("Content-Type", "application/json").
-		SetBody(raw)
-	resp, err := c.hc.Execute(ctx, req, http.MethodPost, path)
-	if err != nil {
-		return oopsx.B("cli", "apiclient").Wrapf(err, "POST %s", path)
-	}
-	if !resp.IsSuccess() {
-		msg := strings.TrimSpace(string(resp.Bytes()))
-		return oopsx.B("cli", "apiclient").Errorf("POST %s: %s: %s", path, resp.Status(), msg)
-	}
-	if err := clientcodec.JSON.Unmarshal(resp.Bytes(), out); err != nil {
-		return oopsx.B("cli", "apiclient").Wrapf(err, "POST %s response", path)
-	}
-	return nil
 }

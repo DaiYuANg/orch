@@ -13,6 +13,7 @@ import (
 	"github.com/daiyuang/orch/internal/raftsvc"
 	"github.com/daiyuang/orch/internal/services/registry"
 	"github.com/daiyuang/orch/internal/services/task"
+	"github.com/daiyuang/orch/pkg/oopsx"
 )
 
 func Module() dix.Module {
@@ -39,7 +40,7 @@ func Module() dix.Module {
 				logger.Info("lifecycle", "phase", "stopping", "component", "task-reconcile")
 				if err := tasks.StopDeployReconcile(ctx); err != nil {
 					logger.Warn("lifecycle", "phase", "stop_failed", "component", "task-reconcile", "error", err)
-					return err
+					return oopsx.B("services").Wrapf(err, "stop task reconcile")
 				}
 				logger.Info("lifecycle", "phase", "stopped", "component", "task-reconcile")
 				return nil

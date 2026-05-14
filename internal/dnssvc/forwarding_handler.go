@@ -2,6 +2,7 @@ package dnssvc
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -18,7 +19,8 @@ type forwardingHandler struct {
 	logger    *slog.Logger
 }
 
-func newForwardingHandler(resolver *dnsserver.Resolver, upstreams *list.List[string], logger *slog.Logger) dns.Handler {
+// NewForwardingHandler builds the workload DNS forwarding handler.
+func NewForwardingHandler(resolver *dnsserver.Resolver, upstreams *list.List[string], logger *slog.Logger) dns.Handler {
 	if upstreams == nil {
 		upstreams = list.NewList[string]()
 	}
@@ -30,6 +32,10 @@ func newForwardingHandler(resolver *dnsserver.Resolver, upstreams *list.List[str
 		upstreams: upstreams,
 		logger:    logger,
 	}
+}
+
+func newForwardingHandler(resolver *dnsserver.Resolver, upstreams *list.List[string], logger *slog.Logger) dns.Handler {
+	return NewForwardingHandler(resolver, upstreams, logger)
 }
 
 func (h *forwardingHandler) ServeDNS(writer dns.ResponseWriter, request *dns.Msg) {
@@ -75,28 +81,12 @@ func (h *forwardingHandler) ServeDNS(writer dns.ResponseWriter, request *dns.Msg
 }
 
 func (h *forwardingHandler) forward(writer dns.ResponseWriter, request *dns.Msg) {
-	var lastErr error
-	h.upstreams.Range(func(_ int, upstream string) bool {
-		query := request.Copy()
-		query.RecursionDesired = true
-
-		ctx, cancel := context.WithTimeout(context.Background(), workloadDNSForwardTimeout)
-		defer cancel()
-
-		response, _, err := (&dns.Client{Net: "udp", Timeout: workloadDNSForwardTimeout}).ExchangeContext(ctx, query, upstream)
-		if err == nil && response != nil {
-			if response.Truncated {
-				response, _, err = (&dns.Client{Net: "tcp", Timeout: workloadDNSForwardTimeout}).ExchangeContext(ctx, query, upstream)
-			}
-			if err == nil && response != nil {
-				response.RecursionAvailable = true
-				writeDNSReply(h.logger, writer, response)
-				return false
-			}
-		}
-		lastErr = err
-		return true
-	})
+	response, lastErr := h.firstUpstreamResponse(request)
+	if response != nil {
+		response.RecursionAvailable = true
+		writeDNSReply(h.logger, writer, response)
+		return
+	}
 	if lastErr != nil {
 		h.logger.Warn("dns upstream forward failed", "error", lastErr, "name", request.Question[0].Name)
 	}
@@ -106,6 +96,41 @@ func (h *forwardingHandler) forward(writer dns.ResponseWriter, request *dns.Msg)
 	reply.RecursionAvailable = true
 	reply.Rcode = dns.RcodeServerFailure
 	writeDNSReply(h.logger, writer, reply)
+}
+
+func (h *forwardingHandler) firstUpstreamResponse(request *dns.Msg) (*dns.Msg, error) {
+	var lastErr error
+	var response *dns.Msg
+	h.upstreams.Range(func(_ int, upstream string) bool {
+		ctx, cancel := context.WithTimeout(context.Background(), workloadDNSForwardTimeout)
+		defer cancel()
+		got, err := exchangeUpstreamDNS(ctx, request, upstream)
+		if got != nil && err == nil {
+			response = got
+			return false
+		}
+		lastErr = err
+		return true
+	})
+	return response, lastErr
+}
+
+func exchangeUpstreamDNS(ctx context.Context, request *dns.Msg, upstream string) (*dns.Msg, error) {
+	query := request.Copy()
+	query.RecursionDesired = true
+	response, err := exchangeUpstreamDNSNet(ctx, "udp", query, upstream)
+	if err != nil || response == nil || !response.Truncated {
+		return response, err
+	}
+	return exchangeUpstreamDNSNet(ctx, "tcp", query, upstream)
+}
+
+func exchangeUpstreamDNSNet(ctx context.Context, network string, query *dns.Msg, upstream string) (*dns.Msg, error) {
+	response, _, err := (&dns.Client{Net: network, Timeout: workloadDNSForwardTimeout}).ExchangeContext(ctx, query, upstream)
+	if err != nil {
+		return response, fmt.Errorf("exchange upstream dns over %s: %w", network, err)
+	}
+	return response, nil
 }
 
 func writeDNSReply(logger *slog.Logger, writer dns.ResponseWriter, msg *dns.Msg) {

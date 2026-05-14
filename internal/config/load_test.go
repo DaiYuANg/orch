@@ -1,20 +1,22 @@
-package config
+package config_test
 
 import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/daiyuang/orch/internal/config"
 )
 
 func TestLoadFromCobraParsesClusterNodesFlag(t *testing.T) {
 	cmd := &cobra.Command{Use: "orch-server"}
 	cmd.Flags().String("config", "", "config path")
-	BindOrchFlags(cmd.Flags(), Default())
+	config.BindOrchFlags(cmd.Flags(), config.Default())
 	if err := cmd.Flags().Parse([]string{"--cluster-nodes", "node-b=http://127.0.0.1:17446"}); err != nil {
 		t.Fatal(err)
 	}
 
-	cfg, err := LoadFromCobra(cmd)
+	cfg, err := config.LoadFromCobra(cmd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +29,7 @@ func TestLoadFromCobraParsesClusterNodesFlag(t *testing.T) {
 func TestLoadFromCobraOverlaysChangedScalarFlags(t *testing.T) {
 	cmd := &cobra.Command{Use: "orch-server"}
 	cmd.Flags().String("config", "", "config path")
-	BindOrchFlags(cmd.Flags(), Default())
+	config.BindOrchFlags(cmd.Flags(), config.Default())
 	if err := cmd.Flags().Parse([]string{
 		"--http-addr", "127.0.0.1:17501",
 		"--dns-enabled=false",
@@ -40,7 +42,7 @@ func TestLoadFromCobraOverlaysChangedScalarFlags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := LoadFromCobra(cmd)
+	cfg, err := config.LoadFromCobra(cmd)
 	if err != nil {
 		t.Fatal(err)
 	}

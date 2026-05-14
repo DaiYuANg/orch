@@ -99,6 +99,19 @@ function Wait-OrchHealth {
     throw "Timed out waiting for orch-server health at $URL"
 }
 
+function Wait-OrchReady {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][string]$URL,
+        [Parameter(Mandatory = $true)][string]$Stdout,
+        [Parameter(Mandatory = $true)][string]$Stderr
+    )
+    if ($Process.HasExited) {
+        throw "orch-server exited early with code $($Process.ExitCode). See $Stdout and $Stderr"
+    }
+    Invoke-Checked $cliBin @("--server", $URL, "ready", "--wait", "--timeout", "$($TimeoutSeconds)s")
+}
+
 function Wait-DispatchRunning {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
@@ -274,6 +287,7 @@ try {
         -Stdout $workerStdout `
         -Stderr $workerStderr
     Wait-OrchHealth -Process $workerProcess -URL $workerURL -Stdout $workerStdout -Stderr $workerStderr
+    Wait-OrchReady -Process $workerProcess -URL $workerURL -Stdout $workerStdout -Stderr $workerStderr
 
     $schedulerProcess = Start-OrchServer `
         -NodeID $schedulerNodeID `
@@ -284,6 +298,7 @@ try {
         -Stderr $schedulerStderr `
         -ExtraArgs @("--config", $schedulerConfigPath)
     Wait-OrchHealth -Process $schedulerProcess -URL $schedulerURL -Stdout $schedulerStdout -Stderr $schedulerStderr
+    Wait-OrchReady -Process $schedulerProcess -URL $schedulerURL -Stdout $schedulerStdout -Stderr $schedulerStderr
 
     Invoke-Checked $cliBin @("--server", $schedulerURL, "apply", "--file", $manifestPath, "--watch", "--timeout", "$($TimeoutSeconds)s")
     Wait-DispatchRunning

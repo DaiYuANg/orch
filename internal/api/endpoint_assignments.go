@@ -6,8 +6,8 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/services/task"
-	"github.com/daiyuang/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/internal/services/task"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
 )
 
 // AssignmentsEndpoint serves GET /api/v1/assignments.

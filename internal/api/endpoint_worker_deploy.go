@@ -5,9 +5,9 @@ import (
 
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/services/task"
-	"github.com/daiyuang/orch/internal/workerapi"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/services/task"
+	"github.com/lyonbrown4d/orch/internal/workerapi"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // WorkerDeployEndpoint serves POST /api/v1/worker/deploy.

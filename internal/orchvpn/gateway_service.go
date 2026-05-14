@@ -6,8 +6,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // GatewayService listens for orch-vpn UDP encapsulation on the orchestrator host. When orch_vpn.enabled

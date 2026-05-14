@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/process"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/process"
 )
 
 func TestProviderDeployStop(t *testing.T) {

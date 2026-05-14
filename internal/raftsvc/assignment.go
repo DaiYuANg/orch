@@ -8,8 +8,8 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	"github.com/daiyuang/orch/internal/workloadmeta"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // ApplyWorkloadAssignment records the latest scheduler decision/result for one workload.

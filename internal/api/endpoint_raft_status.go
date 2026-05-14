@@ -6,9 +6,9 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/raftsvc"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 type RaftStatusEndpoint struct {

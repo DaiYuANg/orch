@@ -6,8 +6,8 @@ import (
 
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/lifecycleplan"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/lifecycleplan"
 )
 
 // Module registers a lifecycle hook that emits one consolidated reachability log after every

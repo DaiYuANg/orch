@@ -5,10 +5,10 @@ import (
 
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/services/task"
-	"github.com/daiyuang/orch/internal/workerapi"
-	"github.com/daiyuang/orch/internal/workloadmeta"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/services/task"
+	"github.com/lyonbrown4d/orch/internal/workerapi"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // WorkerStopEndpoint serves POST /api/v1/worker/stop.

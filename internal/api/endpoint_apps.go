@@ -7,10 +7,10 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/httpx"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/services/task"
-	"github.com/daiyuang/orch/internal/workloadmeta"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/services/task"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // AppsEndpoint serves GET /api/v1/apps and GET /api/v1/apps/{namespace}/{name}.

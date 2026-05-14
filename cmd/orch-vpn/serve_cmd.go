@@ -9,8 +9,8 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/orchvpn"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/orchvpn"
 )
 
 func newServeCmd() *cobra.Command {

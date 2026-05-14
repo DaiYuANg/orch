@@ -7,7 +7,7 @@ import (
 
 	"github.com/arcgolabs/collectionx/mapping"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 // NamespaceOrDefault returns a non-empty namespace for DNS and naming.

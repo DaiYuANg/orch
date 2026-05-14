@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 func TestLoadFromCobraParsesClusterNodesFlag(t *testing.T) {

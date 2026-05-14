@@ -11,8 +11,8 @@ import (
 	"github.com/arcgolabs/dnsx/dnsserver"
 	"github.com/miekg/dns"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/dnssvc"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/dnssvc"
 )
 
 func TestServiceForwardsNonOrchQueriesToWorkloadUpstream(t *testing.T) {

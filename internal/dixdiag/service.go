@@ -9,8 +9,8 @@ import (
 	collectionmapping "github.com/arcgolabs/collectionx/mapping"
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
 )
 
 var ErrRuntimeUnavailable = errors.New("dix runtime is not attached")

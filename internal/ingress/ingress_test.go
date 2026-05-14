@@ -10,9 +10,9 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	"github.com/daiyuang/orch/internal/config"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/ingress"
+	"github.com/lyonbrown4d/orch/internal/config"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/ingress"
 )
 
 func testHTTPHandler(t *testing.T, routes *list.List[config.IngressRoute]) http.Handler {

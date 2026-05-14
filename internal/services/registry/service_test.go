@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/lyonbrown4d/orch/internal/services/registry"
 )
 
 func TestService_List_sortedByName(t *testing.T) {

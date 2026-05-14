@@ -3,7 +3,7 @@ package orchvpn_test
 import (
 	"testing"
 
-	"github.com/daiyuang/orch/internal/orchvpn"
+	"github.com/lyonbrown4d/orch/internal/orchvpn"
 )
 
 func TestClientConfig_normalized(t *testing.T) {

@@ -3,7 +3,7 @@ package raftsvc
 import (
 	"github.com/arcgolabs/collectionx/list"
 
-	"github.com/daiyuang/orch/internal/nodecapacity"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
 )
 
 func (f *schedulingFSM) getNodeCapacity(nodeID string) (nodecapacity.Snapshot, bool) {

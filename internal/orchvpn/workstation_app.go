@@ -5,10 +5,10 @@ import (
 
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/apiclient"
-	"github.com/daiyuang/orch/internal/buildmeta"
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/logging"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/internal/buildmeta"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/logging"
 )
 
 // NewWorkstationApp builds the short-lived dix graph for the orch-vpn workstation daemon.

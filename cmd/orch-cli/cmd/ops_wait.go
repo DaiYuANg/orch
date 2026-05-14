@@ -9,9 +9,9 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/pterm/pterm"
 
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/internal/apiclient"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func waitReady(ctx context.Context, c *apiclient.Client, timeout time.Duration, progress bool) (*api.ReadyOutput, error) {

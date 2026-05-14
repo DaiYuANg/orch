@@ -11,8 +11,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/daiyuang/orch/internal/buildmeta"
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/buildmeta"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 // newFiberAppAndRuntime wires Fiber + httpx with OpenAPI defaults and optional deploy-route auth.

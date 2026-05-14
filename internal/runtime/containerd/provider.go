@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	"github.com/daiyuang/orch/internal/config"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/dnssvc"
+	"github.com/lyonbrown4d/orch/internal/config"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/dnssvc"
 )
 
 // Provider runs workloads via containerd CRI sandboxes (linux) and registers them in orch DNS.

@@ -10,9 +10,9 @@ import (
 	"github.com/arcgolabs/httpx"
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/observability"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/observability"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 type Server struct {

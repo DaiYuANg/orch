@@ -11,8 +11,8 @@ import (
 
 	"github.com/arcgolabs/collectionx/mapping"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 type runningState struct {

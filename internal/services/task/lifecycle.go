@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/workloadmeta"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (s *Service) SubmitDelete(ctx context.Context, meta deployv1.Metadata) error {

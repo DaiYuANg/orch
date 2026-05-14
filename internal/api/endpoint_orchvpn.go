@@ -6,8 +6,8 @@ import (
 
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/dnssvc"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/dnssvc"
 )
 
 const orchVPNEncapV0 = "orch-vpn/encap-v0"

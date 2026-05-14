@@ -8,11 +8,11 @@ import (
 	"github.com/arcgolabs/dix"
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/internal/buildmeta"
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/deploy/orch"
-	"github.com/daiyuang/orch/internal/logging"
-	"github.com/daiyuang/orch/internal/orchlsp"
+	"github.com/lyonbrown4d/orch/internal/buildmeta"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/deploy/orch"
+	"github.com/lyonbrown4d/orch/internal/logging"
+	"github.com/lyonbrown4d/orch/internal/orchlsp"
 )
 
 type lspRunner struct {

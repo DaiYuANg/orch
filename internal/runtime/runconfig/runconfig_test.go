@@ -7,8 +7,8 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/runconfig"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/runconfig"
 )
 
 func TestEnv(t *testing.T) {

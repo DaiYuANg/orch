@@ -6,8 +6,8 @@ import (
 
 	"github.com/arcgolabs/authx"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // NewEngine builds the authx engine and registers the JWT authentication provider when Auth.Enabled is true.

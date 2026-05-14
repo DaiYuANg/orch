@@ -5,10 +5,10 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/dixdiag"
-	"github.com/daiyuang/orch/internal/hostinfo"
-	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/dixdiag"
+	"github.com/lyonbrown4d/orch/internal/hostinfo"
+	"github.com/lyonbrown4d/orch/internal/runtime/runtimeinfo"
 )
 
 // EmptyInput is the request shape for handlers with no parameters or body.

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/nodeid"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/nodeid"
 )
 
 func TestResolve_explicitOverridesHardware(t *testing.T) {

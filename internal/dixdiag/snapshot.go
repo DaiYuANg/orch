@@ -7,7 +7,7 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/lifecycleplan"
+	"github.com/lyonbrown4d/orch/internal/lifecycleplan"
 )
 
 const maxRecentEvents = 50

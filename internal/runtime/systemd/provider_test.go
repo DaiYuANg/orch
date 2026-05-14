@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/systemd"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/systemd"
 )
 
 func TestDefaultUnitName(t *testing.T) {

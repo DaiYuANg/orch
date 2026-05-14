@@ -6,8 +6,8 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/docker/docker/api/types/container"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	runtimedocker "github.com/daiyuang/orch/internal/runtime/docker"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	runtimedocker "github.com/lyonbrown4d/orch/internal/runtime/docker"
 )
 
 func TestContainerLabelsMergesDockerLabels(t *testing.T) {

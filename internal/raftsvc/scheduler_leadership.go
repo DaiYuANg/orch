@@ -3,7 +3,7 @@ package raftsvc
 import (
 	"context"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // SchedulerLeadership backs gocron's Elector (WithDistributedElector).

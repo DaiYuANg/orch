@@ -12,8 +12,8 @@ import (
 	valeproxy "github.com/arcgolabs/vale/proxy"
 	valeruntime "github.com/arcgolabs/vale/runtime"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 const ingressEntrypoint = "ingress"

@@ -5,8 +5,8 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func writeReadyHuman(out *api.ReadyOutput) error {

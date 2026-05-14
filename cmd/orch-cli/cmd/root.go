@@ -6,8 +6,8 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/internal/apiclient"
-	"github.com/daiyuang/orch/internal/buildmeta"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/internal/buildmeta"
 )
 
 var (

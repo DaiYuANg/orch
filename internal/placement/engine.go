@@ -3,8 +3,8 @@ package placement
 import (
 	"context"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/nodecapacity"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
 )
 
 // Well-known placement algorithm identifiers (iterate new versions without breaking callers).

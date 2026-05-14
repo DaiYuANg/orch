@@ -7,7 +7,7 @@ import (
 
 	"github.com/arcgolabs/plano/compiler"
 
-	v1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 func lowerWorkload(f *compiler.HIRForm, defaults appDefaults) (v1.Workload, error) {

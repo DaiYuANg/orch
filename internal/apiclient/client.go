@@ -11,8 +11,8 @@ import (
 	"github.com/arcgolabs/clientx"
 	clientxhttp "github.com/arcgolabs/clientx/http"
 
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // DefaultBaseURL returns ORCH_SERVER if set, else local dev default matching orch-server HTTP.Addr (:17443).

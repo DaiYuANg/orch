@@ -5,7 +5,7 @@ import (
 
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/dixdiag"
+	"github.com/lyonbrown4d/orch/internal/dixdiag"
 )
 
 type DiagnosticsEndpoint struct {

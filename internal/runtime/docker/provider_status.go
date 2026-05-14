@@ -12,9 +12,9 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/runtimeinfo"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (p *Provider) Status(ctx context.Context, meta deployv1.Metadata, workloadName string) (runtimeinfo.Status, error) {

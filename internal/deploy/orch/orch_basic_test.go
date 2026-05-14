@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	v1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 func TestCompileAndLowerSample(t *testing.T) {

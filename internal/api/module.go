@@ -3,14 +3,14 @@ package api
 import (
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/deploy/loader"
-	"github.com/daiyuang/orch/internal/dixdiag"
-	"github.com/daiyuang/orch/internal/dnssvc"
-	"github.com/daiyuang/orch/internal/httpserver"
-	"github.com/daiyuang/orch/internal/raftsvc"
-	"github.com/daiyuang/orch/internal/services/registry"
-	"github.com/daiyuang/orch/internal/services/task"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/deploy/loader"
+	"github.com/lyonbrown4d/orch/internal/dixdiag"
+	"github.com/lyonbrown4d/orch/internal/dnssvc"
+	"github.com/lyonbrown4d/orch/internal/httpserver"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/internal/services/registry"
+	"github.com/lyonbrown4d/orch/internal/services/task"
 )
 
 func Module() dix.Module {

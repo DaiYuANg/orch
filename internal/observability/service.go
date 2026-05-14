@@ -10,7 +10,7 @@ import (
 	obsprom "github.com/arcgolabs/observabilityx/prometheus"
 	prom "github.com/prometheus/client_golang/prometheus"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 type Service struct {

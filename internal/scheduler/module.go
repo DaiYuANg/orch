@@ -6,9 +6,9 @@ import (
 
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/lifecycleplan"
-	"github.com/daiyuang/orch/internal/nodecapacity"
-	"github.com/daiyuang/orch/internal/nodeid"
+	"github.com/lyonbrown4d/orch/internal/lifecycleplan"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
+	"github.com/lyonbrown4d/orch/internal/nodeid"
 )
 
 // startDeps bundles scheduler startup dependencies for a single OnStart hook.

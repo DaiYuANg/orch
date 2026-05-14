@@ -6,8 +6,8 @@ import (
 
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/lifecycleplan"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/lifecycleplan"
 )
 
 // GatewayModule runs the UDP tunnel listener on the orchestrator when orch_vpn.enabled is true.

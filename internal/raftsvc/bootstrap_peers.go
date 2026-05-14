@@ -6,7 +6,7 @@ import (
 
 	dragonboat "github.com/lni/dragonboat/v4"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (s *Service) bootstrapReplicaTargets(localReplicaID uint64, localAddr string) (map[uint64]dragonboat.Target, error) {

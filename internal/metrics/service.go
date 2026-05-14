@@ -7,7 +7,7 @@ import (
 	"github.com/arcgolabs/dix"
 	obs "github.com/arcgolabs/observabilityx"
 
-	"github.com/daiyuang/orch/internal/observability"
+	"github.com/lyonbrown4d/orch/internal/observability"
 )
 
 type Service struct {

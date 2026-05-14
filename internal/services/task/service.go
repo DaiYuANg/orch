@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/metrics"
-	"github.com/daiyuang/orch/internal/nodecapacity"
-	"github.com/daiyuang/orch/internal/nodeid"
-	"github.com/daiyuang/orch/internal/placement"
-	"github.com/daiyuang/orch/internal/raftsvc"
-	"github.com/daiyuang/orch/internal/runtime"
-	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/metrics"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
+	"github.com/lyonbrown4d/orch/internal/nodeid"
+	"github.com/lyonbrown4d/orch/internal/placement"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/internal/runtime"
+	"github.com/lyonbrown4d/orch/internal/services/registry"
 )
 
 type Service struct {

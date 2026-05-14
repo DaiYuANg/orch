@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/orchvpn"
+	"github.com/lyonbrown4d/orch/internal/orchvpn"
 )
 
 type testEncapObs struct {

@@ -8,8 +8,8 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/mapping"
 
-	"github.com/daiyuang/orch/internal/config"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/config"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 func deployAppSortKey(m deployv1.Metadata) string {

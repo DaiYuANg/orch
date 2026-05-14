@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/daiyuang/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
 )
 
 // WorkstationConn is the Cobra/CLI boundary for the orch-vpn workstation process (injectable into the dix graph).

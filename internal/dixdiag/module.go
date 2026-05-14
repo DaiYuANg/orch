@@ -5,8 +5,8 @@ import (
 
 	"github.com/arcgolabs/dix"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
 )
 
 func Module() dix.Module {

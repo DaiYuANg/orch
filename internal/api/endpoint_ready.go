@@ -7,9 +7,9 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/dixdiag"
-	"github.com/daiyuang/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/dixdiag"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
 )
 
 // ReadyEndpoint serves GET /api/ready.

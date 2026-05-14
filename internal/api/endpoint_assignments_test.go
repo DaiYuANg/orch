@@ -5,13 +5,13 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/internal/config"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/nodeid"
-	"github.com/daiyuang/orch/internal/raftsvc"
-	"github.com/daiyuang/orch/internal/services/task"
-	"github.com/daiyuang/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/internal/config"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/nodeid"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/internal/services/task"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
 )
 
 func TestAssignmentsEndpointHandle(t *testing.T) {

@@ -174,7 +174,8 @@ Recommended workflow is **[GoReleaser](https://goreleaser.com)** with **[nFPM](h
 ```bash
 task goreleaser-check              # validate config
 task release-snapshot              # outputs under dist/ (no tag required)
-task release-gate                  # non-Docker beta release gate
+task release-gate:static           # beta gate without Docker smoke tests
+task release-gate                  # full beta gate including local Docker smoke tests
 # publish beta: git tag -a v0.1.0-beta.1 -m "v0.1.0-beta.1" && git push origin v0.1.0-beta.1
 ```
 

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 func TestDNSWorkloadNameserver(t *testing.T) {

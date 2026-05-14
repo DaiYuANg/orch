@@ -8,7 +8,7 @@ import (
 
 	dblogger "github.com/lni/dragonboat/v4/logger"
 
-	"github.com/daiyuang/orch/internal/logging"
+	"github.com/lyonbrown4d/orch/internal/logging"
 )
 
 func TestDragonboatSlogLoggerWritesStructuredRecord(t *testing.T) {

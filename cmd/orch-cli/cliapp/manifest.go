@@ -7,10 +7,10 @@ import (
 	"github.com/arcgolabs/dix"
 	"github.com/pterm/pterm"
 
-	"github.com/daiyuang/orch/internal/buildmeta"
-	"github.com/daiyuang/orch/internal/deploy/loader"
-	"github.com/daiyuang/orch/internal/deploy/orch"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/buildmeta"
+	"github.com/lyonbrown4d/orch/internal/deploy/loader"
+	"github.com/lyonbrown4d/orch/internal/deploy/orch"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // ManifestEnv is reserved for manifest-local dependencies (paths, schema validators, etc.).

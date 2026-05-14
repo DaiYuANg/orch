@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 type Assignment struct {

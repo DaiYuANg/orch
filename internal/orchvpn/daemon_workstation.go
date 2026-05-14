@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/internal/apiclient"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // WorkstationDaemon is the long-running workstation side (health + bootstrap; optional TUN data plane).

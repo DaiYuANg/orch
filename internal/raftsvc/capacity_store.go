@@ -8,8 +8,8 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	"github.com/daiyuang/orch/internal/nodecapacity"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // NewRaftCapacityStore returns a [nodecapacity.SnapshotStore] backed by the replicated FSM (raft apply).

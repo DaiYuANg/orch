@@ -3,8 +3,8 @@ package windowsservice_test
 import (
 	"testing"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/windowsservice"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/windowsservice"
 )
 
 func TestDefaultServiceName(t *testing.T) {

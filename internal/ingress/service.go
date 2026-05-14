@@ -13,10 +13,10 @@ import (
 
 	valeruntime "github.com/arcgolabs/vale/runtime"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/dnssvc"
-	"github.com/daiyuang/orch/internal/raftsvc"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/dnssvc"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 type Service struct {

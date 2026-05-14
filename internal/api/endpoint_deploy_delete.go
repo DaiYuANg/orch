@@ -6,10 +6,10 @@ import (
 
 	"github.com/arcgolabs/httpx"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/services/task"
-	"github.com/daiyuang/orch/internal/workloadmeta"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/services/task"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // DeleteDeployEndpoint serves DELETE /api/v1/deploy/{namespace}/{name}.

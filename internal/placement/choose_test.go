@@ -8,9 +8,9 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/nodecapacity"
-	"github.com/daiyuang/orch/internal/placement"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
+	"github.com/lyonbrown4d/orch/internal/placement"
 )
 
 // testSnapshotStore is a minimal in-test [nodecapacity.SnapshotStore] (not for production).

@@ -7,8 +7,8 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
 )
 
 func waitHTTPAssignment(ctx context.Context, t *testing.T, client *apiclient.Client, status string) api.AssignmentItem {

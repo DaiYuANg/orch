@@ -6,7 +6,7 @@ import (
 
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 func mountsFromCompose(service string, vols []composetypes.ServiceVolumeConfig, rep *Report) ([]deployv1.Mount, []deployv1.Volume) {

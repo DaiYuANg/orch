@@ -9,7 +9,7 @@ import (
 	composeloader "github.com/compose-spec/compose-go/v2/loader"
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // LoadComposeFile parses a Docker Compose file with compose-spec/go and maps it to the canonical App (Compose compatibility).

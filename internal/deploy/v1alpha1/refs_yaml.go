@@ -5,7 +5,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (r *WorkloadRef) UnmarshalYAML(value *yaml.Node) error {

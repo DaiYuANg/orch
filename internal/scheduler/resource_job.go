@@ -7,9 +7,9 @@ import (
 
 	gocron "github.com/go-co-op/gocron/v2"
 
-	"github.com/daiyuang/orch/internal/nodecapacity"
-	"github.com/daiyuang/orch/internal/nodeid"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
+	"github.com/lyonbrown4d/orch/internal/nodeid"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // RegisterResourceSnapshotJob runs an initial local refresh, then registers the periodic

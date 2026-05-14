@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/workerapi"
-	"github.com/daiyuang/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/internal/workerapi"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
 )
 
 func newDeployFlowWorker(

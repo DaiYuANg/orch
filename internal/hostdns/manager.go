@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 type Config struct {

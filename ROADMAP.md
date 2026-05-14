@@ -1,71 +1,83 @@
 # orch Roadmap
 
-Snapshot date: March 4, 2026
+Snapshot date: May 14, 2026
 
 ## Completed
 
-- [x] `fx` modular server composition and lifecycle wiring
-- [x] Config loading via defaults + env + optional config files
-- [x] Workload DSL parsing/validation (`yaml` + `hcl`)
-- [x] Docker-first deployment pipeline (`/tasks/deploy`)
-- [x] Deployment lifecycle APIs (`list`, `get`, `stop`, instance `logs`)
-- [x] Registry persistence for endpoints/routes (`bbolt`)
-- [x] DNS resolution from service registry
-- [x] Built-in ingress for HTTP/TCP/UDP route forwarding
-- [x] Reconcile loop: container restart and managed container recovery
-- [x] Task runtime interface abstraction with Docker adapter
-- [x] Driver-based runtime resolver baseline with containerd adapter wiring
-- [x] Task runtime factory wired for `docker/containerd/systemd/firecracker/windows-service` with platform-aware executors/stubs
-- [x] CLI operations for service deploy/list/get/stop/logs
-- [x] JWT auth middleware and root token generation
-- [x] Persistent auth signing key for restart-safe token validation
-- [x] Baseline tests for `task` deployment lifecycle and runtime injection
-- [x] Baseline tests for `registry` route resolution and owner cleanup
-- [x] Baseline tests for `ingress` host normalization and TCP route sync
-- [x] Frontend packages removed from this repository (dashboard extracted to standalone project)
-- [x] Documentation stack migrated to mdBook (`docs/`)
-- [x] Raft FSM command apply (`set/delete`) with snapshot/restore implementation
-- [x] Raft-enabled registry mutating operations routed through consensus apply
-- [x] Leader-only deploy guard with replicated scheduling-assignment records
-- [x] Dragonboat-backed replicated FSM persistence path
-- [x] Leader-as-worker scheduling baseline with desired/worker assignment metadata
-- [x] Cross-node runtime dispatch baseline via worker API (`raft.node_api`) with leader fallback
-- [x] Placement control baseline via deployment migration API (`/tasks/{id}/migrate`)
-- [x] Explicit failover/rebalance control baselines (`/tasks/failover`, `/tasks/rebalance`)
-- [x] Stateful migration safety guardrail baseline (`task.stateful`, `force_stateful`, `max_unavailable=1`)
-- [x] Cluster observability and membership APIs (`/system/cluster`, `join`, `remove`)
-- [x] CLI/process split: `cmd/server` for server runtime and `cmd/cli` for user operations
-- [x] Deploy/stop DNS record lifecycle binding for HTTP ingress hosts
-- [x] Local raft smoke test harness (`task raft:smoke` + `tests/localraft`)
+- [x] Modular server composition and lifecycle wiring through `dix`.
+- [x] Config loading from defaults, env, and optional config files.
+- [x] Canonical deploy model in `internal/deploy/v1alpha1`.
+- [x] Compatibility loaders for YAML, Docker Compose import, and the short
+      native `.orch` DSL.
+- [x] Docker deploy lifecycle with CLI/API `apply`, `get`, `describe`, `logs`,
+      `stop`, `start`, `restart`, and `delete`.
+- [x] Runtime abstraction with providers for `docker`, `containerd`,
+      `firecracker`, `process`, `systemd`, and `windows-service`.
+- [x] Runtime-neutral spec shape with `run.artifact`, `run.exec`, resources,
+      endpoints, and typed `runtimeOptions`.
+- [x] Workload DNS lifecycle for deploy/stop/delete and per-workload DNS
+      injection for supported container paths.
+- [x] Built-in HTTP ingress through `github.com/arcgolabs/vale`.
+- [x] Host DNS installer baseline for Linux `systemd-resolved`, macOS resolver
+      files, and Windows NRPT-style setup.
+- [x] Dragonboat-backed Raft service with single-node persistence, TCP
+      transport, static peer bootstrap, status APIs, and basic add/remove voter
+      operations.
+- [x] Follower write forwarding for deploy lifecycle and Raft membership writes
+      when `cluster.nodes` maps node IDs to API URLs.
+- [x] Scheduler assignment records replicated through Raft.
+- [x] Worker dispatch baseline through the worker API.
+- [x] Baseline explicit `migrate`, `failover`, and `rebalance` operations.
+- [x] CLI output improvements for app/workload/assignment/node and readiness
+      flows.
+- [x] Local smoke harnesses for Docker lifecycle, workload DNS, worker
+      dispatch, and three-node Raft forwarding.
+- [x] GoReleaser/nFPM packaging for archives and Linux `.deb`, `.rpm`, `.apk`.
+- [x] Repository lint is clean under `golangci-lint run ./...`.
 
 ## In Progress
 
-- [ ] Runtime abstraction hardening for non-docker executors (runtime-specific lifecycle parity and operational semantics)
-- [ ] Containerd parity gaps (logs, managed-recovery parity, richer network semantics)
-- [ ] Cross-node reconcile/restart/log aggregation path for remote worker instances (baseline wired, needs production hardening)
-- [ ] Stateful-safe migration/failover/rebalance policies beyond guardrails (drain, pre-check, rollback, disruption budgets)
-- [ ] Pack CLI and package workflow beyond static catalog
-- [ ] Better operator UX for auth/token/config management
-- [ ] More automated tests in `cmd/*`, plus deeper edge-case coverage in runtime/ingress flows
+- [ ] Beta release gate hardening across lint, tests, GoReleaser snapshot, Raft
+      smoke, Docker lifecycle smoke, workload DNS smoke, and worker dispatch
+      smoke.
+- [ ] Runtime parity hardening across `containerd`, `firecracker`, `process`,
+      `systemd`, and `windows-service`.
+- [ ] Containerd CRI status/log/recovery parity and richer network semantics.
+- [ ] Firecracker production ergonomics: TAP/bridge management, jailer
+      integration, recovery, and rootfs/image preparation workflow.
+- [ ] Systemd and Windows Service provider parity: status, logs, recovery, and
+      service wrapper ergonomics.
+- [ ] Worker dispatch hardening: retries/backoff, idempotency, auth/token
+      handling, remote status, and remote logs.
+- [ ] Raft multi-node hardening: membership guardrails, restart recovery
+      coverage, leader transfer/failover behavior, and snapshot/restore checks.
+- [ ] Stateful-safe migration/failover/rebalance policy beyond the current
+      guardrails.
+- [ ] Operational docs for single-node, local cluster, and beta deployment
+      flows.
 
 ## Planned
 
 ### Runtime and orchestration
 
-- [ ] First-class support for systemd/containerd/firecracker/windows-service execution flows
-- [ ] Advanced placement and migration strategies for stateful workloads
-- [ ] HA failover and explicit rebalancing with policy-driven automation
+- [ ] Provider compatibility matrix with documented lifecycle support per
+      runtime.
+- [ ] Health checks and lifecycle hooks tied into scheduler/reconcile behavior.
+- [ ] Secrets injection and secret source integrations.
+- [ ] Policy-driven drain, migration, rollback, and disruption budgets.
+- [ ] Remote worker log aggregation and historical assignment events.
 
-### Platform capabilities
+### Cluster and platform capabilities
 
-- [ ] Secrets injection and secret source integrations
-- [ ] Pluggable health checks and lifecycle hooks
-- [ ] Multi-node coordination model refinement (raft/gossip responsibilities)
-- [ ] Fine-grained API authn/authz and token lifecycle management
+- [ ] Stronger Raft membership safety checks before quorum-affecting edits.
+- [ ] Fine-grained API authn/authz and token lifecycle management.
+- [ ] Production upgrade and rollback playbooks.
+- [ ] Resource usage benchmark automation for idle, cluster, and scheduling
+      scenarios.
 
 ### Developer and user experience
 
-- [ ] External dashboard project stabilization and integration boundary docs
-- [ ] Pack format, metadata, and remote registry/distribution model
-- [ ] Operational docs for single-node and multi-node production setups
-- [ ] Compatibility matrix and release quality gates
+- [ ] Complete `.orch` DSL examples for common app shapes.
+- [ ] Pack format, metadata, and remote registry/distribution model.
+- [ ] External dashboard integration boundary documentation.
+- [ ] Release notes and migration notes for each beta cut.

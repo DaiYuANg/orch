@@ -3,7 +3,7 @@ package api_test
 import (
 	"testing"
 
-	"github.com/daiyuang/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
 )
 
 func TestDeploySourceDispatchesWorkerAndExposesState(t *testing.T) {

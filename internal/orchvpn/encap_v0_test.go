@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/orchvpn"
+	"github.com/lyonbrown4d/orch/internal/orchvpn"
 )
 
 func TestEncapV0_heartbeatRoundTrip(t *testing.T) {

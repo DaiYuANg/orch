@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/firecracker"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/firecracker"
 )
 
 func TestBuildConfigDefaults(t *testing.T) {

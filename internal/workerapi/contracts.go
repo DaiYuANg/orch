@@ -1,6 +1,6 @@
 package workerapi
 
-import deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+import deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 
 const PathV1WorkerDeploy = "/api/v1/worker/deploy"
 const PathV1WorkerStop = "/api/v1/worker/stop"

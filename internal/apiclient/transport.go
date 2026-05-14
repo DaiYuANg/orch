@@ -7,7 +7,7 @@ import (
 
 	clientcodec "github.com/arcgolabs/clientx/codec"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (c *Client) get(ctx context.Context, path string, out any) error {

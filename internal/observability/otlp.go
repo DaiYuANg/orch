@@ -21,12 +21,12 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 const (
 	defaultOTLPExportInterval = 10 * time.Second
-	orchInstrumentationName   = "github.com/daiyuang/orch"
+	orchInstrumentationName   = "github.com/lyonbrown4d/orch"
 )
 
 func newOTLP(ctx context.Context, cfg config.Config, logger *slog.Logger) (obs.Observability, func(context.Context) error, error) {

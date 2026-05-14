@@ -6,7 +6,7 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/services/registry"
+	"github.com/lyonbrown4d/orch/internal/services/registry"
 )
 
 // WorkloadsEndpoint serves GET /api/v1/workloads.

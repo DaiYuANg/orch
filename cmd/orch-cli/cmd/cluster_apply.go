@@ -12,12 +12,12 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/internal/apiclient"
-	"github.com/daiyuang/orch/internal/deploy/loader"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/cmd/orch-cli/cliapp"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/internal/deploy/loader"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func newApplyCmd() *cobra.Command {

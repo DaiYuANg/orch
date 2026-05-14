@@ -10,10 +10,10 @@ import (
 	clientcodec "github.com/arcgolabs/clientx/codec"
 	clientxhttp "github.com/arcgolabs/clientx/http"
 
-	"github.com/daiyuang/orch/internal/config"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/workerapi"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/workerapi"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 type WorkerDispatcher interface {

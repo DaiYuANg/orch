@@ -14,6 +14,11 @@ tasks:
     cmds:
       - go test ./...
 
+  lint:
+    desc: "Go: run golangci-lint"
+    cmds:
+      - golangci-lint run ./... --allow-serial-runners
+
   fmt:
     desc: "Go: format (gofmt)"
     cmds:
@@ -104,11 +109,20 @@ tasks:
     cmds:
       - go run github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VER}} release --snapshot --clean
 
-  release-gate:
+  release-gate:static:
     desc: "Run beta release gate checks that do not require Docker"
     cmds:
       - go mod tidy
+      - task lint
       - go test ./...
       - task goreleaser-check
       - task release-snapshot
       - task smoke:local-raft-forwarding
+
+  release-gate:
+    desc: "Run full beta release gate checks, including local Docker smoke tests"
+    cmds:
+      - task release-gate:static
+      - task smoke:local-docker
+      - task smoke:local-docker-dns
+      - task smoke:local-docker-worker-dispatch

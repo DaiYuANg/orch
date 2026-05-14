@@ -11,9 +11,9 @@ import (
 
 	"github.com/coreos/go-systemd/v22/dbus"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/runconfig"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/runconfig"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {

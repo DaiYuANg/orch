@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
-	"github.com/daiyuang/orch/internal/deploy/loader"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/cmd/orch-cli/cliapp"
+	"github.com/lyonbrown4d/orch/internal/deploy/loader"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func loadValidatedManifest(ctx context.Context, deploy *loader.Loader, file string) (*deployv1.App, error) {

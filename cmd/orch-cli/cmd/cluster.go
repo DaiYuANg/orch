@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/daiyuang/orch/cmd/orch-cli/cliapp"
-	"github.com/daiyuang/orch/internal/apiclient"
-	"github.com/daiyuang/orch/internal/deploy/loader"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/cmd/orch-cli/cliapp"
+	"github.com/lyonbrown4d/orch/internal/apiclient"
+	"github.com/lyonbrown4d/orch/internal/deploy/loader"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func newHealthCmd() *cobra.Command {

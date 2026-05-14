@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/daiyuang/orch/internal/api"
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
 )
 
 type fakeRaftStatus struct {

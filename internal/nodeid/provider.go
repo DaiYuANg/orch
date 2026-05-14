@@ -3,7 +3,7 @@ package nodeid
 import (
 	"context"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 // New resolves [Local] at graph construction time using background context (same semantics as startup).

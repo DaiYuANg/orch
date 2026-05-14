@@ -8,8 +8,8 @@ import (
 	authhttp "github.com/arcgolabs/authx/http"
 	authjwt "github.com/arcgolabs/authx/jwt"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // NewGuard wraps the HTTP guard around an authx Engine when Auth.Enabled is true.

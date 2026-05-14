@@ -8,7 +8,7 @@ import (
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // WorkloadsInDependencyOrder returns workload copies ordered so dependencies appear before dependents.

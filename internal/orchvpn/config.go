@@ -3,7 +3,7 @@ package orchvpn
 import (
 	"strings"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // ClientConfig holds workstation daemon settings.

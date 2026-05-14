@@ -3,7 +3,7 @@ package observability
 import (
 	prom "github.com/prometheus/client_golang/prometheus"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 // NewPrometheusRegistry allocates an isolated Prometheus registry when metrics export is enabled.

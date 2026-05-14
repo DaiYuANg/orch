@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/daiyuang/orch/cmd/orch-cli/cmd"
+	"github.com/lyonbrown4d/orch/cmd/orch-cli/cmd"
 )
 
 func main() {

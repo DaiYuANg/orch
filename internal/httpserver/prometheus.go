@@ -6,8 +6,8 @@ import (
 	fiberprometheus "github.com/ansrivas/fiberprometheus/v2"
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/observability"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/observability"
 )
 
 // attachFiberPrometheus registers HTTP middleware (requests_total, request duration histogram,

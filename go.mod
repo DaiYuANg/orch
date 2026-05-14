@@ -1,4 +1,4 @@
-module github.com/daiyuang/orch
+module github.com/lyonbrown4d/orch
 
 // The `go` line is the minimum language version for this module; `go mod tidy` raises it to match
 // transitive requirements (currently 1.26.x). Toolchain selection must be >= this `go` line — you

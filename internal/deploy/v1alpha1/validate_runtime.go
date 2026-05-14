@@ -4,7 +4,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (w *Workload) validateRunForRuntime() error {

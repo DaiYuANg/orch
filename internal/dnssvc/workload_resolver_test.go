@@ -3,8 +3,8 @@ package dnssvc_test
 import (
 	"testing"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/dnssvc"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/dnssvc"
 )
 
 func TestWorkloadAdvertiseAddress(t *testing.T) {

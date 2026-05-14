@@ -3,8 +3,8 @@ package task
 import (
 	"context"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // StartDeployReconcile runs a background loop that executes [Service.deployAppWorkloads] whenever the Raft FSM

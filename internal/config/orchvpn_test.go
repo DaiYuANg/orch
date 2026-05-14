@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/daiyuang/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/config"
 )
 
 func TestOrchVPNConfig_TunnelUDPPort(t *testing.T) {

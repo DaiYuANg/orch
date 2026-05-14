@@ -16,9 +16,9 @@ import (
 	fc "github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/runtimeinfo"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 const defaultStopTimeout = 5 * time.Second

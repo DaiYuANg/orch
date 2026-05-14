@@ -3,8 +3,8 @@ package api_test
 import (
 	"time"
 
-	"github.com/daiyuang/orch/internal/workerapi"
-	"github.com/daiyuang/orch/internal/workloadmeta"
+	"github.com/lyonbrown4d/orch/internal/workerapi"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
 )
 
 const deployFlowManifest = `metadata:

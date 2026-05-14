@@ -3,7 +3,7 @@ package nodecapacity
 import (
 	"time"
 
-	"github.com/daiyuang/orch/internal/hostinfo"
+	"github.com/lyonbrown4d/orch/internal/hostinfo"
 )
 
 // Snapshot is a lightweight node resource view used for placement.

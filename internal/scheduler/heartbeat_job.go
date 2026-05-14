@@ -5,7 +5,7 @@ import (
 
 	gocron "github.com/go-co-op/gocron/v2"
 
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // RegisterHeartbeatJob registers the periodic debug heartbeat task on s.

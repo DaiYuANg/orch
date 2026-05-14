@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/daiyuang/orch/internal/api"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/api"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // Deploy calls POST /api/v1/deploy with a deploy DSL document.

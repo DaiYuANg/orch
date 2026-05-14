@@ -41,22 +41,34 @@ Run these before tagging:
 
 ```bash
 go mod tidy
+golangci-lint run ./... --allow-serial-runners
 go test ./...
 task goreleaser-check
 task release-snapshot
+task smoke:local-raft-forwarding
 ```
 
 Run these smoke tests on a host with the required runtime:
 
 ```powershell
-task smoke:local-raft-forwarding
 task smoke:local-docker
-task smoke:local-docker-worker-dispatch
 task smoke:local-docker-dns
+task smoke:local-docker-worker-dispatch
 ```
 
 `smoke:local-docker-dns` requires Docker and the host DNS port used by the smoke
 server to be available.
+
+The Taskfile exposes the same checks as:
+
+```bash
+task release-gate:static
+task release-gate
+```
+
+`release-gate:static` runs the non-Docker checks plus the local Raft forwarding
+smoke. `release-gate` adds the Docker lifecycle, workload DNS, and worker
+dispatch smoke tests.
 
 ## Tagging
 

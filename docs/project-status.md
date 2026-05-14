@@ -1,6 +1,6 @@
 # Project Status
 
-Snapshot date: May 9, 2026
+Snapshot date: May 14, 2026
 
 Implemented:
 
@@ -44,6 +44,11 @@ Implemented:
 - Ingress served by `github.com/arcgolabs/vale` runtime/proxy through
   `internal/ingress`; longer-term snapshot / reconciliation designs are
   described in `docs/ingress*.md`.
+- The repository is currently lint-clean under
+  `golangci-lint run ./... --allow-serial-runners`, with tests moved toward
+  external package boundaries where practical.
+- The Taskfile now exposes `release-gate:static` and full `release-gate`
+  workflows for beta release verification.
 - Ingress runtime snapshots now carry explicit backend binding identity
   (`workload_id` / `endpoint_name`) in addition to concrete backend addresses.
 - The transitional `/dsl/apply` flow now compiles explicit ingress route specs
@@ -55,6 +60,8 @@ Implemented:
 
 In progress:
 
+- Beta release gate hardening across lint, tests, release snapshot, Raft smoke,
+  Docker lifecycle smoke, workload DNS smoke, and worker dispatch smoke.
 - Runtime parity hardening (especially containerd CRI status/recovery
   semantics).
 - Provider parity hardening for `systemd` and `windows-service` (status,

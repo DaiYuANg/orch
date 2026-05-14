@@ -3,8 +3,8 @@ package hostdns_test
 import (
 	"testing"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/hostdns"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/hostdns"
 )
 
 func TestConfigFromOrch(t *testing.T) {

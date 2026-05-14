@@ -12,8 +12,8 @@ import (
 	"github.com/arcgolabs/dnsx/dnsserver"
 	"github.com/miekg/dns"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 type Service struct {

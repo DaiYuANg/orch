@@ -9,8 +9,8 @@ import (
 	"github.com/arcgolabs/plano/diag"
 	"go/token"
 
-	v1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // Orch compiles .orch sources with a shared [compiler.Compiler] and lowers HIR to [v1.App].

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/runtime/runtimeinfo"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/runtime/runtimeinfo"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func (p *Provider) Logs(_ context.Context, meta deployv1.Metadata, workloadName string, opts runtimeinfo.LogOptions) (runtimeinfo.LogResult, error) {

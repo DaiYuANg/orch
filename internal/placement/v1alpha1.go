@@ -8,8 +8,8 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
-	deployv1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
-	"github.com/daiyuang/orch/internal/nodecapacity"
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
+	"github.com/lyonbrown4d/orch/internal/nodecapacity"
 	"github.com/samber/mo"
 )
 

@@ -9,8 +9,8 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 func newAutocertManager(tlsCfg config.IngressTLSAuto, domains *list.List[string], dataRoot string) (*autocert.Manager, error) {

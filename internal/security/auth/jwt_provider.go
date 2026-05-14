@@ -8,8 +8,8 @@ import (
 	"github.com/arcgolabs/authx"
 	authjwt "github.com/arcgolabs/authx/jwt"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // jwtPlaceholderAuth is registered in the DI graph when auth is disabled; the engine registers

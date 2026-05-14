@@ -8,9 +8,9 @@ import (
 
 	gocron "github.com/go-co-op/gocron/v2"
 
-	"github.com/daiyuang/orch/internal/config"
-	"github.com/daiyuang/orch/internal/raftsvc"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/config"
+	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // Service wraps a gocron scheduler engine; register jobs separately before Start.

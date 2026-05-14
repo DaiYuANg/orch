@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/daiyuang/orch/internal/api"
-	orchtun "github.com/daiyuang/orch/internal/orchvpn/tun"
+	"github.com/lyonbrown4d/orch/internal/api"
+	orchtun "github.com/lyonbrown4d/orch/internal/orchvpn/tun"
 )
 
 func forwardSignature(peer string, boot *api.OrchVPNBootstrapOutput, tunName string) string {

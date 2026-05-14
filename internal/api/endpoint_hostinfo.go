@@ -5,8 +5,8 @@ import (
 
 	"github.com/arcgolabs/httpx"
 
-	"github.com/daiyuang/orch/internal/hostinfo"
-	"github.com/daiyuang/orch/pkg/oopsx"
+	"github.com/lyonbrown4d/orch/internal/hostinfo"
+	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
 // HostinfoEndpoint serves GET /api/v1/hostinfo.

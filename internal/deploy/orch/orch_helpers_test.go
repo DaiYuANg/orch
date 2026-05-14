@@ -7,8 +7,8 @@ import (
 
 	"github.com/arcgolabs/plano/compiler"
 
-	orchdsl "github.com/daiyuang/orch/internal/deploy/orch"
-	v1 "github.com/daiyuang/orch/internal/deploy/v1alpha1"
+	orchdsl "github.com/lyonbrown4d/orch/internal/deploy/orch"
+	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 func newTestOrch(t *testing.T) (*compiler.Compiler, *orchdsl.Orch) {

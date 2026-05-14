@@ -20,13 +20,13 @@ require (
 	github.com/arcgolabs/configx v0.3.2
 	github.com/arcgolabs/dix v0.10.0
 	github.com/arcgolabs/dnsx/dnsserver v0.1.3
-	github.com/arcgolabs/httpx v0.1.5
-	github.com/arcgolabs/httpx/adapter/fiber v0.1.5
+	github.com/arcgolabs/httpx v0.1.6
+	github.com/arcgolabs/httpx/adapter/fiber v0.1.6
 	github.com/arcgolabs/logx v0.1.2
 	github.com/arcgolabs/observabilityx v0.4.0
 	github.com/arcgolabs/plano v0.8.0
 	github.com/arcgolabs/plano/lsp v0.8.0
-	github.com/arcgolabs/vale v0.1.2
+	github.com/arcgolabs/vale v0.1.3
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/compose-spec/compose-go/v2 v2.10.2
@@ -83,7 +83,7 @@ require (
 	github.com/arcgolabs/collectionx/interval v0.8.0 // indirect
 	github.com/arcgolabs/collectionx/prefix v0.8.0 // indirect
 	github.com/arcgolabs/dnsx/dnsclient v0.1.3 // indirect
-	github.com/arcgolabs/httpx/adapter/std v0.1.5 // indirect
+	github.com/arcgolabs/httpx/adapter/std v0.1.6 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/bboltx v0.5.0 // indirect

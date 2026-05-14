@@ -64,7 +64,7 @@ that wires and starts it.
 
 Current implementation status as of May 8, 2026:
 
-- ingress data-plane routing uses `github.com/arcgolabs/vale v0.1.0`
+- ingress data-plane routing uses `github.com/arcgolabs/vale v0.1.2`
   runtime/proxy directly
 - the runtime consumes compiled route snapshots built from desired deploy apps
   and DNS workload records

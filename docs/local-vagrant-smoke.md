@@ -91,10 +91,23 @@ It then:
 
 ## Node image customization
 
-Override `ORCH_VAGRANT_BOX` to use another box:
+Provider-specific defaults are applied:
+
+- Windows/Hyper-V: `generic/ubuntu2204`
+- Other providers (VirtualBox): `ubuntu/jammy64`
+
+You can override these with env vars:
 
 ```powershell
 $env:ORCH_VAGRANT_BOX = "archlinux/archlinux"
+task smoke:vagrant
+```
+
+Or provider-specific override:
+
+```powershell
+$env:ORCH_VAGRANT_PROVIDER="hyperv"
+$env:ORCH_VAGRANT_BOX_HYPERV="generic/ubuntu2404"
 task smoke:vagrant
 ```
 

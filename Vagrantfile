@@ -16,8 +16,15 @@ Vagrant.configure("2") do |config|
 
   ENV["VAGRANT_DEFAULT_PROVIDER"] ||= provider
 
-  # Use the same box for all nodes by default. You can override via ORCH_VAGRANT_BOX.
-  config.vm.box = ENV.fetch("ORCH_VAGRANT_BOX", "ubuntu/jammy64")
+  # Use the same box for all nodes by default, with provider-specific defaults.
+  default_box_by_provider = {
+    "virtualbox" => "ubuntu/jammy64",
+    "hyperv" => "generic/ubuntu2204"
+  }
+  config.vm.box = ENV.fetch(
+    "ORCH_VAGRANT_BOX_#{provider.upcase}",
+    ENV.fetch("ORCH_VAGRANT_BOX", default_box_by_provider.fetch(provider))
+  )
 
   # Shared topology for local multi-node smoke / raft scenarios.
   nodes = [

@@ -78,6 +78,28 @@ tasks:
     vars:
       CLI_ARGS: '{{default "" .CLI_ARGS}}'
 
+  smoke:vagrant:
+    desc: "Run a 3-node Vagrant smoke test (deploy -> status -> delete)"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/vagrant/smoke.ps1 {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
+  vagrant:up:
+    desc: "Start Vagrant Orch cluster"
+    cmds:
+      - vagrant up
+
+  vagrant:halt:
+    desc: "Halt Vagrant Orch cluster"
+    cmds:
+      - vagrant halt
+
+  vagrant:destroy:
+    desc: "Destroy Vagrant Orch cluster"
+    cmds:
+      - vagrant destroy -f
+
   bench:resources:
     desc: "Measure orch-server resource usage for idle, cluster, and scheduling scenarios"
     cmds:

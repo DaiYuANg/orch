@@ -119,6 +119,7 @@ task smoke:local-docker
 task smoke:local-docker-dns
 task smoke:local-docker-worker-dispatch
 task smoke:local-raft-forwarding
+task smoke:vagrant
 ```
 
 The lifecycle smoke manifest is `examples/local-docker-smoke.yaml`; details are
@@ -132,6 +133,8 @@ dispatch through the worker API; details are in
 The Raft forwarding smoke starts a local three-node cluster and verifies
 apply/delete through a follower; details are in
 [Local Raft Cluster](docs/local-raft.md).
+For a reproducible virtualized 3-node end-to-end flow, use `task smoke:vagrant`
+with `scripts/vagrant/smoke.ps1` and `examples/local-vagrant-smoke.yaml`.
 
 For a complete application shape in the short native `.orch` DSL (frontend, backend,
 Postgres, Redis, ingress), see `examples/fullstack-docker.orch` and

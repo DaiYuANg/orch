@@ -1,42 +1,36 @@
 Vagrant.configure("2") do |config|
-  # 基础镜像
-  config.vm.box = "ubuntu/jammy64"
+  # Use the same box for all nodes by default. You can override via ORCH_VAGRANT_BOX.
+  config.vm.box = ENV.fetch("ORCH_VAGRANT_BOX", "ubuntu/jammy64")
 
-  # 通用配置
+  # Shared topology for local multi-node smoke / raft scenarios.
+  nodes = [
+    { name: "node1", ip: "192.168.56.11" },
+    { name: "node2", ip: "192.168.56.12" },
+    { name: "node3", ip: "192.168.56.13" }
+  ]
+
   config.vm.provider "virtualbox" do |vb|
+    vb.name = "orch-vagrant-cluster"
     vb.memory = 1024
     vb.maxmemory = 2048
     vb.cpus = 2
+    vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
   end
 
-  # 自定义网络
-  # 每个节点有一个内网 IP，用于 raft 节点间通信
-  nodes = [
-    { :name => "node1", :ip => "192.168.56.11" },
-    { :name => "node2", :ip => "192.168.56.12" },
-    { :name => "node3", :ip => "192.168.56.13" }
-  ]
-
-  nodes.each do |node|
+  nodes.each_with_index do |node, index|
     config.vm.define node[:name] do |n|
       n.vm.hostname = node[:name]
       n.vm.network "private_network", ip: node[:ip]
+      n.vm.network "forwarded_port", guest: 17443, host: 17443 + index
+      n.vm.network "forwarded_port", guest: 17451 + index, host: 17451 + index
+      n.vm.synced_folder ".", "/vagrant", type: "virtualbox"
 
-      # 安装 Docker
-      n.vm.provision "shell", inline: <<-SHELL
-        apt-get update -y
-        apt-get install -y ca-certificates curl gnupg lsb-release
-        mkdir -p /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-          https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-          > /etc/apt/sources.list.d/docker.list
-        apt-get update -y
-        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-        usermod -aG docker vagrant
-        systemctl enable docker
-      SHELL
+      n.vm.provision "shell", path: "scripts/vagrant/bootstrap-node.sh",
+        privileged: true,
+        env: {
+          "ORCH_VAGRANT_DOCKER_CHANNEL" => ENV.fetch("ORCH_VAGRANT_DOCKER_CHANNEL", "stable"),
+          "ORCH_VAGRANT_DOCKER_ARCH" => ENV.fetch("ORCH_VAGRANT_DOCKER_ARCH", "")
+        }
     end
   end
 end

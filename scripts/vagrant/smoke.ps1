@@ -22,13 +22,26 @@ if ([string]::IsNullOrWhiteSpace($vagrantHome)) {
     $env:VAGRANT_HOME = $vagrantHome
 }
 
+$isWindowsHost = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
+
+if ([string]::IsNullOrWhiteSpace($env:VAGRANT_DEFAULT_PROVIDER)) {
+    if ([string]::IsNullOrWhiteSpace($env:ORCH_VAGRANT_PROVIDER)) {
+        if ($isWindowsHost) {
+            $env:ORCH_VAGRANT_PROVIDER = "hyperv"
+        } else {
+            $env:ORCH_VAGRANT_PROVIDER = "virtualbox"
+        }
+    }
+    $env:VAGRANT_DEFAULT_PROVIDER = $env:ORCH_VAGRANT_PROVIDER
+}
+
+Write-Host "Using Vagrant provider: $($env:VAGRANT_DEFAULT_PROVIDER)"
+
 $nodes = @(
     @{ Name = "node1"; ID = "node1"; IP = "192.168.56.11"; HttpPort = 17443; RaftPort = 17451 },
     @{ Name = "node2"; ID = "node2"; IP = "192.168.56.12"; HttpPort = 17444; RaftPort = 17452 },
     @{ Name = "node3"; ID = "node3"; IP = "192.168.56.13"; HttpPort = 17445; RaftPort = 17453 }
 )
-
-$isWindowsHost = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 
 $workDirPath = Join-Path $repoRoot $WorkDir
 $artifactDir = Join-Path $workDirPath "dist"

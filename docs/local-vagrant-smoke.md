@@ -14,12 +14,32 @@ using Docker runtime on Linux VMs.
 - Go toolchain on host PATH
 - PowerShell (`pwsh`)
 - Vagrant
-- VirtualBox
+- On Windows: Hyper-V (requires Administrator when running Vagrant)
+- On macOS/Linux: VirtualBox
 - Linux VM images supporting Docker package install (Ubuntu/Debian by default)
 
 ## Run
 
 ```powershell
+task smoke:vagrant
+```
+
+Provider selection is automatic:
+
+- Windows hosts default to `hyperv`
+- Non-Windows hosts default to `virtualbox`
+
+You can override with:
+
+```powershell
+$env:ORCH_VAGRANT_PROVIDER="virtualbox"
+task smoke:vagrant
+```
+
+or
+
+```powershell
+$env:VAGRANT_DEFAULT_PROVIDER="hyperv"
 task smoke:vagrant
 ```
 

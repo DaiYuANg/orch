@@ -15,6 +15,12 @@ Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
+$vagrantHome = $env:VAGRANT_HOME
+if ([string]::IsNullOrWhiteSpace($vagrantHome)) {
+    $vagrantHome = Join-Path $repoRoot ".vagrant-home"
+    New-Item -ItemType Directory -Force $vagrantHome | Out-Null
+    $env:VAGRANT_HOME = $vagrantHome
+}
 
 $nodes = @(
     @{ Name = "node1"; ID = "node1"; IP = "192.168.56.11"; HttpPort = 17443; RaftPort = 17451 },

@@ -89,3 +89,4 @@ data
 .orch-vagrant/
 .orch-resource-bench/
 .vagrant/
+.vagrant-home/

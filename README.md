@@ -133,6 +133,8 @@ dispatch through the worker API; details are in
 The Raft forwarding smoke starts a local three-node cluster and verifies
 apply/delete through a follower; details are in
 [Local Raft Cluster](docs/local-raft.md).
+The virtualized flow runs three VMs end-to-end and is documented in
+[Local Vagrant Smoke Test](docs/local-vagrant-smoke.md).
 For a reproducible virtualized 3-node end-to-end flow, use `task smoke:vagrant`
 with `scripts/vagrant/smoke.ps1` and `examples/local-vagrant-smoke.yaml`.
 
@@ -158,6 +160,7 @@ See:
 - [Gossip Cluster Discovery](docs/gossip-clustering.md)
 - [Local Docker Smoke Test](docs/local-docker-smoke.md)
 - [Local Docker Worker Dispatch Smoke Test](docs/local-docker-worker-dispatch-smoke.md)
+- [Local Vagrant Smoke Test](docs/local-vagrant-smoke.md)
 - [Full-Stack Docker Example](docs/fullstack-docker.md)
 - [Workload DSL v1 (EN)](docs/dsl.md)
 - [Workload DSL v1（中文）](docs/dsl.zh.md)

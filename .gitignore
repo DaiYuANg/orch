@@ -88,3 +88,4 @@ data
 .orch-raft-smoke/
 .orch-vagrant/
 .orch-resource-bench/
+.vagrant/

@@ -13,7 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Set-Location $repoRoot
 
 $nodes = @(
@@ -41,6 +41,13 @@ function Invoke-Checked {
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed ($LASTEXITCODE): $FilePath $($Arguments -join ' ')"
+    }
+}
+
+function Assert-Command {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Required command '$Name' was not found on PATH"
     }
 }
 
@@ -188,6 +195,26 @@ function Invoke-VagrantNodeCommand {
 function Setup-Nodes {
     param([string]$ClusterNodes, [string]$RaftPeers)
 
+    function Invoke-NodeWithRetry {
+        param(
+            [Parameter(Mandatory = $true)][string]$NodeName,
+            [Parameter(Mandatory = $true)][string]$Command
+        )
+
+        $attempts = 0
+        while ($attempts -lt 30) {
+            try {
+                Invoke-VagrantNodeCommand -NodeName $NodeName -Command $Command
+                return
+            }
+            catch {
+                $attempts++
+                Start-Sleep -Milliseconds 1000
+            }
+        }
+        throw "Timed out configuring $NodeName"
+    }
+
     foreach ($node in $nodes) {
         $httpAddr = "{0}:{1}" -f $node.IP, $node.HttpPort
         $raftBind = "{0}:{1}" -f $node.IP, $node.RaftPort
@@ -202,21 +229,9 @@ function Setup-Nodes {
             (Escape-BashArg $ClusterNodes)
         )
         $command = "sudo ORCH_INSTALL_SOURCE=$(Escape-BashArg \"/vagrant/$WorkDir/dist/bin\") /vagrant/scripts/vagrant/orch-node-setup.sh " + ($args -join " ")
-        Invoke-VagrantNodeCommand -NodeName $node.Name -Command $command
+        Invoke-NodeWithRetry -NodeName $node.Name -Command $command
         Write-Host "Configured $($node.Name)"
     }
-}
-
-function Get-RaftLeaderID {
-    param($Status)
-    $leaderId = Get-JSONProperty -Object $Status -Name "leaderId" -Default ""
-    if ([string]::IsNullOrWhiteSpace($leaderId)) {
-        $leaderId = Get-JSONProperty -Object $Status -Name "leader_id" -Default ""
-    }
-    if ([string]::IsNullOrWhiteSpace($leaderId)) {
-        $leaderId = Get-JSONProperty -Object $Status -Name "leaderID" -Default ""
-    }
-    return [string]$leaderId
 }
 
 function Wait-ClusterReady {
@@ -313,6 +328,8 @@ function Teardown-Nodes {
 }
 
 try {
+    Assert-Command go
+    Assert-Command vagrant
     Build-Artifacts
     Assert-Binaries
 

@@ -6,6 +6,7 @@ func runtimeOptionFormSpecs() []schema.FormSpec {
 	return []schema.FormSpec{
 		dockerFormSpec(),
 		containerdFormSpec(),
+		podmanFormSpec(),
 		firecrackerFormSpec(),
 		processFormSpec(),
 		systemdFormSpec(),
@@ -16,6 +17,20 @@ func runtimeOptionFormSpecs() []schema.FormSpec {
 func dockerFormSpec() schema.FormSpec {
 	return schema.FormSpec{
 		Name:      "docker",
+		LabelKind: schema.LabelNone,
+		BodyMode:  schema.BodyFieldOnly,
+		Fields: schema.Fields(
+			schema.FieldSpec{Name: "network", Type: schema.TypeString, Docs: "Alias for network_mode."},
+			schema.FieldSpec{Name: "network_mode", Type: schema.TypeString},
+			schema.FieldSpec{Name: "privileged", Type: schema.TypeBool, Default: false, HasDefault: true},
+			schema.FieldSpec{Name: "labels", Type: schema.MapType{Elem: schema.TypeString}},
+		),
+	}
+}
+
+func podmanFormSpec() schema.FormSpec {
+	return schema.FormSpec{
+		Name:      "podman",
 		LabelKind: schema.LabelNone,
 		BodyMode:  schema.BodyFieldOnly,
 		Fields: schema.Fields(

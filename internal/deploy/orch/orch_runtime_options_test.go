@@ -56,6 +56,53 @@ func TestOrchFirecrackerOptions(t *testing.T) {
 	requireValidApp(t, app)
 }
 
+func TestOrchPodmanOptions(t *testing.T) {
+	app := loadAppString(t, "podman.orch", `app {
+  name = "runtime-podman"
+
+  service api {
+    runtime = "podman"
+    image = "alpine:3.21"
+    podman {
+      network = "podman-net"
+      privileged = true
+    }
+  }
+}`)
+	workload := workloadByName(t, app, "api")
+	requireKindRuntime(t, workload, v1.WorkloadKindService, v1.RuntimePodman)
+	requireDockerNetwork(t, workload, "podman-net")
+	if workload.Run.Options.Docker == nil || !workload.Run.Options.Docker.Privileged {
+		t.Fatalf("docker options = %+v", workload.Run.Options.Docker)
+	}
+	requireValidApp(t, app)
+}
+
+func TestOrchPodmanDefaultAndOverrideDockerOptions(t *testing.T) {
+	app := loadAppString(t, "podman-defaults.orch", `app {
+  name = "runtime-podman-defaults"
+  runtime = "podman"
+
+  docker {
+    network = "global-net"
+  }
+
+  service api {
+    image = "alpine:3.21"
+    podman {
+      privileged = true
+    }
+  }
+}`)
+	workload := workloadByName(t, app, "api")
+	requireKindRuntime(t, workload, v1.WorkloadKindService, v1.RuntimePodman)
+	requireDockerNetwork(t, workload, "global-net")
+	if workload.Run.Options.Docker == nil || !workload.Run.Options.Docker.Privileged {
+		t.Fatalf("docker options = %+v", workload.Run.Options.Docker)
+	}
+	requireValidApp(t, app)
+}
+
 func requireProcessRun(t *testing.T, workload v1.Workload) {
 	t.Helper()
 	if len(workload.Run.Exec.Command) != 1 || workload.Run.Exec.Command[0] != "/opt/app/worker" {

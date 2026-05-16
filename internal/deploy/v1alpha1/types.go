@@ -32,7 +32,7 @@ type Workload struct {
 	Run  RunSpec      `json:"run"  yaml:"run"`  // runtime-neutral artifact + exec + env/cwd/runtimeOptions
 	// Runtime selects the backend adapter. This stays separate from Run.RuntimeOptions
 	// because the canonical intent model needs a stable first-class field.
-	Runtime RuntimeKind `json:"runtime" yaml:"runtime"` // docker|containerd|firecracker|process|systemd|windows-service
+	Runtime RuntimeKind `json:"runtime" yaml:"runtime"` // docker|containerd|podman|firecracker|process|systemd|windows-service
 
 	Replicas  int           `json:"replicas,omitempty"  yaml:"replicas,omitempty"`
 	DependsOn []WorkloadRef `json:"dependsOn,omitempty" yaml:"dependsOn,omitempty"`
@@ -61,6 +61,7 @@ type RuntimeKind string
 const (
 	RuntimeDocker         RuntimeKind = "docker"
 	RuntimeContainerd     RuntimeKind = "containerd"
+	RuntimePodman         RuntimeKind = "podman"
 	RuntimeFirecracker    RuntimeKind = "firecracker"
 	RuntimeProcess        RuntimeKind = "process"
 	RuntimeSystemd        RuntimeKind = "systemd"

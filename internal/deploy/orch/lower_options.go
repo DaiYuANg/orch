@@ -175,7 +175,7 @@ func stringFieldsEmpty(values ...string) bool {
 }
 
 func mergeDockerOptionsForRuntime(runtime v1.RuntimeKind, base, override *v1.DockerOptions) *v1.DockerOptions {
-	if runtime != v1.RuntimeDocker {
+	if runtime != v1.RuntimeDocker && runtime != v1.RuntimePodman {
 		return override
 	}
 	return mergeDockerOptions(base, override)

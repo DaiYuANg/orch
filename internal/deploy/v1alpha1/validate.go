@@ -186,7 +186,7 @@ func (w *Workload) validateKind() error {
 
 func (w *Workload) validateRuntime() error {
 	switch w.Runtime {
-	case RuntimeDocker, RuntimeContainerd, RuntimeFirecracker, RuntimeProcess, RuntimeSystemd, RuntimeWindowsService:
+	case RuntimeDocker, RuntimeContainerd, RuntimePodman, RuntimeFirecracker, RuntimeProcess, RuntimeSystemd, RuntimeWindowsService:
 		return nil
 	default:
 		return oopsx.B("deploy").Errorf("invalid runtime %q", w.Runtime)

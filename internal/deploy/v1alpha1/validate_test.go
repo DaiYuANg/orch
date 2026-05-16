@@ -37,6 +37,22 @@ func TestValidateProcessRequiresCommandOrArtifactPath(t *testing.T) {
 	}
 }
 
+func TestValidatePodmanRequiresImage(t *testing.T) {
+	app := validApp()
+	app.Workloads[0].Runtime = deployv1.RuntimePodman
+	app.Workloads[0].Run.Artifact = deployv1.ArtifactSpec{}
+
+	err := app.Validate()
+	if err == nil || !strings.Contains(err.Error(), `run.artifact.image is required for runtime "podman"`) {
+		t.Fatalf("Validate() error = %v, want podman image error", err)
+	}
+
+	app.Workloads[0].Run.Artifact.Image = "nginx"
+	if err := app.Validate(); err != nil {
+		t.Fatalf("Validate() with podman image = %v", err)
+	}
+}
+
 func TestValidateFirecrackerRequiresRuntimeOptions(t *testing.T) {
 	app := validApp()
 	app.Workloads[0].Runtime = deployv1.RuntimeFirecracker

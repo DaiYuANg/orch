@@ -24,14 +24,41 @@ import (
 type Provider struct {
 	logger *slog.Logger
 	dns    *dnssvc.Service
+	kind   deployv1.RuntimeKind
+
+	newClient clientFactory
 }
 
+type clientFactory func() (*client.Client, error)
+
 func NewProvider(logger *slog.Logger, dns *dnssvc.Service) *Provider {
-	return &Provider{logger: logger, dns: dns}
+	return NewProviderWithKind(logger, dns, deployv1.RuntimeDocker, nil)
+}
+
+func NewProviderWithKind(logger *slog.Logger, dns *dnssvc.Service, kind deployv1.RuntimeKind, makeClient clientFactory) *Provider {
+	if strings.TrimSpace(string(kind)) == "" {
+		kind = deployv1.RuntimeDocker
+	}
+	if makeClient == nil {
+		makeClient = defaultDockerClient
+	}
+	return &Provider{
+		logger:    logger,
+		dns:       dns,
+		kind:      kind,
+		newClient: makeClient,
+	}
 }
 
 func (p *Provider) Kind() deployv1.RuntimeKind {
-	return deployv1.RuntimeDocker
+	if p.kind == "" {
+		return deployv1.RuntimeDocker
+	}
+	return p.kind
+}
+
+func (p *Provider) runtime() string {
+	return string(p.Kind())
 }
 
 func workloadContainerFilters(meta deployv1.Metadata, workloadName string) filters.Args {
@@ -231,15 +258,11 @@ func (p *Provider) dockerRunAfterCreate(ctx context.Context, cli *client.Client,
 }
 
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := p.newDockerClient()
 	if err != nil {
-		return oopsx.B("runtime", "docker").Wrapf(err, "docker client")
+		return err
 	}
-	defer func() {
-		if closeErr := cli.Close(); closeErr != nil {
-			p.logger.Warn("docker client close", "error", closeErr)
-		}
-	}()
+	defer p.closeDockerClient(cli)
 
 	ref := workloadmeta.NormalizeImageRef(w.Run.Artifact.Image)
 	if ref == "" {
@@ -253,15 +276,11 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 }
 
 func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadName string) error {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := p.newDockerClient()
 	if err != nil {
-		return oopsx.B("runtime", "docker").Wrapf(err, "docker client")
+		return err
 	}
-	defer func() {
-		if closeErr := cli.Close(); closeErr != nil {
-			p.logger.Warn("docker client close", "error", closeErr)
-		}
-	}()
+	defer p.closeDockerClient(cli)
 
 	ns := workloadmeta.NamespaceOrDefault(meta.Namespace)
 	containers, err := cli.ContainerList(ctx, container.ListOptions{All: true, Filters: workloadContainerFilters(meta, workloadName)})

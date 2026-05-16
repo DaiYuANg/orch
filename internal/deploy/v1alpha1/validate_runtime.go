@@ -9,7 +9,7 @@ import (
 
 func (w *Workload) validateRunForRuntime() error {
 	switch w.Runtime {
-	case RuntimeDocker, RuntimeContainerd:
+	case RuntimeDocker, RuntimeContainerd, RuntimePodman:
 		return w.validateImageRuntime()
 	case RuntimeFirecracker:
 		return w.validateFirecrackerRuntime()

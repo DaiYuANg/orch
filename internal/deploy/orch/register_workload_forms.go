@@ -21,7 +21,7 @@ func workloadFormSpecs() []schema.FormSpec {
 			Name:        "runtime_options",
 			LabelKind:   schema.LabelNone,
 			BodyMode:    schema.BodyFormOnly,
-			NestedForms: schema.NestedForms("docker", "containerd", "firecracker", "process", "systemd", "windows_service"),
+			NestedForms: schema.NestedForms("docker", "containerd", "podman", "firecracker", "process", "systemd", "windows_service"),
 		},
 		schedulingFormSpec(),
 	}
@@ -175,5 +175,5 @@ func schedulingFormSpec() schema.FormSpec {
 }
 
 func workloadNestedForms() *set.Set[string] {
-	return schema.NestedForms("run", "runtime_options", "docker", "containerd", "firecracker", "process", "systemd", "windows_service", "endpoint", "mount", "env", "resources", "scheduling")
+	return schema.NestedForms("run", "runtime_options", "docker", "containerd", "podman", "firecracker", "process", "systemd", "windows_service", "endpoint", "mount", "env", "resources", "scheduling")
 }

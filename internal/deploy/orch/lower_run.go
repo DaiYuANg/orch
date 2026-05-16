@@ -93,6 +93,11 @@ func fillRuntimeOptionForms(opts *v1.RunOptions, f *compiler.HIRForm, scope stri
 	}); err != nil {
 		return err
 	}
+	if err := fillOneOption(childFormsByKind(f, "podman"), scope, "podman", func(form *compiler.HIRForm) {
+		opts.Docker = mergeDockerOptions(opts.Docker, lowerDockerOptions(form))
+	}); err != nil {
+		return err
+	}
 	if err := fillOneOption(childFormsByKind(f, "containerd"), scope, "containerd", func(form *compiler.HIRForm) {
 		opts.Containerd = lowerContainerdOptions(form)
 	}); err != nil {

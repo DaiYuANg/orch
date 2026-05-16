@@ -145,6 +145,8 @@ github.com/arcgolabs/dnsx/dnsclient v0.1.3 h1:Si8gbxsHy725+SjUm9yqDyKcq2S9BRZPo6
 github.com/arcgolabs/dnsx/dnsclient v0.1.3/go.mod h1:83NDCcPzCQ14joufLr18Jugu3qGQig7VxqNZzlKcbzU=
 github.com/arcgolabs/dnsx/dnsserver v0.1.3 h1:oXubQvuhTZfevDTiz2cc9slADgskS11e7IkV4WvEJvU=
 github.com/arcgolabs/dnsx/dnsserver v0.1.3/go.mod h1:L1DHH1TPa2EfQHfemOC7kiRGTXyDh6DbntsKpN7ypn0=
+github.com/arcgolabs/eventx v0.1.2 h1:ikt4Cw+GW9Q1NsJVmmen74rQkNZBCdpqlwIfryYrGuk=
+github.com/arcgolabs/eventx v0.1.2/go.mod h1:8pvEz7hCLMyC8Y1VdX8+s7RjnY0haFLau4aiRmrkJkw=
 github.com/arcgolabs/httpx v0.1.6 h1:tRL3HrGJYJf27TISaKbDq97e+FiN/baA1c3RbXL8Ix4=
 github.com/arcgolabs/httpx v0.1.6/go.mod h1:le+QyVXbioOli0YQXe3k48E2bUs0VczKuDbQWz+FjLA=
 github.com/arcgolabs/httpx/adapter/fiber v0.1.6 h1:2LtDD+nEphTttDbzeOfzzIP12Ka0xcEpInxVtNI04rs=
@@ -153,6 +155,8 @@ github.com/arcgolabs/httpx/adapter/std v0.1.6 h1:gyLAYl83S9v2o4vgyF3CbChGWY3U2VB
 github.com/arcgolabs/httpx/adapter/std v0.1.6/go.mod h1:aluFzezJTu14J3sUxWChTUsckny/l4cKXYBxEtf+rWc=
 github.com/arcgolabs/logx v0.1.2 h1:+VJF7T/mfI482CpbIQ4tSBXbxTVcOkmBaTOj+DaCom0=
 github.com/arcgolabs/logx v0.1.2/go.mod h1:GgVdUPfBZ3Hao7h5ahdGwqHDXY9q5mhMmnS7t3NNqzU=
+github.com/arcgolabs/mapper v0.1.2 h1:anwnOHcnxi3U4sj67v0DvRUY0V84iiFddTkxuODYXhA=
+github.com/arcgolabs/mapper v0.1.2/go.mod h1:zd+mapJHQ5R0ZikEYyVeZU3O4T1G+LfQw5ynaQ1vnFk=
 github.com/arcgolabs/observabilityx v0.4.0 h1:7ihfQev5KSV8xcO+6DcbMcUYSDVsYhnENH2ZbHB5IxY=
 github.com/arcgolabs/observabilityx v0.4.0/go.mod h1:yZeU3QmYUwhd051UnoD4cFu89sdLjPYGU15QKX+TVac=
 github.com/arcgolabs/pkg/option v0.0.3 h1:SS7WDMUAr7XW2/sOZkaqDrIUrygJK8u1gdPs9A4K5+A=
@@ -173,6 +177,8 @@ github.com/arcgolabs/storx/observer v0.1.0 h1:xVGpjNgNCe38jiIS9Ssofqg9EVHGaRDUDZ
 github.com/arcgolabs/storx/observer v0.1.0/go.mod h1:LS9mjg3VnyowgCE89SG5kusejAXgBypWS2wfJUssAes=
 github.com/arcgolabs/vale v0.1.3 h1:lPyx5ku1yMdNrxnq0eFYh0SOJjMt0j2jFrglNX+noJs=
 github.com/arcgolabs/vale v0.1.3/go.mod h1:T1tdHka2jWIcnWMN7hwD8CAb0VvmivXfF7cOo7WEP+A=
+github.com/arcgolabs/vale v0.1.6 h1:VPVYMzjxVQuytJ6ZBWpGNC2j5cSFAb6ffNt8w9V4X3Y=
+github.com/arcgolabs/vale v0.1.6/go.mod h1:T1tdHka2jWIcnWMN7hwD8CAb0VvmivXfF7cOo7WEP+A=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-metrics v0.4.1 h1:hR91U9KYmb6bLBYLQjyM+3j+rcd/UhE+G78SFnF8gJA=
@@ -208,6 +214,10 @@ github.com/buger/jsonparser v1.1.1/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx2
 github.com/bugsnag/bugsnag-go v0.0.0-20141110184014-b1d153021fcd/go.mod h1:2oa8nejYd4cQ/b0hMIopN0lCRxU0bueqREvZLWFrtK8=
 github.com/bugsnag/osext v0.0.0-20130617224835-0dd3f918b21b/go.mod h1:obH5gd0BsqsP2LwDJ9aOkm/6J86V6lyAXCoQWGw3K50=
 github.com/bugsnag/panicwrap v0.0.0-20151223152923-e2c28503fcd0/go.mod h1:D/8v3kj0zr8ZAKg1AQ6crr+5VwKN5eIywRkfhyM/+dE=
+github.com/caddyserver/certmagic v0.25.3 h1:mGf5ba8F7xA4c5jfDZZbK2buY1VEkbnwpMDixaju94A=
+github.com/caddyserver/certmagic v0.25.3/go.mod h1:YVs43D5+H/Dckt4bTga1KSO/xYfFBfVZainGDywYPAA=
+github.com/caddyserver/zerossl v0.1.5 h1:dkvOjBAEEtY6LIGAHei7sw2UgqSD6TrWweXpV7lvEvE=
+github.com/caddyserver/zerossl v0.1.5/go.mod h1:CxA0acn7oEGO6//4rtrRjYgEoa4MFw/XofZnrYwGqG4=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
@@ -836,6 +846,8 @@ github.com/labstack/echo/v4 v4.5.0/go.mod h1:czIriw4a0C1dFun+ObrXp7ok03xON0N1awS
 github.com/labstack/gommon v0.3.0/go.mod h1:MULnywXg0yavhxWKc+lOruYdAhDwPK9wf0OL7NoOu+k=
 github.com/leodido/go-urn v1.4.0 h1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=
 github.com/leodido/go-urn v1.4.0/go.mod h1:bvxc+MVxLKB4z00jd1z+Dvzr47oO32F/QSNjSBOlFxI=
+github.com/libdns/libdns v1.1.1 h1:wPrHrXILoSHKWJKGd0EiAVmiJbFShguILTg9leS/P/U=
+github.com/libdns/libdns v1.1.1/go.mod h1:4Bj9+5CQiNMVGf87wjX4CY3HQJypUHRuLvlsfsZqLWQ=
 github.com/libp2p/go-buffer-pool v0.1.0 h1:oK4mSFcQz7cTQIfqbe4MIj9gLW+mnanjyFtc6cdF0Y8=
 github.com/libp2p/go-buffer-pool v0.1.0/go.mod h1:N+vh8gMqimBzdKkSMVuydVDq+UV5QTWy5HSiZacSbPg=
 github.com/lithammer/fuzzysearch v1.1.8 h1:/HIuJnjHuXS8bKaiTMeeDlW2/AyIWk2brx1V8LFgLN4=
@@ -889,6 +901,8 @@ github.com/mdlayher/vsock v1.1.1/go.mod h1:Y43jzcy7KM3QB+/FK15pfqGxDMCMzUXWegEfI
 github.com/mediocregopher/mediocre-go-lib v0.0.0-20181029021733-cb65787f37ed/go.mod h1:dSsfyI2zABAdhcbvkXqgxOxrCsbYeHCPgrZkku60dSg=
 github.com/mediocregopher/radix/v3 v3.3.0/go.mod h1:EmfVyvspXz1uZEyPBMyGK+kjWiKQGvsUt6O3Pj+LDCQ=
 github.com/mediocregopher/radix/v3 v3.4.2/go.mod h1:8FL3F6UQRXHXIBSPUs5h0RybMF8i4n7wVopoX3x7Bv8=
+github.com/mholt/acmez/v3 v3.1.6 h1:eGVQNObP0pBN4sxqrXeg7MYqTOWyoiYpQqITVWlrevk=
+github.com/mholt/acmez/v3 v3.1.6/go.mod h1:5nTPosTGosLxF3+LU4ygbgMRFDhbAVpqMI4+a4aHLBY=
 github.com/microcosm-cc/bluemonday v1.0.2/go.mod h1:iVP4YcDBq+n/5fb23BhYFvIMq/leAFZyRl6bYmGDlGc=
 github.com/miekg/dns v1.1.26/go.mod h1:bPDLeHnStXmXAq1m/Ch/hvfNHr14JKNPMBo3VZKjuso=
 github.com/miekg/dns v1.1.72 h1:vhmr+TF2A3tuoGNkLDFK9zi36F2LS+hKTRW0Uf8kbzI=
@@ -1270,6 +1284,8 @@ github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQ
 github.com/yvasiyarov/go-metrics v0.0.0-20140926110328-57bccd1ccd43/go.mod h1:aX5oPXxHm3bOH+xeAttToC8pqch2ScQN/JoXYupl6xs=
 github.com/yvasiyarov/gorelic v0.0.0-20141212073537-a9bba5b9ab50/go.mod h1:NUSPSUX/bi6SeDMUh6brw0nXpxHnc96TguQh0+r/ssA=
 github.com/yvasiyarov/newrelic_platform_go v0.0.0-20140908184405-b21fdbd4370f/go.mod h1:GlGEuHIJweS1mbCqG+7vt2nvWLzLLnRHbXz5JKd/Qbg=
+github.com/zeebo/blake3 v0.2.4 h1:KYQPkhpRtcqh0ssGYcKLG1JYvddkEA8QwCM/yBqhaZI=
+github.com/zeebo/blake3 v0.2.4/go.mod h1:7eeQ6d2iXWRGF6npfaxl2CU+xy2Fjo2gxeyZGCRUjcE=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.5/go.mod h1:G5EMThwa9y8QZGBClrRx5EY+Yw9kAhnjy3bSjsnlVTQ=
@@ -1331,6 +1347,8 @@ go.uber.org/multierr v1.11.0/go.mod h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN8
 go.uber.org/zap v1.10.0/go.mod h1:vwi/ZaCAaUcBkycHslxD9B2zi4UTXhF60s6SWpuDF0Q=
 go.uber.org/zap v1.28.0 h1:IZzaP1Fv73/T/pBMLk4VutPl36uNC+OSUh3JLG3FIjo=
 go.uber.org/zap v1.28.0/go.mod h1:rDLpOi171uODNm/mxFcuYWxDsqWSAVkFdX4XojSKg/Q=
+go.uber.org/zap/exp v0.3.0 h1:6JYzdifzYkGmTdRR59oYH+Ng7k49H9qVpWwNSsGJj3U=
+go.uber.org/zap/exp v0.3.0/go.mod h1:5I384qq7XGxYyByIhHm6jg5CHkGY0nsTfbDLgDDlgJQ=
 go.yaml.in/yaml/v2 v2.4.4 h1:tuyd0P+2Ont/d6e2rl3be67goVK4R6deVxCUX5vyPaQ=
 go.yaml.in/yaml/v2 v2.4.4/go.mod h1:gMZqIpDtDqOfM0uNfy0SkpRhvUryYH0Z6wdMYcacYXQ=
 go.yaml.in/yaml/v3 v3.0.4 h1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc=

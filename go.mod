@@ -26,7 +26,7 @@ require (
 	github.com/arcgolabs/observabilityx v0.4.0
 	github.com/arcgolabs/plano v0.8.0
 	github.com/arcgolabs/plano/lsp v0.8.0
-	github.com/arcgolabs/vale v0.1.3
+	github.com/arcgolabs/vale v0.1.6
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/compose-spec/compose-go/v2 v2.10.2
@@ -83,7 +83,9 @@ require (
 	github.com/arcgolabs/collectionx/interval v0.8.0 // indirect
 	github.com/arcgolabs/collectionx/prefix v0.8.0 // indirect
 	github.com/arcgolabs/dnsx/dnsclient v0.1.3 // indirect
+	github.com/arcgolabs/eventx v0.1.2 // indirect
 	github.com/arcgolabs/httpx/adapter/std v0.1.6 // indirect
+	github.com/arcgolabs/mapper v0.1.2 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/bboltx v0.5.0 // indirect
@@ -95,6 +97,8 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
+	github.com/caddyserver/certmagic v0.25.3 // indirect
+	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
@@ -164,6 +168,7 @@ require (
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/parsers/json v1.0.0 // indirect
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.0 // indirect
@@ -175,6 +180,7 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
+	github.com/libdns/libdns v1.1.1 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lni/goutils v1.4.0 // indirect
@@ -186,6 +192,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
+	github.com/mholt/acmez/v3 v3.1.6 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
@@ -238,6 +245,7 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	github.com/zeebo/blake3 v0.2.4 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
 	go.lsp.dev/jsonrpc2 v0.10.0 // indirect
 	go.lsp.dev/pkg v0.0.0-20210717090340-384b27a52fb2 // indirect
@@ -252,6 +260,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
+	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.4 // indirect

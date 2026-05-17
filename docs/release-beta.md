@@ -54,9 +54,19 @@ Run these smoke tests on a host with the required runtime:
 task smoke:local-docker
 task smoke:local-docker-dns
 task smoke:local-docker-worker-dispatch
+task smoke:local-podman
+task smoke:local-podman-dns
+task smoke:local-podman-worker-dispatch
 ```
 
-`smoke:local-docker-dns` requires Docker and the host DNS port used by the smoke
+`smoke:local-docker` and `smoke:local-podman` require Docker/Podman respectively.
+`smoke:local-docker-dns` and `smoke:local-podman-dns` additionally require host
+DNS port `53` availability.
+
+`smoke:local-podman` and `smoke:local-podman-dns` require Podman installed and
+available on PATH.
+
+`smoke:local-docker-dns` requires Docker and the host DNS port used by the smoke test
 server to be available.
 
 The Taskfile exposes the same checks as:
@@ -66,9 +76,8 @@ task release-gate:static
 task release-gate
 ```
 
-`release-gate:static` runs the non-Docker checks plus the local Raft forwarding
-smoke. `release-gate` adds the Docker lifecycle, workload DNS, and worker
-dispatch smoke tests.
+`release-gate:static` runs the non-runtime checks plus the local Raft forwarding
+smoke. `release-gate` adds runtime smoke coverage.
 
 ## Tagging
 

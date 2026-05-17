@@ -145,7 +145,7 @@ Workload
 - kind
   - service | worker | job | cron | stateful
 - runtime
-  - docker | containerd | firecracker | process | systemd | windows-service
+  - docker | podman | containerd | firecracker | process | systemd | windows-service
 - run
   - artifact
     - image
@@ -196,6 +196,7 @@ backend-specific 细节应当隔离在 runtime-specific options 下，例如：
 runtime_options.firecracker
 runtime_options.containerd
 runtime_options.docker
+runtime_options.podman
 runtime_options.process
 runtime_options.systemd
 runtime_options.windowsService
@@ -205,7 +206,7 @@ runtime_options.windowsService
 
 当前 provider 覆盖：
 
-- `docker`、`containerd`、`process` 已经是可 deploy 的 runtime provider。
+- `docker`、`podman`、`containerd`、`process` 已经是可 deploy 的 runtime provider。
 - `firecracker` 会启动本机 `firecracker` 二进制，并通过 API socket 配置
   kernel/rootfs/machine settings 来运行 Linux microVM；当宿主机已经准备好
   tap/bridge 时，也可以配置 TAP 网络。

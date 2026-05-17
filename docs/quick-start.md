@@ -89,16 +89,20 @@ Use `raft status` to check local state, the known leader, and the configured
 leader API URL. For a node that will be joined dynamically, start it with
 `raft.bootstrap: false`.
 
-## Run local Docker smoke test
+## Run local smoke tests
 
 ```powershell
 task smoke:local-docker
+task smoke:local-podman
 task smoke:local-docker-dns
+task smoke:local-podman-dns
 task smoke:local-docker-worker-dispatch
+task smoke:local-podman-worker-dispatch
 task smoke:local-raft-forwarding
 ```
 
-This starts a single-node server, deploys `examples/local-docker-smoke.yaml`,
+This starts a single-node server and deploys either
+`examples/local-docker-smoke.yaml` or `examples/local-podman-smoke.yaml`,
 checks workload status with the CLI, runs stop/start/restart/delete, and cleans
 up by default. The DNS smoke deploys two workloads and verifies the client can
 reach `dns-backend.default.svc.orch.local` through orch DNS. The worker dispatch
@@ -106,8 +110,11 @@ smoke starts separate scheduler and worker server processes and verifies remote
 dispatch through the worker API. The Raft forwarding smoke starts a local
 three-node cluster and verifies apply/delete through a follower. See
 `docs/local-docker-smoke.md`,
+`docs/local-podman-smoke.md`,
 `docs/local-docker-dns-smoke.md`, and
 `docs/local-docker-worker-dispatch-smoke.md`, and `docs/local-raft.md`.
+`docs/local-podman-dns-smoke.md`, and
+`docs/local-podman-worker-dispatch-smoke.md`.
 
 ## Full-stack application example
 

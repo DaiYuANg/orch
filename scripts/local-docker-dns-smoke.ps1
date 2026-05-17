@@ -5,6 +5,7 @@ param(
     [string]$WorkDir = ".orch-dns-smoke",
     [string]$DNSListen = "0.0.0.0:53",
     [string]$WorkloadNameserver = "",
+    [string]$ContainerRuntime = "docker",
     [int]$TimeoutSeconds = 120,
     [switch]$KeepServer,
     [switch]$KeepContainer,
@@ -43,6 +44,75 @@ if (Test-IsWindows) {
 }
 $serverBin = Join-Path $binDir "orch-server$binExt"
 $cliBin = Join-Path $binDir "orch$binExt"
+$containerRuntime = $ContainerRuntime.ToLowerInvariant()
+$allowedContainerRuntimes = @("docker", "podman")
+if ($allowedContainerRuntimes -notcontains $containerRuntime) {
+    throw "Unsupported container runtime '$ContainerRuntime'; expected one of $($allowedContainerRuntimes -join ', ')"
+}
+
+$containerRuntimeLabel = if ($containerRuntime -eq "podman") {
+    "Podman"
+} else {
+    "Docker"
+}
+
+function Invoke-ContainerRuntime {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+    & $containerRuntime @Arguments
+}
+
+function ConvertTo-IPv4 {
+    param([string]$Value)
+    if ($null -eq $Value) {
+        return ""
+    }
+    $candidate = $Value.Trim().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries) | Where-Object { $_ } | Select-Object -First 1
+    if ($candidate -match '^\d{1,3}(\.\d{1,3}){3}$') {
+        return $candidate
+    }
+    return ""
+}
+
+function Resolve-PodmanGateway {
+    $raw = Invoke-ContainerRuntime @("network", "inspect", "podman")
+    if ($LASTEXITCODE -ne 0) {
+        return ""
+    }
+    try {
+        $networks = $raw | ConvertFrom-Json
+        foreach ($network in @($networks)) {
+            $subnets = @()
+            if ($network.PSObject.Properties.Name -contains "subnets") {
+                $subnets += @($network.subnets)
+            }
+            if ($network.PSObject.Properties.Name -contains "Subnets") {
+                $subnets += @($network.Subnets)
+            }
+            foreach ($subnet in @($subnets)) {
+                if ($null -eq $subnet) {
+                    continue
+                }
+                if ($subnet.PSObject.Properties.Name -contains "gateway") {
+                    $gateway = ConvertTo-IPv4 -Value $subnet.gateway
+                    if (Test-IPv4 $gateway) {
+                        return $gateway
+                    }
+                }
+                if ($subnet.PSObject.Properties.Name -contains "Gateway") {
+                    $gateway = ConvertTo-IPv4 -Value $subnet.Gateway
+                    if (Test-IPv4 $gateway) {
+                        return $gateway
+                    }
+                }
+            }
+        }
+    }
+    catch {
+    }
+    return ""
+}
 
 function Invoke-Checked {
     param(
@@ -98,23 +168,47 @@ function Resolve-WorkloadNameserver {
         return $WorkloadNameserver
     }
 
-    $raw = & docker run --rm busybox:1.36 sh -c "nslookup host.docker.internal 2>/dev/null | awk '/^Address: / { print `$2 }' | grep '^[0-9]' | tail -n 1"
-    if ($LASTEXITCODE -eq 0) {
-        $candidate = ($raw | Out-String).Trim()
-        if (Test-IPv4 $candidate) {
-            return $candidate
+    if ($containerRuntime -eq "docker") {
+        $raw = Invoke-ContainerRuntime @("run", "--rm", "busybox:1.36", "sh", "-c", "nslookup host.docker.internal 2>/dev/null | awk '/^Address: / { print `$2 }' | grep '^[0-9]' | tail -n 1")
+        if ($LASTEXITCODE -eq 0) {
+            $candidate = ($raw | Out-String).Trim()
+            if (Test-IPv4 $candidate) {
+                return $candidate
+            }
         }
+
+        $gateway = Invoke-ContainerRuntime @("network", "inspect", "bridge", "--format", "{{range .IPAM.Config}}{{.Gateway}}{{end}}")
+        if ($LASTEXITCODE -eq 0) {
+            $candidate = ConvertTo-IPv4 -Value (($gateway | Out-String).Trim())
+            if (Test-IPv4 $candidate) {
+                return $candidate
+            }
+        }
+
+        throw "Unable to auto-detect a Docker workload nameserver. Pass -WorkloadNameserver <IPv4>."
     }
 
-    $gateway = & docker network inspect bridge --format "{{range .IPAM.Config}}{{.Gateway}}{{end}}"
-    if ($LASTEXITCODE -eq 0) {
-        $candidate = ($gateway | Out-String).Trim()
-        if (Test-IPv4 $candidate) {
-            return $candidate
+    if ($containerRuntime -eq "podman") {
+        $resolvConf = Invoke-ContainerRuntime @("run", "--rm", "busybox:1.36", "cat", "/etc/resolv.conf")
+        if ($LASTEXITCODE -eq 0) {
+            $match = Select-String -InputObject ($resolvConf | Out-String) -Pattern "nameserver\s+(\d+\.\d+\.\d+\.\d+)" | Select-Object -First 1
+            if ($null -ne $match) {
+                $candidate = ConvertTo-IPv4 -Value $match.Matches[0].Groups[1].Value
+                if (Test-IPv4 $candidate) {
+                    return $candidate
+                }
+            }
         }
+
+        $gateway = Resolve-PodmanGateway
+        if (Test-IPv4 $gateway) {
+            return $gateway
+        }
+
+        throw "Unable to auto-detect a Podman workload nameserver. Pass -WorkloadNameserver <IPv4>."
     }
 
-    throw "Unable to auto-detect a Docker workload nameserver. Pass -WorkloadNameserver <IPv4>."
+    throw "Unsupported container runtime '$containerRuntime'"
 }
 
 function Wait-OrchHealth {
@@ -183,7 +277,7 @@ function Wait-DNSWorkloadsRunning {
 function Wait-DNSProbe {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        $logs = & docker logs $clientContainer 2>&1
+        $logs = Invoke-ContainerRuntime @("logs", $clientContainer) 2>&1
         if (($logs | Out-String) -match "orch-dns-ok") {
             return
         }
@@ -221,9 +315,9 @@ function Wait-DNSAppStopped {
 
 function Test-SmokeContainerExists {
     param([Parameter(Mandatory = $true)][string]$Name)
-    $ids = & docker ps -a --filter "name=^/$Name$" --format "{{.ID}}"
+    $ids = Invoke-ContainerRuntime @("ps", "-a", "--filter", "name=^/$Name$", "--format", "{{.ID}}")
     if ($LASTEXITCODE -ne 0) {
-        throw "docker ps failed"
+        throw "$containerRuntimeLabel container list check failed"
     }
     return (($ids | Out-String).Trim() -ne "")
 }
@@ -231,9 +325,9 @@ function Test-SmokeContainerExists {
 function Remove-SmokeContainers {
     foreach ($name in $containerNames) {
         if (Test-SmokeContainerExists $name) {
-            & docker rm -f $name | Out-Host
+            Invoke-ContainerRuntime @("rm", "-f", $name) | Out-Host
             if ($LASTEXITCODE -ne 0) {
-                throw "docker rm -f $name failed"
+                throw "$containerRuntimeLabel remove $name failed"
             }
         }
     }
@@ -286,10 +380,10 @@ function Restore-SmokeEnvironment {
     }
 }
 
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    throw "Docker CLI was not found on PATH"
+if (-not (Get-Command $containerRuntime -ErrorAction SilentlyContinue)) {
+    throw "$containerRuntimeLabel runtime was not found on PATH"
 }
-Invoke-Checked docker @("version")
+Invoke-Checked $containerRuntime @("version")
 
 $resolvedNameserver = Resolve-WorkloadNameserver
 
@@ -336,13 +430,13 @@ try {
     Write-Host ""
     Write-Host "DNS smoke probe completed."
     Write-Host "FQDN:        dns-backend.default.svc.orch.local"
-    Write-Host "Client logs: docker logs $clientContainer"
+    Write-Host "Client logs: $containerRuntimeLabel logs $clientContainer"
     Write-Host ""
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "apps")
     Invoke-Checked $cliBin @("--server", $serverURL, "describe", "app", $appName, "-n", "default")
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "workloads")
     Invoke-Checked $cliBin @("--server", $serverURL, "get", "assignments")
-    & docker logs $clientContainer | Out-Host
+    Invoke-ContainerRuntime @("logs", $clientContainer) | Out-Host
 
     if (-not $KeepContainer) {
         Write-Host ""

@@ -152,7 +152,7 @@ Workload
 - kind
   - service | worker | job | cron | stateful
 - runtime
-  - docker | containerd | firecracker | process | systemd | windows-service
+  - docker | podman | containerd | firecracker | process | systemd | windows-service
 - run
   - artifact
     - image
@@ -204,6 +204,7 @@ example:
 runtime_options.firecracker
 runtime_options.containerd
 runtime_options.docker
+runtime_options.podman
 runtime_options.process
 runtime_options.systemd
 runtime_options.windowsService
@@ -213,7 +214,8 @@ This keeps the main DSL stable even when individual runtime adapters evolve.
 
 Current provider coverage:
 
-- `docker`, `containerd`, and `process` are deployable runtime providers.
+- `docker`, `podman`, `containerd`, and `process` are deployable runtime
+  providers.
 - `firecracker` starts Linux microVMs by launching the local `firecracker`
   binary and configuring its API socket with kernel/rootfs/machine settings.
   Optional TAP networking is supported when the host tap/bridge already exists.

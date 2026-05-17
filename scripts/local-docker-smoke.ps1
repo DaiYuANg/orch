@@ -3,6 +3,7 @@ param(
     [string]$ServerAddr = "127.0.0.1:17443",
     [string]$Manifest = "examples/local-docker-smoke.yaml",
     [string]$WorkDir = ".orch-smoke",
+    [string]$ContainerRuntime = "docker",
     [int]$TimeoutSeconds = 120,
     [switch]$KeepServer,
     [switch]$KeepContainer,
@@ -40,6 +41,24 @@ if (Test-IsWindows) {
 }
 $serverBin = Join-Path $binDir "orch-server$binExt"
 $cliBin = Join-Path $binDir "orch$binExt"
+$containerRuntime = $ContainerRuntime.ToLowerInvariant()
+$allowedContainerRuntimes = @("docker", "podman")
+if ($allowedContainerRuntimes -notcontains $containerRuntime) {
+    throw "Unsupported container runtime '$ContainerRuntime'; expected one of $($allowedContainerRuntimes -join ', ')"
+}
+
+$containerRuntimeLabel = if ($containerRuntime -eq "podman") {
+    "Podman"
+} else {
+    "Docker"
+}
+
+function Invoke-ContainerRuntime {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+    & $containerRuntime @Arguments
+}
 
 function Invoke-Checked {
     param(
@@ -144,9 +163,9 @@ function Wait-SmokeStopped {
 }
 
 function Test-SmokeContainerExists {
-    $ids = & docker ps -a --filter "name=^/$containerName$" --format "{{.ID}}"
+    $ids = Invoke-ContainerRuntime @("ps", "-a", "--filter", "name=^/$containerName$", "--format", "{{.ID}}")
     if ($LASTEXITCODE -ne 0) {
-        throw "docker ps failed"
+        throw "$containerRuntimeLabel container list check failed"
     }
     return (($ids | Out-String).Trim() -ne "")
 }
@@ -159,14 +178,14 @@ function Wait-SmokeContainerRemoved {
         }
         Start-Sleep -Milliseconds 500
     }
-    throw "Timed out waiting for Docker container $containerName to be removed"
+    throw "Timed out waiting for $containerRuntimeLabel container $containerName to be removed"
 }
 
 function Remove-SmokeContainer {
     if (Test-SmokeContainerExists) {
-        & docker rm -f $containerName | Out-Host
+        Invoke-ContainerRuntime @("rm", "-f", $containerName) | Out-Host
         if ($LASTEXITCODE -ne 0) {
-            throw "docker rm -f $containerName failed"
+            throw "$containerRuntimeLabel remove $containerName failed"
         }
     }
 }
@@ -197,10 +216,10 @@ function Restore-SmokeEnvironment {
     }
 }
 
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    throw "Docker CLI was not found on PATH"
+if (-not (Get-Command $containerRuntime -ErrorAction SilentlyContinue)) {
+    throw "$containerRuntimeLabel CLI was not found on PATH"
 }
-Invoke-Checked docker @("version")
+Invoke-Checked $containerRuntime @("version")
 
 if (-not $SkipBuild) {
     Invoke-Checked go @("build", "-o", $serverBin, "./cmd/orch-server")

@@ -71,6 +71,27 @@ tasks:
     vars:
       CLI_ARGS: '{{default "" .CLI_ARGS}}'
 
+  smoke:local-podman:
+    desc: "Run a local single-node Podman deploy smoke test"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-smoke.ps1 -ContainerRuntime podman -Manifest examples/local-podman-smoke.yaml {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
+  smoke:local-podman-dns:
+    desc: "Run a local Podman workload DNS smoke test"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-dns-smoke.ps1 -ContainerRuntime podman -Manifest examples/local-podman-dns-smoke.yaml {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
+  smoke:local-podman-worker-dispatch:
+    desc: "Run a local two-server Podman worker dispatch smoke test"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/local-docker-worker-dispatch-smoke.ps1 -ContainerRuntime podman -Manifest examples/local-podman-worker-dispatch.yaml {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
   smoke:local-raft-forwarding:
     desc: "Run a local three-node Raft forwarding smoke test"
     cmds:

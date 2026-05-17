@@ -148,7 +148,11 @@ func (p *Provider) newDockerClient() (*client.Client, error) {
 }
 
 func defaultDockerClient() (*client.Client, error) {
-	return client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil, oopsx.B("runtime", "docker").Wrapf(err, "docker client from env")
+	}
+	return cli, nil
 }
 
 func (p *Provider) closeDockerClient(cli *client.Client) {

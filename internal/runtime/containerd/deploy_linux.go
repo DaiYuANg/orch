@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
-	"github.com/arcgolabs/collectionx/set"
-	"github.com/cenkalti/backoff/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
@@ -85,6 +83,15 @@ func criSandboxID(meta deployv1.Metadata, workloadName string) string {
 	return workloadmeta.OrchContainerName(meta, workloadName)
 }
 
+func containerdSandboxNamespace(meta deployv1.Metadata, w deployv1.Workload) string {
+	if w.Run.Options.Containerd != nil {
+		if ns := strings.TrimSpace(w.Run.Options.Containerd.Namespace); ns != "" {
+			return ns
+		}
+	}
+	return workloadmeta.NamespaceOrDefault(meta.Namespace)
+}
+
 func (p *Provider) logDir(meta deployv1.Metadata, workloadName string) string {
 	return filepath.Join(p.rootOrDefault(), "logs", criSandboxID(meta, workloadName))
 }
@@ -128,22 +135,23 @@ type workloadDNSResolver interface {
 }
 
 func criSandboxConfig(p *Provider, meta deployv1.Metadata, w deployv1.Workload) *runtimeapi.PodSandboxConfig {
-	ns := workloadmeta.NamespaceOrDefault(meta.Namespace)
+	appNS := workloadmeta.NamespaceOrDefault(meta.Namespace)
+	sandboxNS := containerdSandboxNamespace(meta, w)
 	name := criSandboxID(meta, w.Name)
 	return &runtimeapi.PodSandboxConfig{
 		Metadata: &runtimeapi.PodSandboxMetadata{
 			Name:      name,
 			Uid:       name,
-			Namespace: ns,
+			Namespace: sandboxNS,
 			Attempt:   0,
 		},
 		Hostname:     workloadmeta.SanitizeName(w.Name),
 		LogDirectory: p.logDir(meta, w.Name),
-		DnsConfig:    criDNSConfig(p.dns, ns),
+		DnsConfig:    criDNSConfig(p.dns, appNS),
 		Labels:       criWorkloadLabels(meta, w),
 		Annotations: map[string]string{
 			"orch.io/app":       meta.Name,
-			"orch.io/namespace": ns,
+			"orch.io/namespace": appNS,
 			"orch.io/workload":  w.Name,
 		},
 		Linux: &runtimeapi.LinuxPodSandboxConfig{},
@@ -202,60 +210,6 @@ func criContainerConfig(ref string, meta deployv1.Metadata, w deployv1.Workload)
 	return cfg
 }
 
-func ensureNoExistingWorkload(ctx context.Context, runtime runtimeapi.RuntimeServiceClient, meta deployv1.Metadata, workloadName string) error {
-	labels := criWorkloadLabelSelector(meta, workloadName)
-	containers, err := runtime.ListContainers(ctx, &runtimeapi.ListContainersRequest{
-		Filter: &runtimeapi.ContainerFilter{LabelSelector: labels},
-	})
-	if err != nil {
-		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI list containers")
-	}
-	if len(containers.GetContainers()) > 0 {
-		return oopsx.B("runtime", "containerd").Errorf("containerd workload %q already exists", workloadName)
-	}
-	sandboxes, err := runtime.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{
-		Filter: &runtimeapi.PodSandboxFilter{LabelSelector: labels},
-	})
-	if err != nil {
-		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI list sandboxes")
-	}
-	if len(sandboxes.GetItems()) > 0 {
-		return oopsx.B("runtime", "containerd").Errorf("containerd sandbox for workload %q already exists", workloadName)
-	}
-	return nil
-}
-
-func waitSandboxIP(ctx context.Context, runtime runtimeapi.RuntimeServiceClient, sandboxID string) (string, error) {
-	ip, err := backoff.Retry(ctx, func() (string, error) {
-		status, err := runtime.PodSandboxStatus(ctx, &runtimeapi.PodSandboxStatusRequest{PodSandboxId: sandboxID})
-		if err != nil {
-			return "", err
-		}
-		if ip := strings.TrimSpace(status.GetStatus().GetNetwork().GetIp()); ip != "" {
-			return ip, nil
-		}
-		return "", errSandboxIPPending
-	}, backoff.WithBackOff(backoff.NewConstantBackOff(criSandboxIPDelay)), backoff.WithMaxTries(criSandboxIPAttempts))
-	if err == nil {
-		return ip, nil
-	}
-	if errors.Is(err, errSandboxIPPending) {
-		return "", oopsx.B("runtime", "containerd").Errorf("timeout waiting for sandbox ip")
-	}
-	return "", oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI sandbox status")
-}
-
-func cleanupCRIWorkload(ctx context.Context, runtime runtimeapi.RuntimeServiceClient, containerID, sandboxID string) {
-	if strings.TrimSpace(containerID) != "" {
-		_, _ = runtime.StopContainer(ctx, &runtimeapi.StopContainerRequest{ContainerId: containerID, Timeout: criStopTimeout})
-		_, _ = runtime.RemoveContainer(ctx, &runtimeapi.RemoveContainerRequest{ContainerId: containerID})
-	}
-	if strings.TrimSpace(sandboxID) != "" {
-		_, _ = runtime.StopPodSandbox(ctx, &runtimeapi.StopPodSandboxRequest{PodSandboxId: sandboxID})
-		_, _ = runtime.RemovePodSandbox(ctx, &runtimeapi.RemovePodSandboxRequest{PodSandboxId: sandboxID})
-	}
-}
-
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
 	clients, err := dialCRI(ctx, containerdSocket())
 	if err != nil {
@@ -267,7 +221,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	if ref == "" {
 		return oopsx.B("runtime", "containerd").Errorf("workload %q: run.artifact.image is required", w.Name)
 	}
-	if err := ensureNoExistingWorkload(ctx, clients.runtime, meta, w.Name); err != nil {
+	if ready, err := p.prepareExistingCRIWorkload(ctx, clients.runtime, meta, w); err != nil || ready {
 		return err
 	}
 
@@ -320,81 +274,5 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	}
 
 	p.logger.Info("containerd workload running", "sandbox", sandboxID, "container", containerID, "workload", w.Name, "ip", ip)
-	return nil
-}
-
-func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadName string) error {
-	clients, err := dialCRI(ctx, containerdSocket())
-	if err != nil {
-		return err
-	}
-	defer clients.Close()
-
-	labels := criWorkloadLabelSelector(meta, workloadName)
-	containers, err := clients.runtime.ListContainers(ctx, &runtimeapi.ListContainersRequest{
-		Filter: &runtimeapi.ContainerFilter{LabelSelector: labels},
-	})
-	if err != nil {
-		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI list containers")
-	}
-
-	sandboxIDs := set.NewSet[string]()
-	containersList := list.NewList(containers.GetContainers()...)
-	var stopErr error
-	containersList.Range(func(_ int, ctr *runtimeapi.Container) bool {
-		if ctr == nil {
-			return true
-		}
-		if sandboxID := strings.TrimSpace(ctr.GetPodSandboxId()); sandboxID != "" {
-			sandboxIDs.Add(sandboxID)
-		}
-		id := strings.TrimSpace(ctr.GetId())
-		if id == "" {
-			return true
-		}
-		if _, err := clients.runtime.StopContainer(ctx, &runtimeapi.StopContainerRequest{ContainerId: id, Timeout: criStopTimeout}); err != nil && stopErr == nil {
-			stopErr = oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI stop container")
-		}
-		if _, err := clients.runtime.RemoveContainer(ctx, &runtimeapi.RemoveContainerRequest{ContainerId: id}); err != nil && stopErr == nil {
-			stopErr = oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI remove container")
-		}
-		return true
-	})
-	if stopErr != nil {
-		return stopErr
-	}
-
-	sandboxes, err := clients.runtime.ListPodSandbox(ctx, &runtimeapi.ListPodSandboxRequest{
-		Filter: &runtimeapi.PodSandboxFilter{LabelSelector: labels},
-	})
-	if err != nil {
-		return oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI list sandboxes")
-	}
-	list.NewList(sandboxes.GetItems()...).Range(func(_ int, sandbox *runtimeapi.PodSandbox) bool {
-		if sandbox != nil && strings.TrimSpace(sandbox.GetId()) != "" {
-			sandboxIDs.Add(sandbox.GetId())
-		}
-		return true
-	})
-
-	sandboxIDs.Range(func(sandboxID string) bool {
-		if _, err := clients.runtime.StopPodSandbox(ctx, &runtimeapi.StopPodSandboxRequest{PodSandboxId: sandboxID}); err != nil && stopErr == nil {
-			stopErr = oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI stop sandbox")
-		}
-		if _, err := clients.runtime.RemovePodSandbox(ctx, &runtimeapi.RemovePodSandboxRequest{PodSandboxId: sandboxID}); err != nil && stopErr == nil {
-			stopErr = oopsx.B("runtime", "containerd").Wrapf(err, "containerd CRI remove sandbox")
-		}
-		return true
-	})
-	if stopErr != nil {
-		return stopErr
-	}
-
-	if p.dns != nil {
-		if err := p.dns.RemoveWorkloadA(ctx, meta.Namespace, workloadName); err != nil {
-			return err
-		}
-	}
-	p.logger.Info("containerd workload stopped", "workload", workloadName)
 	return nil
 }

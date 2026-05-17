@@ -12,8 +12,6 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
-	"github.com/arcgolabs/collectionx/mapping"
-
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 	"github.com/lyonbrown4d/orch/internal/dnssvc"
 	"github.com/lyonbrown4d/orch/internal/runtime/runconfig"
@@ -197,38 +195,6 @@ func (p *Provider) createDockerContainerAfterConflict(
 		return "", oopsx.B("runtime", "docker").Wrapf(err, "docker create %q", name)
 	}
 	return createResp.ID, nil
-}
-
-// WorkloadLabelsMatch reports whether Docker labels match the orch workload identity.
-func WorkloadLabelsMatch(labels map[string]string, meta deployv1.Metadata, w deployv1.Workload) bool {
-	expected := workloadmeta.LabelMap(meta, w)
-	matches := true
-	expected.Range(func(key, want string) bool {
-		if labels[key] != want {
-			matches = false
-			return false
-		}
-		return true
-	})
-	return matches
-}
-
-// ContainerLabels returns Docker labels merged with orch workload identity labels.
-func ContainerLabels(meta deployv1.Metadata, w deployv1.Workload) map[string]string {
-	labels := mapping.NewMapWithCapacity[string, string](4)
-	if w.Run.Options.Docker != nil {
-		w.Run.Options.Docker.LabelMap().Range(func(k, v string) bool {
-			if key := strings.TrimSpace(k); key != "" {
-				labels.Set(key, v)
-			}
-			return true
-		})
-	}
-	workloadmeta.LabelMap(meta, w).Range(func(k, v string) bool {
-		labels.Set(k, v)
-		return true
-	})
-	return labels.All()
 }
 
 func (p *Provider) dockerRunAfterCreate(ctx context.Context, cli *client.Client, meta deployv1.Metadata, w deployv1.Workload, name, containerID string) error {

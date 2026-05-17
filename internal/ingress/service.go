@@ -28,6 +28,7 @@ type Service struct {
 	mu            sync.Mutex
 	servers       []*http.Server
 	gateway       *valeruntime.Gateway
+	vale          valeFactory
 	routeCount    atomic.Int64
 	refreshCancel context.CancelFunc
 	refreshWG     sync.WaitGroup
@@ -35,11 +36,16 @@ type Service struct {
 }
 
 func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service, dns *dnssvc.Service) *Service {
+	return newWithValeFactory(cfg, logger, raft, dns, newValeFactory())
+}
+
+func newWithValeFactory(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service, dns *dnssvc.Service, vale valeFactory) *Service {
 	return &Service{
 		logger:   logger,
 		cfg:      cfg.Ingress,
 		raft:     raft,
 		dns:      dns,
+		vale:     vale,
 		dataRoot: config.DefaultDataRoot(),
 	}
 }
@@ -50,7 +56,7 @@ func (s *Service) refreshRoutes() {
 	}
 	apps := s.raft.ListDesiredDeployApps()
 	routes := CompileIngressRoutesFromDeploy(apps, s.dns, s.logger)
-	snapshot, routeCount, err := buildValeSnapshot(routes)
+	snapshot, routeCount, err := s.vale.build(routes)
 	if err != nil {
 		s.logger.Warn("ingress routes compile failed", "error", err)
 		return
@@ -180,11 +186,11 @@ func (s *Service) listenTLS(ctx context.Context, addrs []string, tlsConf *tls.Co
 }
 
 func (s *Service) startGatewayServers(listeners []net.Listener, log *slog.Logger) error {
-	snapshot, _, err := buildValeSnapshot(nil)
+	snapshot, _, err := s.vale.build(nil)
 	if err != nil {
 		return err
 	}
-	gateway := valeruntime.NewGateway(snapshot, log, true, valeruntime.NewNoopMetrics())
+	gateway := s.vale.gateway(snapshot, log, true)
 	s.gateway = gateway
 	s.servers = makeIngressServers(len(listeners), log, gateway, s.currentRouteCount)
 	serveIngressListeners(listeners, s.servers, log)

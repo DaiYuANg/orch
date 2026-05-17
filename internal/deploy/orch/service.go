@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/arcgolabs/mapper"
 	"github.com/arcgolabs/plano/compiler"
 	"github.com/arcgolabs/plano/diag"
 	"go/token"
@@ -16,15 +17,24 @@ import (
 // Orch compiles .orch sources with a shared [compiler.Compiler] and lowers HIR to [v1.App].
 // Construct via [NewOrch] from dix ([Module]) so the compiler is a process singleton.
 type Orch struct {
-	c *compiler.Compiler
+	c      *compiler.Compiler
+	mapper *mapper.Mapper
 }
 
 // NewOrch wraps a non-nil plano compiler with orch forms registered ([NewCompiler] / [Module]).
 func NewOrch(c *compiler.Compiler) (*Orch, error) {
+	return NewOrchWithMapper(c, NewHIRMapper())
+}
+
+// NewOrchWithMapper wraps compiler and HIR mapper dependencies for dix composition.
+func NewOrchWithMapper(c *compiler.Compiler, m *mapper.Mapper) (*Orch, error) {
 	if c == nil {
 		return nil, oopsx.B("deploy", "orch").Errorf("nil compiler")
 	}
-	return &Orch{c: c}, nil
+	if m == nil {
+		return nil, oopsx.B("deploy", "orch").Errorf("nil HIR mapper")
+	}
+	return &Orch{c: c, mapper: m}, nil
 }
 
 // Compiler returns the underlying plano compiler.
@@ -63,7 +73,7 @@ func (o *Orch) LowerHIR(hir *compiler.HIR) (*v1.App, error) {
 	if o == nil {
 		return nil, oopsx.B("deploy", "orch").Errorf("nil Orch")
 	}
-	return lowerHIR(hir)
+	return lowerHIRWithMapper(hir, o.mapper)
 }
 
 func (o *Orch) appFromCompileResult(virtualName string, res compiler.Result) (*v1.App, error) {
@@ -73,7 +83,7 @@ func (o *Orch) appFromCompileResult(virtualName string, res compiler.Result) (*v
 	if res.HIR == nil {
 		return nil, oopsx.B("deploy").Errorf("compile %s: missing HIR", virtualName)
 	}
-	app, err := lowerHIR(res.HIR)
+	app, err := lowerHIRWithMapper(res.HIR, o.mapper)
 	if err != nil {
 		return nil, oopsx.B("deploy").Wrapf(err, "lower %s", virtualName)
 	}

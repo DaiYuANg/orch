@@ -25,16 +25,25 @@ const (
 )
 
 type Provider struct {
-	logger *slog.Logger
-	dns    *dnssvc.Service
-	root   string
+	logger    *slog.Logger
+	dns       *dnssvc.Service
+	root      string
+	connector Connector
 }
 
 func NewProvider(logger *slog.Logger, dns *dnssvc.Service) *Provider {
+	return NewProviderWithConnector(logger, dns, NewConnector())
+}
+
+func NewProviderWithConnector(logger *slog.Logger, dns *dnssvc.Service, connector Connector) *Provider {
+	if connector == nil {
+		connector = NewConnector()
+	}
 	return &Provider{
-		logger: logger,
-		dns:    dns,
-		root:   filepath.Join(config.DefaultDataRoot(), "runtime", "systemd"),
+		logger:    logger,
+		dns:       dns,
+		root:      filepath.Join(config.DefaultDataRoot(), "runtime", "systemd"),
+		connector: connector,
 	}
 }
 

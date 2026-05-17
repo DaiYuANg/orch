@@ -19,7 +19,8 @@ func Module() dix.Module {
 	return dix.NewModule(
 		"ingress",
 		dix.Providers(
-			dix.Provider4(New, dix.Eager()),
+			dix.Provider0(newValeFactory),
+			dix.Provider5(newWithValeFactory, dix.Eager()),
 		),
 		dix.Invokes(
 			dix.Invoke3(func(logger *slog.Logger, cfg config.Config, _ *Service) {

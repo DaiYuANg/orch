@@ -23,6 +23,7 @@ require (
 	github.com/arcgolabs/httpx v0.1.6
 	github.com/arcgolabs/httpx/adapter/fiber v0.1.6
 	github.com/arcgolabs/logx v0.1.2
+	github.com/arcgolabs/mapper v0.1.2
 	github.com/arcgolabs/observabilityx v0.4.0
 	github.com/arcgolabs/plano v0.8.0
 	github.com/arcgolabs/plano/lsp v0.8.0
@@ -85,7 +86,6 @@ require (
 	github.com/arcgolabs/dnsx/dnsclient v0.1.3 // indirect
 	github.com/arcgolabs/eventx v0.1.2 // indirect
 	github.com/arcgolabs/httpx/adapter/std v0.1.6 // indirect
-	github.com/arcgolabs/mapper v0.1.2 // indirect
 	github.com/arcgolabs/pkg/option v0.0.3 // indirect
 	github.com/arcgolabs/storx v0.3.0 // indirect
 	github.com/arcgolabs/storx/bboltx v0.5.0 // indirect

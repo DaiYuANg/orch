@@ -25,7 +25,8 @@ func Module() dix.Module {
 			dix.Provider2(runtimecontainerd.NewProvider),
 			dix.Provider2(runtimefirecracker.NewProvider),
 			dix.Provider2(runtimeprocess.NewProvider),
-			dix.Provider2(runtimesystemd.NewProvider),
+			dix.Provider0(runtimesystemd.NewConnector),
+			dix.Provider3(runtimesystemd.NewProviderWithConnector),
 			dix.Provider2(runtimewindowsservice.NewProvider),
 			dix.Provider6(func(
 				dockerProvider *runtimedocker.Provider,

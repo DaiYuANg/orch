@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"github.com/lyonbrown4d/orch/internal/config"
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 	"github.com/lyonbrown4d/orch/internal/dnssvc"
@@ -20,6 +22,8 @@ import (
 )
 
 const defaultStopTimeout = 5 * time.Second
+
+var errProcessStillRunning = errors.New("process still running")
 
 type Provider struct {
 	logger *slog.Logger
@@ -109,7 +113,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	if err != nil {
 		return p.handleMissingStopState(ctx, meta, workloadName, err)
 	}
-	p.stopProcess(st, workloadName)
+	p.stopProcess(ctx, st, workloadName)
 	if err := p.removeWorkloadDNS(ctx, meta, workloadName); err != nil {
 		return err
 	}
@@ -130,7 +134,7 @@ func (p *Provider) handleMissingStopState(ctx context.Context, meta deployv1.Met
 	return nil
 }
 
-func (p *Provider) stopProcess(st state, workloadName string) {
+func (p *Provider) stopProcess(ctx context.Context, st state, workloadName string) {
 	proc, err := os.FindProcess(st.PID)
 	if err != nil || proc == nil {
 		return
@@ -139,7 +143,7 @@ func (p *Provider) stopProcess(st state, workloadName string) {
 		p.killProcess(proc, workloadName)
 		return
 	}
-	if !waitExit(st.PID, p.stopTimeout(st)) {
+	if !waitExit(ctx, st.PID, p.stopTimeout(st)) {
 		p.killProcess(proc, workloadName)
 	}
 }
@@ -246,13 +250,15 @@ func processStopTimeout(run deployv1.RunSpec) string {
 	return strings.TrimSpace(run.Options.Process.GracefulStopTimeout)
 }
 
-func waitExit(pid int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+func waitExit(ctx context.Context, pid int, timeout time.Duration) bool {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		if !processAlive(pid) {
-			return true
+			return struct{}{}, nil
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return !processAlive(pid)
+		return struct{}{}, errProcessStillRunning
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)))
+	return err == nil || !processAlive(pid)
 }

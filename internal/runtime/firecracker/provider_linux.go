@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	fc "github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 
@@ -22,6 +23,8 @@ import (
 )
 
 const defaultStopTimeout = 5 * time.Second
+
+var errProcessStillRunning = errors.New("process still running")
 
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
 	cfg, err := p.BuildConfig(meta, w)
@@ -118,7 +121,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 				_ = proc.Kill()
 			}
 		}
-		if !waitExit(st.PID, defaultStopTimeout) {
+		if !waitExit(ctx, st.PID, defaultStopTimeout) {
 			_ = proc.Kill()
 		}
 	}
@@ -245,13 +248,15 @@ func processAlive(pid int) bool {
 	return proc.Signal(syscall.Signal(0)) == nil
 }
 
-func waitExit(pid int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+func waitExit(ctx context.Context, pid int, timeout time.Duration) bool {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		if !processAlive(pid) {
-			return true
+			return struct{}{}, nil
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return !processAlive(pid)
+		return struct{}{}, errProcessStillRunning
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)))
+	return err == nil || !processAlive(pid)
 }

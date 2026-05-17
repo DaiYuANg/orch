@@ -2,95 +2,37 @@ package orch
 
 import (
 	"maps"
-	"strings"
 
+	"github.com/arcgolabs/mapper"
 	"github.com/arcgolabs/plano/compiler"
 
 	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
-func lowerDockerOptions(f *compiler.HIRForm) *v1.DockerOptions {
-	var docker v1.DockerOptions
-	if network, ok := stringField(f, "network"); ok {
-		docker.NetworkMode = strings.TrimSpace(network)
-	}
-	if networkMode, ok := stringField(f, "network_mode"); ok {
-		docker.NetworkMode = strings.TrimSpace(networkMode)
-	}
-	if privileged, ok := boolField(f, "privileged"); ok {
-		docker.Privileged = privileged
-	}
-	if labels, ok := stringMapField(f, "labels"); ok {
-		docker.Labels = labels
+func lowerDockerOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.DockerOptions {
+	docker := mapHIRFields[v1.DockerOptions](m, f)
+	if docker.NetworkMode == "" {
+		if network, ok := stringField(f, "network"); ok {
+			docker.NetworkMode = network
+		}
 	}
 	return nonEmptyDockerOptions(docker)
 }
 
-func lowerContainerdOptions(f *compiler.HIRForm) *v1.ContainerdOptions {
-	var containerd v1.ContainerdOptions
-	if ns, ok := stringField(f, "namespace"); ok {
-		containerd.Namespace = strings.TrimSpace(ns)
-	}
+func lowerContainerdOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.ContainerdOptions {
+	containerd := mapHIRFields[v1.ContainerdOptions](m, f)
 	if containerd.Namespace == "" {
 		return nil
 	}
 	return &containerd
 }
 
-func lowerFirecrackerOptions(f *compiler.HIRForm) *v1.FirecrackerOptions {
-	var firecracker v1.FirecrackerOptions
-	fillFirecrackerPathOptions(&firecracker, f)
-	fillFirecrackerNetworkOptions(&firecracker, f)
-	fillFirecrackerSizingOptions(&firecracker, f)
+func lowerFirecrackerOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.FirecrackerOptions {
+	firecracker := mapHIRFields[v1.FirecrackerOptions](m, f)
 	if firecrackerOptionsEmpty(firecracker) {
 		return nil
 	}
 	return &firecracker
-}
-
-func fillFirecrackerPathOptions(fc *v1.FirecrackerOptions, f *compiler.HIRForm) {
-	if kernel, ok := stringField(f, "kernel_image_path"); ok {
-		fc.KernelImagePath = strings.TrimSpace(kernel)
-	}
-	if rootfs, ok := stringField(f, "rootfs_path"); ok {
-		fc.RootfsPath = strings.TrimSpace(rootfs)
-	}
-	if bootArgs, ok := stringField(f, "boot_args"); ok {
-		fc.BootArgs = strings.TrimSpace(bootArgs)
-	}
-	if binaryPath, ok := stringField(f, "binary_path"); ok {
-		fc.BinaryPath = strings.TrimSpace(binaryPath)
-	}
-	if socketPath, ok := stringField(f, "socket_path"); ok {
-		fc.SocketPath = strings.TrimSpace(socketPath)
-	}
-	if rootfsReadOnly, ok := boolField(f, "rootfs_read_only"); ok {
-		fc.RootfsReadOnly = rootfsReadOnly
-	}
-}
-
-func fillFirecrackerNetworkOptions(fc *v1.FirecrackerOptions, f *compiler.HIRForm) {
-	if ifaceID, ok := stringField(f, "network_interface_id"); ok {
-		fc.NetworkInterfaceID = strings.TrimSpace(ifaceID)
-	}
-	if tapDevice, ok := stringField(f, "tap_device_name"); ok {
-		fc.TapDeviceName = strings.TrimSpace(tapDevice)
-	}
-	if guestMAC, ok := stringField(f, "guest_mac"); ok {
-		fc.GuestMAC = strings.TrimSpace(guestMAC)
-	}
-	if allowMMDS, ok := boolField(f, "allow_mmds_requests"); ok {
-		fc.AllowMMDSRequests = allowMMDS
-	}
-}
-
-func fillFirecrackerSizingOptions(fc *v1.FirecrackerOptions, f *compiler.HIRForm) {
-	if vcpu, ok := intField(f, "vcpu_count"); ok {
-		fc.VCPUCount = vcpu
-	}
-	if mem, ok := intField(f, "mem_size_mib"); ok {
-		fc.MemSizeMiB = mem
-	}
 }
 
 func firecrackerOptionsEmpty(fc v1.FirecrackerOptions) bool {
@@ -105,60 +47,24 @@ func firecrackerOptionsEmpty(fc v1.FirecrackerOptions) bool {
 	return fc.VCPUCount == 0 && fc.MemSizeMiB == 0
 }
 
-func lowerProcessOptions(f *compiler.HIRForm) *v1.ProcessOptions {
-	var process v1.ProcessOptions
-	if timeout, ok := stringField(f, "graceful_stop_timeout"); ok {
-		process.GracefulStopTimeout = strings.TrimSpace(timeout)
-	}
-	if stdoutPath, ok := stringField(f, "stdout_path"); ok {
-		process.StdoutPath = strings.TrimSpace(stdoutPath)
-	}
-	if stderrPath, ok := stringField(f, "stderr_path"); ok {
-		process.StderrPath = strings.TrimSpace(stderrPath)
-	}
+func lowerProcessOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.ProcessOptions {
+	process := mapHIRFields[v1.ProcessOptions](m, f)
 	if process.GracefulStopTimeout == "" && process.StdoutPath == "" && process.StderrPath == "" {
 		return nil
 	}
 	return &process
 }
 
-func lowerSystemdOptions(f *compiler.HIRForm) *v1.SystemdOptions {
-	var systemd v1.SystemdOptions
-	if unit, ok := stringField(f, "unit_name"); ok {
-		systemd.UnitName = strings.TrimSpace(unit)
-	}
-	if user, ok := stringField(f, "user"); ok {
-		systemd.User = strings.TrimSpace(user)
-	}
-	if group, ok := stringField(f, "group"); ok {
-		systemd.Group = strings.TrimSpace(group)
-	}
-	if restart, ok := stringField(f, "restart"); ok {
-		systemd.Restart = strings.TrimSpace(restart)
-	}
-	if restartSec, ok := stringField(f, "restart_sec"); ok {
-		systemd.RestartSec = strings.TrimSpace(restartSec)
-	}
-	if wantedBy, ok := stringField(f, "wanted_by"); ok {
-		systemd.WantedBy = strings.TrimSpace(wantedBy)
-	}
+func lowerSystemdOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.SystemdOptions {
+	systemd := mapHIRFields[v1.SystemdOptions](m, f)
 	if stringFieldsEmpty(systemd.UnitName, systemd.User, systemd.Group, systemd.Restart, systemd.RestartSec, systemd.WantedBy) {
 		return nil
 	}
 	return &systemd
 }
 
-func lowerWindowsServiceOptions(f *compiler.HIRForm) *v1.WindowsServiceOptions {
-	var windowsService v1.WindowsServiceOptions
-	if serviceName, ok := stringField(f, "service_name"); ok {
-		windowsService.ServiceName = strings.TrimSpace(serviceName)
-	}
-	if displayName, ok := stringField(f, "display_name"); ok {
-		windowsService.DisplayName = strings.TrimSpace(displayName)
-	}
-	if startType, ok := stringField(f, "start_type"); ok {
-		windowsService.StartType = strings.TrimSpace(startType)
-	}
+func lowerWindowsServiceOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.WindowsServiceOptions {
+	windowsService := mapHIRFields[v1.WindowsServiceOptions](m, f)
 	if stringFieldsEmpty(windowsService.ServiceName, windowsService.DisplayName, windowsService.StartType) {
 		return nil
 	}

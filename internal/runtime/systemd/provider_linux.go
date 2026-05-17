@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-systemd/v22/dbus"
-
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 	"github.com/lyonbrown4d/orch/internal/runtime/runconfig"
 	"github.com/lyonbrown4d/orch/pkg/oopsx"
@@ -29,7 +27,7 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	if err := os.WriteFile(unitPath, []byte(content), 0o644); err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "write unit %s", unitName)
 	}
-	conn, err := dbus.NewSystemConnectionContext(ctx)
+	conn, err := p.connect(ctx)
 	if err != nil {
 		_ = os.Remove(unitPath)
 		return oopsx.B("runtime", "systemd").Wrapf(err, "connect systemd dbus")
@@ -73,6 +71,13 @@ func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv
 	return nil
 }
 
+func (p *Provider) connect(ctx context.Context) (Connection, error) {
+	if p.connector == nil {
+		p.connector = NewConnector()
+	}
+	return p.connector(ctx)
+}
+
 func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadName string) error {
 	unitName := DefaultUnitName(meta, workloadName)
 	unitPath := systemdUnitPath(unitName)
@@ -87,7 +92,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 		return err
 	}
 
-	conn, err := dbus.NewSystemConnectionContext(ctx)
+	conn, err := p.connect(ctx)
 	if err != nil {
 		p.logger.Warn("systemd dbus connect", "error", err)
 	} else {
@@ -106,7 +111,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 		if err := systemdReload(ctx, conn); err != nil {
 			p.logger.Warn("systemd daemon-reload", "error", err)
 		}
-	} else if err := reloadSystemdWithNewConnection(ctx); err != nil {
+	} else if err := p.reloadSystemdWithNewConnection(ctx); err != nil {
 		p.logger.Warn("systemd daemon-reload", "error", err)
 	}
 	if p.dns != nil {
@@ -122,7 +127,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 }
 
 func (p *Provider) cleanupUnit(ctx context.Context, unitName, unitPath string) {
-	conn, err := dbus.NewSystemConnectionContext(ctx)
+	conn, err := p.connect(ctx)
 	if err != nil {
 		p.logger.Warn("systemd cleanup dbus connect", "error", err)
 	} else {
@@ -141,12 +146,12 @@ func (p *Provider) cleanupUnit(ctx context.Context, unitName, unitPath string) {
 		if err := systemdReload(ctx, conn); err != nil {
 			p.logger.Warn("systemd cleanup daemon-reload", "error", err)
 		}
-	} else if err := reloadSystemdWithNewConnection(ctx); err != nil {
+	} else if err := p.reloadSystemdWithNewConnection(ctx); err != nil {
 		p.logger.Warn("systemd cleanup daemon-reload", "error", err)
 	}
 }
 
-func systemdStart(ctx context.Context, conn *dbus.Conn, unitName string) error {
+func systemdStart(ctx context.Context, conn Connection, unitName string) error {
 	ch := make(chan string, 1)
 	if _, err := conn.StartUnitContext(ctx, unitName, "replace", ch); err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "start unit %s", unitName)
@@ -154,7 +159,7 @@ func systemdStart(ctx context.Context, conn *dbus.Conn, unitName string) error {
 	return waitSystemdJob(ctx, ch, "start", unitName)
 }
 
-func systemdStop(ctx context.Context, conn *dbus.Conn, unitName string) error {
+func systemdStop(ctx context.Context, conn Connection, unitName string) error {
 	ch := make(chan string, 1)
 	if _, err := conn.StopUnitContext(ctx, unitName, "replace", ch); err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "stop unit %s", unitName)
@@ -162,29 +167,29 @@ func systemdStop(ctx context.Context, conn *dbus.Conn, unitName string) error {
 	return waitSystemdJob(ctx, ch, "stop", unitName)
 }
 
-func systemdEnable(ctx context.Context, conn *dbus.Conn, unitPath string) error {
+func systemdEnable(ctx context.Context, conn Connection, unitPath string) error {
 	if _, _, err := conn.EnableUnitFilesContext(ctx, []string{unitPath}, false, true); err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "enable unit %s", filepath.Base(unitPath))
 	}
 	return nil
 }
 
-func systemdDisable(ctx context.Context, conn *dbus.Conn, unitPath string) error {
+func systemdDisable(ctx context.Context, conn Connection, unitPath string) error {
 	if _, err := conn.DisableUnitFilesContext(ctx, []string{unitPath}, false); err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "disable unit %s", filepath.Base(unitPath))
 	}
 	return nil
 }
 
-func systemdReload(ctx context.Context, conn *dbus.Conn) error {
+func systemdReload(ctx context.Context, conn Connection) error {
 	if err := conn.ReloadContext(ctx); err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "daemon reload")
 	}
 	return nil
 }
 
-func reloadSystemdWithNewConnection(ctx context.Context) error {
-	conn, err := dbus.NewSystemConnectionContext(ctx)
+func (p *Provider) reloadSystemdWithNewConnection(ctx context.Context) error {
+	conn, err := p.connect(ctx)
 	if err != nil {
 		return oopsx.B("runtime", "systemd").Wrapf(err, "connect systemd dbus")
 	}

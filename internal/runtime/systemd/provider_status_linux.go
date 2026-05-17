@@ -32,7 +32,7 @@ func (p *Provider) Status(ctx context.Context, meta deployv1.Metadata, workloadN
 		UpdatedAt: time.Now().UTC(),
 	}
 
-	conn, err := dbus.NewSystemConnectionContext(ctx)
+	conn, err := p.connect(ctx)
 	if err != nil {
 		return runtimeinfo.Status{}, oopsx.B("runtime", "systemd").Wrapf(err, "connect systemd dbus")
 	}

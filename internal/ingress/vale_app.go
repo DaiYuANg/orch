@@ -26,11 +26,12 @@ func NewHTTPHandler(routes *list.List[config.IngressRoute], log *slog.Logger) (h
 	if log == nil {
 		log = slog.Default()
 	}
-	snapshot, routeCount, err := buildValeSnapshot(routes)
+	vale := newValeFactory()
+	snapshot, routeCount, err := vale.build(routes)
 	if err != nil {
 		return nil, err
 	}
-	gateway := valeruntime.NewGateway(snapshot, log, false, valeruntime.NewNoopMetrics())
+	gateway := vale.gateway(snapshot, log, false)
 	return newIngressHTTPHandler(gateway, func() int { return routeCount }), nil
 }
 

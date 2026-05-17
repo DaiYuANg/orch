@@ -126,7 +126,7 @@ func mapService(name string, s composetypes.ServiceConfig, rep *Report) (deployv
 			Env: envFromCompose(s.Environment),
 			Cwd: strings.TrimSpace(s.WorkingDir),
 		},
-		Replicas: replicasFromCompose(&s),
+		Replicas: composeReplicas(&s),
 	}
 
 	w.Run.Options.Docker = dockerOptionsFromCompose(name, &s, rep)
@@ -160,14 +160,12 @@ func envFromCompose(m composetypes.MappingWithEquals) []deployv1.EnvVar {
 	}).Values()
 }
 
-func replicasFromCompose(s *composetypes.ServiceConfig) int {
-	if s.Scale != nil && *s.Scale > 0 {
-		return *s.Scale
+func composeReplicas(s *composetypes.ServiceConfig) int {
+	replicas := s.GetScale()
+	if replicas <= 0 {
+		return 1
 	}
-	if s.Deploy != nil && s.Deploy.Replicas != nil && *s.Deploy.Replicas > 0 {
-		return *s.Deploy.Replicas
-	}
-	return 1
+	return replicas
 }
 
 func endpointsFromCompose(service string, ports []composetypes.ServicePortConfig, rep *Report) []deployv1.Endpoint {

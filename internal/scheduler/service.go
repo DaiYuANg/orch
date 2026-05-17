@@ -20,13 +20,37 @@ type Service struct {
 	sched  gocron.Scheduler
 }
 
+type schedulerFactory func(config.SchedulerConfig, *raftsvc.Service) (gocron.Scheduler, error)
+
+func newSchedulerFactory() schedulerFactory {
+	return newGocronScheduler
+}
+
 // New constructs the scheduler worker (not started until Start).
 func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service) (*Service, error) {
+	return newWithSchedulerFactory(cfg, logger, raft, newSchedulerFactory())
+}
+
+func newWithSchedulerFactory(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service, factory schedulerFactory) (*Service, error) {
+	if factory == nil {
+		factory = newGocronScheduler
+	}
+	s, err := factory(cfg.Scheduler, raft)
+	if err != nil {
+		return nil, err
+	}
+	return &Service{
+		logger: logger,
+		cfg:    cfg,
+		sched:  s,
+	}, nil
+}
+
+func newGocronScheduler(sc config.SchedulerConfig, raft *raftsvc.Service) (gocron.Scheduler, error) {
 	opts := []gocron.SchedulerOption{
 		gocron.WithLocation(time.Local),
 	}
 
-	sc := cfg.Scheduler
 	if sc.RaftLeaderOnly {
 		opts = append(opts, gocron.WithDistributedElector(newRaftElector(raft)))
 	}
@@ -43,11 +67,7 @@ func New(cfg config.Config, logger *slog.Logger, raft *raftsvc.Service) (*Servic
 	if err != nil {
 		return nil, oopsx.B("scheduler").Wrapf(err, "new gocron scheduler")
 	}
-	return &Service{
-		logger: logger,
-		cfg:    cfg,
-		sched:  s,
-	}, nil
+	return s, nil
 }
 
 // Jobs exposes the underlying gocron scheduler for registering tasks before Start.

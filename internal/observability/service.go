@@ -21,12 +21,25 @@ type Service struct {
 	shutdownOTLP func(context.Context) error
 }
 
+type otlpFactory func(context.Context, config.Config, *slog.Logger) (obs.Observability, func(context.Context) error, error)
+
+func newOTLPFactory() otlpFactory {
+	return newOTLP
+}
+
 func New(cfg config.Config, reg *prom.Registry, logger *slog.Logger) (*Service, error) {
+	return newWithOTLPFactory(cfg, reg, logger, newOTLPFactory())
+}
+
+func newWithOTLPFactory(cfg config.Config, reg *prom.Registry, logger *slog.Logger, otlp otlpFactory) (*Service, error) {
 	if observabilityDisabled(cfg) {
 		return &Service{backend: obs.Nop()}, nil
 	}
+	if otlp == nil {
+		otlp = newOTLP
+	}
 	svc := &Service{}
-	backends, err := svc.configureBackends(cfg, reg, logger)
+	backends, err := svc.configureBackends(cfg, reg, logger, otlp)
 	if err != nil {
 		return nil, err
 	}
@@ -38,10 +51,10 @@ func observabilityDisabled(cfg config.Config) bool {
 	return !cfg.Observability.Prometheus.Enabled && !cfg.Observability.OTLP.Enabled
 }
 
-func (s *Service) configureBackends(cfg config.Config, reg *prom.Registry, logger *slog.Logger) ([]obs.Observability, error) {
+func (s *Service) configureBackends(cfg config.Config, reg *prom.Registry, logger *slog.Logger, otlp otlpFactory) ([]obs.Observability, error) {
 	var backends []obs.Observability
 	if cfg.Observability.OTLP.Enabled {
-		backend, shutdown, err := newOTLP(context.Background(), cfg, logger)
+		backend, shutdown, err := otlp(context.Background(), cfg, logger)
 		if err != nil {
 			return nil, err
 		}

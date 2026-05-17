@@ -6,33 +6,28 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/arcgolabs/mapper"
 	"github.com/arcgolabs/plano/compiler"
 	"github.com/arcgolabs/plano/schema"
 
 	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
-func lowerResources(f *compiler.HIRForm) *v1.Resources {
-	var resources v1.Resources
-	if cpu, ok := int64Field(f, "cpu_millis"); ok {
-		resources.CPUMillis = cpu
-	}
-	if mem, ok := int64Field(f, "memory_bytes"); ok {
-		resources.MemoryBytes = mem
-	}
+func lowerResources(m *mapper.Mapper, f *compiler.HIRForm) *v1.Resources {
+	resources := mapHIRFields[v1.Resources](m, f)
 	if resources.CPUMillis == 0 && resources.MemoryBytes == 0 {
 		return nil
 	}
 	return &resources
 }
 
-func lowerWorkloadResources(f *compiler.HIRForm) (*v1.Resources, error) {
+func lowerWorkloadResources(m *mapper.Mapper, f *compiler.HIRForm) (*v1.Resources, error) {
 	out, err := lowerResourceFields(f)
 	if err != nil {
 		return nil, err
 	}
 	blocks := childFormsByKind(f, "resources")
-	return mergeResourceBlock(out, blocks)
+	return mergeResourceBlock(m, out, blocks)
 }
 
 func lowerResourceFields(f *compiler.HIRForm) (*v1.Resources, error) {
@@ -55,7 +50,7 @@ func lowerResourceFields(f *compiler.HIRForm) (*v1.Resources, error) {
 	return out, nil
 }
 
-func mergeResourceBlock(out *v1.Resources, blocks []compiler.HIRForm) (*v1.Resources, error) {
+func mergeResourceBlock(m *mapper.Mapper, out *v1.Resources, blocks []compiler.HIRForm) (*v1.Resources, error) {
 	if len(blocks) > 1 {
 		return nil, errors.New("at most one resources block")
 	}
@@ -65,7 +60,7 @@ func mergeResourceBlock(out *v1.Resources, blocks []compiler.HIRForm) (*v1.Resou
 	if out != nil {
 		return nil, errors.New("resources are set both as fields and resources block")
 	}
-	return lowerResources(&blocks[0]), nil
+	return lowerResources(m, &blocks[0]), nil
 }
 
 func ensureResources(resources *v1.Resources) *v1.Resources {
@@ -110,29 +105,14 @@ func parseCPUMillis(raw string) (int64, error) {
 	return int64(f * 1000), nil
 }
 
-func lowerScheduling(f *compiler.HIRForm) *v1.Scheduling {
-	var scheduling v1.Scheduling
-	if stateful, ok := boolField(f, "stateful"); ok {
-		scheduling.Stateful = stateful
-	}
-	if allowLeader, ok := boolField(f, "allow_leader"); ok {
-		scheduling.AllowLeader = allowLeader
-	}
-	if preferredNodes, ok := rawField(f, "preferred_nodes"); ok {
-		scheduling.PreferredNodes = stringList(preferredNodes)
-	}
+func lowerScheduling(m *mapper.Mapper, f *compiler.HIRForm) *v1.Scheduling {
+	scheduling := mapHIRFields[v1.Scheduling](m, f)
 	return nonEmptyScheduling(scheduling)
 }
 
-func lowerSchedulingFromFields(f *compiler.HIRForm, statefulDefault bool) *v1.Scheduling {
-	var scheduling v1.Scheduling
+func lowerSchedulingFromFields(m *mapper.Mapper, f *compiler.HIRForm, statefulDefault bool) *v1.Scheduling {
+	scheduling := mapHIRFields[v1.Scheduling](m, f)
 	scheduling.Stateful = statefulDefault
-	if allowLeader, ok := boolField(f, "allow_leader"); ok {
-		scheduling.AllowLeader = allowLeader
-	}
-	if preferredNodes, ok := rawField(f, "preferred_nodes"); ok {
-		scheduling.PreferredNodes = stringList(preferredNodes)
-	}
 	return nonEmptyScheduling(scheduling)
 }
 

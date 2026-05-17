@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/arcgolabs/mapper"
 	"github.com/arcgolabs/plano/compiler"
 
 	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
-func lowerWorkload(f *compiler.HIRForm, defaults appDefaults) (v1.Workload, error) {
+func lowerWorkload(m *mapper.Mapper, f *compiler.HIRForm, defaults appDefaults) (v1.Workload, error) {
 	workload, err := lowerWorkloadBase(f, defaults)
 	if err != nil {
 		return workload, err
 	}
-	for _, step := range workloadLoweringSteps(defaults) {
+	for _, step := range workloadLoweringSteps(m, defaults) {
 		if err := step(&workload, f); err != nil {
 			return workload, fmt.Errorf("workload %q: %w", workload.Name, err)
 		}
@@ -25,17 +26,21 @@ func lowerWorkload(f *compiler.HIRForm, defaults appDefaults) (v1.Workload, erro
 
 type workloadLoweringStep func(*v1.Workload, *compiler.HIRForm) error
 
-func workloadLoweringSteps(defaults appDefaults) []workloadLoweringStep {
+func workloadLoweringSteps(m *mapper.Mapper, defaults appDefaults) []workloadLoweringStep {
 	return []workloadLoweringStep{
 		fillWorkloadCore,
 		func(workload *v1.Workload, form *compiler.HIRForm) error {
-			return fillWorkloadRun(workload, form, defaults)
+			return fillWorkloadRun(m, workload, form, defaults)
 		},
 		fillWorkloadEndpoints,
 		fillWorkloadMounts,
 		fillWorkloadEnv,
-		fillWorkloadResources,
-		fillWorkloadScheduling,
+		func(workload *v1.Workload, form *compiler.HIRForm) error {
+			return fillWorkloadResources(m, workload, form)
+		},
+		func(workload *v1.Workload, form *compiler.HIRForm) error {
+			return fillWorkloadScheduling(m, workload, form)
+		},
 	}
 }
 
@@ -68,7 +73,7 @@ func fillWorkloadCore(workload *v1.Workload, f *compiler.HIRForm) error {
 	return nil
 }
 
-func fillWorkloadRun(workload *v1.Workload, f *compiler.HIRForm, defaults appDefaults) error {
+func fillWorkloadRun(m *mapper.Mapper, workload *v1.Workload, f *compiler.HIRForm, defaults appDefaults) error {
 	runs := childFormsByKind(f, "run")
 	if len(runs) > 1 {
 		return errors.New("at most one run block")
@@ -79,10 +84,10 @@ func fillWorkloadRun(workload *v1.Workload, f *compiler.HIRForm, defaults appDef
 	if err := fillRunFromFields(&workload.Run, f); err != nil {
 		return err
 	}
-	if err := fillRuntimeOptions(&workload.Run.Options, f); err != nil {
+	if err := fillRuntimeOptions(m, &workload.Run.Options, f); err != nil {
 		return err
 	}
-	if err := fillDockerOptionsFromFields(&workload.Run.Options, f); err != nil {
+	if err := fillDockerOptionsFromFields(m, &workload.Run.Options, f); err != nil {
 		return err
 	}
 	workload.Run.Options.Docker = mergeDockerOptionsForRuntime(workload.Runtime, defaults.Docker, workload.Run.Options.Docker)
@@ -129,8 +134,8 @@ func fillWorkloadEnv(workload *v1.Workload, f *compiler.HIRForm) error {
 	return nil
 }
 
-func fillWorkloadResources(workload *v1.Workload, f *compiler.HIRForm) error {
-	resources, err := lowerWorkloadResources(f)
+func fillWorkloadResources(m *mapper.Mapper, workload *v1.Workload, f *compiler.HIRForm) error {
+	resources, err := lowerWorkloadResources(m, f)
 	if err != nil {
 		return err
 	}
@@ -138,14 +143,14 @@ func fillWorkloadResources(workload *v1.Workload, f *compiler.HIRForm) error {
 	return nil
 }
 
-func fillWorkloadScheduling(workload *v1.Workload, f *compiler.HIRForm) error {
+func fillWorkloadScheduling(m *mapper.Mapper, workload *v1.Workload, f *compiler.HIRForm) error {
 	sched := childFormsByKind(f, "scheduling")
 	if len(sched) > 1 {
 		return errors.New("at most one scheduling block")
 	}
-	workload.Scheduling = lowerSchedulingFromFields(f, workload.Kind == v1.WorkloadKindStateful)
+	workload.Scheduling = lowerSchedulingFromFields(m, f, workload.Kind == v1.WorkloadKindStateful)
 	if len(sched) == 1 {
-		workload.Scheduling = mergeScheduling(workload.Scheduling, lowerScheduling(&sched[0]))
+		workload.Scheduling = mergeScheduling(workload.Scheduling, lowerScheduling(m, &sched[0]))
 	}
 	return nil
 }

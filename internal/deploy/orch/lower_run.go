@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/arcgolabs/mapper"
 	"github.com/arcgolabs/plano/compiler"
 
 	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
@@ -76,7 +77,7 @@ func fillArtifactFromFields(artifact *v1.ArtifactSpec, f *compiler.HIRForm) {
 	}
 }
 
-func fillRuntimeOptions(opts *v1.RunOptions, f *compiler.HIRForm) error {
+func fillRuntimeOptions(m *mapper.Mapper, opts *v1.RunOptions, f *compiler.HIRForm) error {
 	blocks := childFormsByKind(f, "runtime_options")
 	if len(blocks) > 1 {
 		return errors.New("at most one runtime_options block")
@@ -84,42 +85,42 @@ func fillRuntimeOptions(opts *v1.RunOptions, f *compiler.HIRForm) error {
 	if len(blocks) == 0 {
 		return nil
 	}
-	return fillRuntimeOptionForms(opts, &blocks[0], "runtime_options")
+	return fillRuntimeOptionForms(m, opts, &blocks[0], "runtime_options")
 }
 
-func fillRuntimeOptionForms(opts *v1.RunOptions, f *compiler.HIRForm, scope string) error {
+func fillRuntimeOptionForms(m *mapper.Mapper, opts *v1.RunOptions, f *compiler.HIRForm, scope string) error {
 	if err := fillOneOption(childFormsByKind(f, "docker"), scope, "docker", func(form *compiler.HIRForm) {
-		opts.Docker = mergeDockerOptions(opts.Docker, lowerDockerOptions(form))
+		opts.Docker = mergeDockerOptions(opts.Docker, lowerDockerOptions(m, form))
 	}); err != nil {
 		return err
 	}
 	if err := fillOneOption(childFormsByKind(f, "podman"), scope, "podman", func(form *compiler.HIRForm) {
-		opts.Docker = mergeDockerOptions(opts.Docker, lowerDockerOptions(form))
+		opts.Docker = mergeDockerOptions(opts.Docker, lowerDockerOptions(m, form))
 	}); err != nil {
 		return err
 	}
 	if err := fillOneOption(childFormsByKind(f, "containerd"), scope, "containerd", func(form *compiler.HIRForm) {
-		opts.Containerd = lowerContainerdOptions(form)
+		opts.Containerd = lowerContainerdOptions(m, form)
 	}); err != nil {
 		return err
 	}
 	if err := fillOneOption(childFormsByKind(f, "firecracker"), scope, "firecracker", func(form *compiler.HIRForm) {
-		opts.Firecracker = lowerFirecrackerOptions(form)
+		opts.Firecracker = lowerFirecrackerOptions(m, form)
 	}); err != nil {
 		return err
 	}
 	if err := fillOneOption(childFormsByKind(f, "process"), scope, "process", func(form *compiler.HIRForm) {
-		opts.Process = lowerProcessOptions(form)
+		opts.Process = lowerProcessOptions(m, form)
 	}); err != nil {
 		return err
 	}
 	if err := fillOneOption(childFormsByKind(f, "systemd"), scope, "systemd", func(form *compiler.HIRForm) {
-		opts.Systemd = lowerSystemdOptions(form)
+		opts.Systemd = lowerSystemdOptions(m, form)
 	}); err != nil {
 		return err
 	}
 	return fillOneOption(childFormsByKind(f, "windows_service"), scope, "windows_service", func(form *compiler.HIRForm) {
-		opts.WindowsService = lowerWindowsServiceOptions(form)
+		opts.WindowsService = lowerWindowsServiceOptions(m, form)
 	})
 }
 
@@ -133,10 +134,10 @@ func fillOneOption(forms []compiler.HIRForm, scope, name string, fill func(*comp
 	return nil
 }
 
-func fillDockerOptionsFromFields(opts *v1.RunOptions, f *compiler.HIRForm) error {
-	docker := lowerDockerOptions(f)
+func fillDockerOptionsFromFields(m *mapper.Mapper, opts *v1.RunOptions, f *compiler.HIRForm) error {
+	docker := lowerDockerOptions(m, f)
 	if docker != nil {
 		opts.Docker = mergeDockerOptions(opts.Docker, docker)
 	}
-	return fillRuntimeOptionForms(opts, f, "workload")
+	return fillRuntimeOptionForms(m, opts, f, "workload")
 }

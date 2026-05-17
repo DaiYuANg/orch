@@ -14,7 +14,8 @@ func Module() dix.Module {
 		"observability",
 		dix.Providers(
 			dix.Provider1(NewPrometheusRegistry, dix.Eager()),
-			dix.ProviderErr3(New, dix.Eager()),
+			dix.Provider0(newOTLPFactory),
+			dix.ProviderErr4(newWithOTLPFactory, dix.Eager()),
 		),
 		dix.Hooks(
 			dix.OnStop2(func(ctx context.Context, logger *slog.Logger, s *Service) error {

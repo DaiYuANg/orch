@@ -27,7 +27,8 @@ func Module() dix.Module {
 	return dix.NewModule(
 		"scheduler",
 		dix.Providers(
-			dix.ProviderErr3(New, dix.Eager()),
+			dix.Provider0(newSchedulerFactory),
+			dix.ProviderErr4(newWithSchedulerFactory, dix.Eager()),
 			dix.Provider4(newStartDeps),
 		),
 		dix.Hooks(

@@ -7,6 +7,7 @@ import (
 
 	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/set"
+	"github.com/arcgolabs/mapper"
 	"github.com/arcgolabs/plano/compiler"
 	"github.com/arcgolabs/plano/schema"
 
@@ -18,9 +19,7 @@ type appDefaults struct {
 	Docker  *v1.DockerOptions
 }
 
-// lowerHIR turns compiled orch HIR into the canonical v1alpha1 App. The HIR must contain
-// exactly one top-level app form.
-func lowerHIR(hir *compiler.HIR) (*v1.App, error) {
+func lowerHIRWithMapper(hir *compiler.HIR, m *mapper.Mapper) (*v1.App, error) {
 	if hir == nil {
 		return nil, errors.New("hir is nil")
 	}
@@ -34,18 +33,18 @@ func lowerHIR(hir *compiler.HIR) (*v1.App, error) {
 	if len(roots) != 1 {
 		return nil, fmt.Errorf("expected exactly one top-level app form, got %d", len(roots))
 	}
-	return lowerApp(&roots[0])
+	return lowerApp(m, &roots[0])
 }
 
-func lowerApp(root *compiler.HIRForm) (*v1.App, error) {
+func lowerApp(m *mapper.Mapper, root *compiler.HIRForm) (*v1.App, error) {
 	app := &v1.App{}
-	metadata, defaults, err := lowerAppHeader(root)
+	metadata, defaults, err := lowerAppHeader(m, root)
 	if err != nil {
 		return nil, err
 	}
 	app.Metadata = metadata
 
-	workloadEndpoints, err := lowerAppWorkloads(app, root, defaults)
+	workloadEndpoints, err := lowerAppWorkloads(m, app, root, defaults)
 	if err != nil {
 		return nil, err
 	}
@@ -58,23 +57,23 @@ func lowerApp(root *compiler.HIRForm) (*v1.App, error) {
 	return app, nil
 }
 
-func lowerAppHeader(root *compiler.HIRForm) (v1.Metadata, appDefaults, error) {
+func lowerAppHeader(m *mapper.Mapper, root *compiler.HIRForm) (v1.Metadata, appDefaults, error) {
 	metadata, err := lowerAppMetadata(root)
 	if err != nil {
 		return v1.Metadata{}, appDefaults{}, err
 	}
-	defaults, err := lowerAppDefaults(root)
+	defaults, err := lowerAppDefaults(m, root)
 	if err != nil {
 		return v1.Metadata{}, appDefaults{}, err
 	}
 	return metadata, defaults, nil
 }
 
-func lowerAppWorkloads(app *v1.App, root *compiler.HIRForm, defaults appDefaults) (map[string][]v1.Endpoint, error) {
+func lowerAppWorkloads(m *mapper.Mapper, app *v1.App, root *compiler.HIRForm, defaults appDefaults) (map[string][]v1.Endpoint, error) {
 	workloadEndpoints := map[string][]v1.Endpoint{}
 	workloadForms := childFormsByKinds(root, "workload", "service", "stateful", "worker")
 	for i := range workloadForms {
-		workload, err := lowerWorkload(&workloadForms[i], defaults)
+		workload, err := lowerWorkload(m, &workloadForms[i], defaults)
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +152,7 @@ func lowerAppMetadata(root *compiler.HIRForm) (v1.Metadata, error) {
 	return lowerMetadata(root)
 }
 
-func lowerAppDefaults(root *compiler.HIRForm) (appDefaults, error) {
+func lowerAppDefaults(m *mapper.Mapper, root *compiler.HIRForm) (appDefaults, error) {
 	defaults := appDefaults{Runtime: v1.RuntimeDocker}
 	if rt, ok := stringField(root, "runtime"); ok && strings.TrimSpace(rt) != "" {
 		defaults.Runtime = v1.RuntimeKind(strings.ToLower(strings.TrimSpace(rt)))
@@ -163,7 +162,7 @@ func lowerAppDefaults(root *compiler.HIRForm) (appDefaults, error) {
 		return defaults, errors.New("app: at most one docker block")
 	}
 	if len(blocks) == 1 {
-		defaults.Docker = lowerDockerOptions(&blocks[0])
+		defaults.Docker = lowerDockerOptions(m, &blocks[0])
 	}
 	return defaults, nil
 }

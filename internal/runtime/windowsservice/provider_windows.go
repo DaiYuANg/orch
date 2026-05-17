@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 	"github.com/lyonbrown4d/orch/internal/runtime/runconfig"
 	"github.com/lyonbrown4d/orch/pkg/oopsx"
@@ -24,6 +26,8 @@ type deployServiceSpec struct {
 	displayName string
 	startType   uint32
 }
+
+var errServiceStillRunning = errors.New("windows service still running")
 
 func (p *Provider) Deploy(ctx context.Context, meta deployv1.Metadata, w deployv1.Workload) error {
 	if err := ctx.Err(); err != nil {
@@ -151,7 +155,7 @@ func (p *Provider) Stop(ctx context.Context, meta deployv1.Metadata, workloadNam
 	}
 	defer p.closeService(service, serviceName)
 
-	if err := p.stopOpenedService(service, serviceName); err != nil {
+	if err := p.stopOpenedService(ctx, service, serviceName); err != nil {
 		return err
 	}
 	if err := p.removeWorkloadDNS(ctx, meta, workloadName); err != nil {
@@ -187,12 +191,12 @@ func (p *Provider) cleanupMissingService(ctx context.Context, meta deployv1.Meta
 	return p.removeState(meta, workloadName)
 }
 
-func (p *Provider) stopOpenedService(service *mgr.Service, serviceName string) error {
+func (p *Provider) stopOpenedService(ctx context.Context, service *mgr.Service, serviceName string) error {
 	if p.serviceRunning(service) {
 		if _, err := service.Control(winsvc.Stop); err != nil {
 			p.logger.Warn("windows service stop control", "service", serviceName, "error", err)
 		}
-		waitServiceStopped(service, 10*time.Second)
+		waitServiceStopped(ctx, service, 10*time.Second)
 	}
 	if err := service.Delete(); err != nil {
 		return oopsx.B("runtime", "windows-service").Wrapf(err, "delete service %s", serviceName)
@@ -264,13 +268,20 @@ func serviceStartType(w deployv1.Workload) (uint32, error) {
 	}
 }
 
-func waitServiceStopped(service *mgr.Service, timeout time.Duration) {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+func waitServiceStopped(ctx context.Context, service *mgr.Service, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	if _, err := backoff.Retry(ctx, func() (struct{}, error) {
 		status, err := service.Query()
-		if err != nil || status.State == winsvc.Stopped {
-			return
+		if err != nil {
+			return struct{}{}, backoff.Permanent(err)
 		}
-		time.Sleep(200 * time.Millisecond)
+		if status.State == winsvc.Stopped {
+			return struct{}{}, nil
+		}
+		return struct{}{}, errServiceStillRunning
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(200*time.Millisecond))); err != nil {
+		return
 	}
 }

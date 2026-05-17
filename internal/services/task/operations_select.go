@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/set"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 	"github.com/lyonbrown4d/orch/internal/workloadmeta"
@@ -35,47 +36,45 @@ func selectOperationWorkloads(app *deployv1.App, names []string) (*list.List[dep
 		return nil, oopsx.B("task").Wrapf(err, "order workloads")
 	}
 	wanted := requestedWorkloadNames(names)
-	if len(wanted) == 0 {
+	if wanted.IsEmpty() {
 		return ordered, nil
 	}
 	selected := selectedOperationWorkloads(ordered, wanted)
-	if len(wanted) > 0 {
+	if !wanted.IsEmpty() {
 		return nil, missingWorkloadError(wanted)
 	}
 	return selected, nil
 }
 
-func requestedWorkloadNames(names []string) map[string]struct{} {
-	wanted := make(map[string]struct{}, len(names))
+func requestedWorkloadNames(names []string) *set.OrderedSet[string] {
+	wanted := set.NewOrderedSetWithCapacity[string](len(names))
 	for _, raw := range names {
 		name := strings.TrimSpace(raw)
 		if name != "" {
-			wanted[name] = struct{}{}
+			wanted.Add(name)
 		}
 	}
 	return wanted
 }
 
-func selectedOperationWorkloads(ordered *list.List[deployv1.Workload], wanted map[string]struct{}) *list.List[deployv1.Workload] {
-	selected := list.NewListWithCapacity[deployv1.Workload](len(wanted))
+func selectedOperationWorkloads(ordered *list.List[deployv1.Workload], wanted *set.OrderedSet[string]) *list.List[deployv1.Workload] {
+	selected := list.NewListWithCapacity[deployv1.Workload](wanted.Len())
 	ordered.Range(func(_ int, workload deployv1.Workload) bool {
 		name := strings.TrimSpace(workload.Name)
-		if _, ok := wanted[name]; !ok {
+		if !wanted.Remove(name) {
 			return true
 		}
 		selected.Add(workload)
-		delete(wanted, name)
 		return true
 	})
 	return selected
 }
 
-func missingWorkloadError(wanted map[string]struct{}) error {
-	missing := make([]string, 0, len(wanted))
-	for name := range wanted {
-		missing = append(missing, name)
+func missingWorkloadError(wanted *set.OrderedSet[string]) error {
+	missing := wanted.Values()
+	if len(missing) > 1 {
+		sort.Strings(missing)
 	}
-	sort.Strings(missing)
 	return oopsx.B("task").Errorf("workload(s) not found: %s", strings.Join(missing, ", "))
 }
 

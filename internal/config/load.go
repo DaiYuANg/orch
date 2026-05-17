@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/set"
 	"github.com/arcgolabs/configx"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -37,16 +38,16 @@ func LoadFromCobra(cmd *cobra.Command) (Config, error) {
 
 func cobraConfigFlags(cmd *cobra.Command) *pflag.FlagSet {
 	out := pflag.NewFlagSet("orch-cobra-config", pflag.ContinueOnError)
-	seen := map[string]struct{}{}
+	seen := set.NewSet[string]()
 	add := func(fs *pflag.FlagSet) {
 		if fs == nil {
 			return
 		}
 		fs.VisitAll(func(f *pflag.Flag) {
-			if _, ok := seen[f.Name]; ok {
+			if seen.Contains(f.Name) {
 				return
 			}
-			seen[f.Name] = struct{}{}
+			seen.Add(f.Name)
 			out.AddFlag(f)
 		})
 	}

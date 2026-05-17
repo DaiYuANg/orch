@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/set"
 
 	"github.com/lyonbrown4d/orch/internal/raftsvc"
 	"github.com/lyonbrown4d/orch/pkg/oopsx"
@@ -96,29 +97,29 @@ func (s *Service) reconcileRaftMembership(ctx context.Context) error {
 			joinErr = oopsx.B("gossip", "raft").Wrapf(err, "add discovered voter %s", node.ID)
 			return false
 		}
-		existing[node.ID] = struct{}{}
+		existing.Add(node.ID)
 		s.logger.Info("gossip discovered raft voter joined", "node_id", node.ID, "raft_address", node.RaftAddress)
 		return true
 	})
 	return joinErr
 }
 
-func raftMemberIDs(ctx context.Context, raft *raftsvc.Service) (map[string]struct{}, error) {
+func raftMemberIDs(ctx context.Context, raft *raftsvc.Service) (*set.Set[string], error) {
 	members, err := raft.ListMembers(ctx)
 	if err != nil {
 		return nil, oopsx.B("gossip", "raft").Wrapf(err, "list raft members")
 	}
-	out := make(map[string]struct{}, members.Len())
+	out := set.NewSetWithCapacity[string](members.Len())
 	members.Range(func(_ int, member raftsvc.Member) bool {
 		if id := strings.TrimSpace(member.ID); id != "" {
-			out[id] = struct{}{}
+			out.Add(id)
 		}
 		return true
 	})
 	return out, nil
 }
 
-func (s *Service) raftJoinCandidates(existing map[string]struct{}) *list.List[Node] {
+func (s *Service) raftJoinCandidates(existing *set.Set[string]) *list.List[Node] {
 	localID := strings.TrimSpace(s.local.String())
 	out := list.NewList[Node]()
 	s.members.Range(func(_ string, node Node) bool {
@@ -134,7 +135,7 @@ func (s *Service) raftJoinCandidates(existing map[string]struct{}) *list.List[No
 	return out
 }
 
-func isRaftJoinCandidate(node Node, existing map[string]struct{}, localID string) bool {
+func isRaftJoinCandidate(node Node, existing *set.Set[string], localID string) bool {
 	id := strings.TrimSpace(node.ID)
 	if id == "" || id == localID || strings.TrimSpace(node.RaftAddress) == "" {
 		return false
@@ -142,6 +143,5 @@ func isRaftJoinCandidate(node Node, existing map[string]struct{}, localID string
 	if !strings.EqualFold(strings.TrimSpace(node.State), "alive") {
 		return false
 	}
-	_, ok := existing[id]
-	return !ok
+	return !existing.Contains(id)
 }

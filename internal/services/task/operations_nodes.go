@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/set"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 	"github.com/lyonbrown4d/orch/internal/runtime/runconfig"
@@ -65,7 +66,7 @@ func failoverCandidate(workload deployv1.Workload, candidates *list.List[string]
 
 func (s *Service) alternativeNodeCandidates(current string) *list.List[string] {
 	current = strings.TrimSpace(current)
-	seen := map[string]struct{}{}
+	seen := set.NewSet[string]()
 	out := list.NewList[string]()
 	addNodeCandidate(out, seen, current, s.catalog.NodeIDs().Values()...)
 	addNodeCandidate(out, seen, current, sortedConfiguredNodeIDs(s.cfg.Cluster.Nodes)...)
@@ -73,16 +74,16 @@ func (s *Service) alternativeNodeCandidates(current string) *list.List[string] {
 	return out
 }
 
-func addNodeCandidate(out *list.List[string], seen map[string]struct{}, current string, nodeIDs ...string) {
+func addNodeCandidate(out *list.List[string], seen *set.Set[string], current string, nodeIDs ...string) {
 	for _, raw := range nodeIDs {
 		nodeID := strings.TrimSpace(raw)
 		if nodeID == "" || nodeID == current {
 			continue
 		}
-		if _, ok := seen[nodeID]; ok {
+		if seen.Contains(nodeID) {
 			continue
 		}
-		seen[nodeID] = struct{}{}
+		seen.Add(nodeID)
 		out.Add(nodeID)
 	}
 }

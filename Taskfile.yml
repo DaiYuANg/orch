@@ -92,6 +92,13 @@ tasks:
     vars:
       CLI_ARGS: '{{default "" .CLI_ARGS}}'
 
+  smoke:local-container-runtimes:
+    desc: "Run available local runtime smoke checks (Docker and Podman)"
+    cmds:
+      - pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/run-container-runtime-smokes.ps1 {{.CLI_ARGS}}
+    vars:
+      CLI_ARGS: '{{default "" .CLI_ARGS}}'
+
   smoke:local-raft-forwarding:
     desc: "Run a local three-node Raft forwarding smoke test"
     cmds:
@@ -163,9 +170,7 @@ tasks:
       - task smoke:local-raft-forwarding
 
   release-gate:
-    desc: "Run full beta release gate checks, including local Docker smoke tests"
+    desc: "Run full beta release gate checks, including local container-runtime smoke tests"
     cmds:
       - task release-gate:static
-      - task smoke:local-docker
-      - task smoke:local-docker-dns
-      - task smoke:local-docker-worker-dispatch
+      - task smoke:local-container-runtimes

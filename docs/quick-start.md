@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Go 1.26.2+
-- Docker (for docker runtime)
+- Docker or Podman (for container-style runtime)
 - containerd with CRI plugin and CNI config (optional, Linux-only containerd runtime)
 - Firecracker binary, KVM, kernel image, rootfs image, and optional pre-created tap/bridge for firecracker runtime
 - Local executables on the host (for process runtime)

@@ -1,10 +1,10 @@
 # Project Status
 
-Snapshot date: May 14, 2026
+Snapshot date: May 17, 2026
 
 Implemented:
 
-- Runtime abstraction with providers for `docker`, `containerd`, Linux
+- Runtime abstraction with providers for `docker`, `podman`, `containerd`, Linux
   `firecracker`, local `process`, Linux `systemd`, and Windows
   `windows-service`.
 - The `containerd` provider targets the CRI sandbox path by default, including
@@ -14,7 +14,8 @@ Implemented:
   upstream resolvers.
 - Runtime-neutral deploy spec: `run.artifact` for images/paths/URLs,
   `run.exec` for command/args, and typed `runtimeOptions` for `docker`,
-  `containerd`, `firecracker`, `process`, `systemd`, and `windows-service`.
+  `podman`, `containerd`, `firecracker`, `process`, `systemd`, and
+  `windows-service`.
 - Task APIs: deploy/list, app start/stop/restart/delete, and baseline
   migrate/failover/rebalance operations.
 - Control-plane readiness API and CLI gate (`/api/ready`, `orch ready --wait`)

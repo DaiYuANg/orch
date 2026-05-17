@@ -1,6 +1,6 @@
 # Runtime Compatibility Matrix
 
-Snapshot date: May 14, 2026
+Snapshot date: May 17, 2026
 
 This matrix tracks the current provider surface, not the long-term target. "Yes"
 means the code path exists in the provider today; it does not imply the runtime
@@ -9,6 +9,7 @@ has a dedicated end-to-end smoke test on every operating system.
 | Runtime | Host support | Deploy / stop | Status | Logs | orch DNS behavior | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | `docker` | Docker Engine reachable from the server host | Yes | Yes | Yes | Injects orch DNS resolver/search domains into Docker host config and records workload A records | Primary smoke-tested runtime. Works well for local beta flows and worker dispatch. |
+| `podman` | Docker-compatible Podman API reachable from the server host | Yes | Yes | Yes | Shares Docker behavior via shared adapter: injects orch DNS resolver/search domains into container config and records workload A records | Runtime kind `podman` currently uses the Docker-compatible runtime adapter and Podman env/host wiring. |
 | `containerd` | Linux with containerd CRI plugin and working CNI | Yes | Yes | Yes | Injects orch DNS through CRI sandbox DNS config and records workload A records from sandbox IP | Uses CRI pod sandboxes only. `CONTAINERD_ADDRESS` can override the default socket. `runtimeOptions.containerd.namespace` maps to CRI sandbox metadata only; orch DNS and labels still use `metadata.namespace`. |
 | `process` | Host process execution through `os/exec` | Yes | Yes | Yes | Records workload A records to the host-facing workload address; process resolver behavior depends on host DNS installer | Supports custom stdout/stderr log paths under `runtimeOptions.process`. |
 | `systemd` | Linux systemd | Yes | Yes | Yes | Records workload A records to the host-facing workload address; service resolver behavior depends on host DNS installer | Status uses systemd DBus. Logs use `journalctl --unit`. |

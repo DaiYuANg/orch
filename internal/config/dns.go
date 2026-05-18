@@ -132,17 +132,14 @@ func normalizeDNSNameserver(raw string, allowLoopback bool) (string, bool) {
 
 func normalizeDNSUpstreams(ctx context.Context, upstreams *list.List[string]) *list.List[string] {
 	seen := set.NewSet[string]()
-	out := list.NewListWithCapacity[string](upstreams.Len())
-	upstreams.Range(func(_ int, upstream string) bool {
+	return list.FilterMapList(upstreams, func(_ int, upstream string) (string, bool) {
 		u, ok := normalizeDNSUpstream(ctx, upstream)
 		if !ok || seen.Contains(u) {
-			return true
+			return "", false
 		}
 		seen.Add(u)
-		out.Add(u)
-		return true
+		return u, true
 	})
-	return out
 }
 
 func normalizeDNSUpstream(ctx context.Context, raw string) (string, bool) {
@@ -172,15 +169,12 @@ func normalizeDNSUpstream(ctx context.Context, raw string) (string, bool) {
 
 func normalizeDNSDomains(domains *list.List[string]) *list.List[string] {
 	seen := set.NewSet[string]()
-	out := list.NewListWithCapacity[string](domains.Len())
-	domains.Range(func(_ int, domain string) bool {
+	return list.FilterMapList(domains, func(_ int, domain string) (string, bool) {
 		d := strings.Trim(strings.ToLower(strings.TrimSpace(domain)), ".")
 		if d == "" || seen.Contains(d) {
-			return true
+			return "", false
 		}
 		seen.Add(d)
-		out.Add(d)
-		return true
+		return d, true
 	})
-	return out
 }

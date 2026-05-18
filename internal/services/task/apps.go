@@ -58,18 +58,9 @@ func (s *Service) DesiredWorkload(meta deployv1.Metadata, workloadName string) (
 		return deployv1.Workload{}, false
 	}
 	name := strings.TrimSpace(workloadName)
-	workloads := appWorkloadsForView(app)
-	var out deployv1.Workload
-	found := false
-	workloads.Range(func(_ int, workload deployv1.Workload) bool {
-		if strings.TrimSpace(workload.Name) != name {
-			return true
-		}
-		out = workload
-		found = true
-		return false
-	})
-	return out, found
+	return appWorkloadsForView(app).FirstWhere(func(_ int, workload deployv1.Workload) bool {
+		return strings.TrimSpace(workload.Name) == name
+	}).Get()
 }
 
 func (s *Service) ListApps() *list.List[AppView] {
@@ -77,10 +68,8 @@ func (s *Service) ListApps() *list.List[AppView] {
 		return list.NewList[AppView]()
 	}
 	apps := s.raft.ListDesiredDeployApps()
-	out := list.NewListWithCapacity[AppView](apps.Len())
-	apps.Range(func(_ int, app deployv1.App) bool {
-		out.Add(s.buildAppView(app))
-		return true
+	out := list.MapList(apps, func(_ int, app deployv1.App) AppView {
+		return s.buildAppView(app)
 	})
 	out.Sort(func(a, b AppView) int {
 		if cmp := strings.Compare(workloadmeta.NamespaceOrDefault(a.Metadata.Namespace), workloadmeta.NamespaceOrDefault(b.Metadata.Namespace)); cmp != 0 {

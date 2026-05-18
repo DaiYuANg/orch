@@ -135,10 +135,9 @@ func hookInfoList(in *list.List[dix.LifecycleHookSummary]) *list.List[HookInfo] 
 	if in == nil {
 		return list.NewList[HookInfo]()
 	}
-	out := list.NewListWithCapacity[HookInfo](in.Len())
-	in.Range(func(_ int, hook dix.LifecycleHookSummary) bool {
+	return list.MapList(in, func(_ int, hook dix.LifecycleHookSummary) HookInfo {
 		timeout, timeoutMS := durationFields(hook.Timeout)
-		out.Add(HookInfo{
+		return HookInfo{
 			Name:      hook.Name,
 			Label:     hook.Label,
 			Kind:      string(hook.Kind),
@@ -147,10 +146,8 @@ func hookInfoList(in *list.List[dix.LifecycleHookSummary]) *list.List[HookInfo] 
 			Timeout:   timeout,
 			TimeoutMS: timeoutMS,
 			Sequence:  hook.Sequence,
-		})
-		return true
+		}
 	})
-	return out
 }
 
 func recentEventList(records *list.List[dix.EventRecord]) *list.List[RecentEvent] {
@@ -159,11 +156,9 @@ func recentEventList(records *list.List[dix.EventRecord]) *list.List[RecentEvent
 	}
 	values := records.Values()
 	start := max(len(values)-maxRecentEvents, 0)
-	out := list.NewListWithCapacity[RecentEvent](len(values) - start)
-	for _, record := range values[start:] {
-		out.Add(recentEvent(record))
-	}
-	return out
+	return list.MapList(list.NewList(values[start:]...), func(_ int, record dix.EventRecord) RecentEvent {
+		return recentEvent(record)
+	})
 }
 
 func recentEvent(record dix.EventRecord) RecentEvent {

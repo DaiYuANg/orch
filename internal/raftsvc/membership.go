@@ -34,11 +34,9 @@ func (s *Service) ListMembers(ctx context.Context) (*list.List[Member], error) {
 		return nil, oopsx.B("raft").Wrapf(err, "get raft membership")
 	}
 	replicaIDs := s.sortedMembershipReplicaIDs(membership.Nodes, membership.NonVotings, membership.Witnesses)
-	out := list.NewListWithCapacity[Member](len(replicaIDs))
-	for _, replicaID := range replicaIDs {
-		out.Add(s.memberFromReplicaID(replicaID, membership.Nodes, membership.NonVotings, membership.Witnesses))
-	}
-	return out, nil
+	return list.MapList(list.NewList(replicaIDs...), func(_ int, replicaID uint64) Member {
+		return s.memberFromReplicaID(replicaID, membership.Nodes, membership.NonVotings, membership.Witnesses)
+	}), nil
 }
 
 func (s *Service) sortedMembershipReplicaIDs(nodes, nonVotings, witnesses map[uint64]string) []uint64 {

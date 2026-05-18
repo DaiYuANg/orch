@@ -37,11 +37,7 @@ func (s *Service) WorkloadIPv4HostRouteList() *list.List[string] {
 		routes.Add(pip.String() + "/32")
 		return true
 	})
-	out := list.NewListWithCapacity[string](routes.Len())
-	routes.Range(func(route string) bool {
-		out.Add(route)
-		return true
-	})
+	out := list.NewList(routes.Values()...)
 	out.Sort(strings.Compare)
 	return out
 }

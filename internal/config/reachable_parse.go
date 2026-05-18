@@ -21,10 +21,9 @@ func IngressReachabilityURLList(ing IngressConfig) *list.List[string] {
 	urls := list.NewList[string]()
 	urls.Merge(IngressURLListFromAddrList(ing.PlainListenAddrList()))
 	if ing.TLS.Enabled {
-		ing.TLSAutocertDomainList().Range(func(_ int, d string) bool {
-			urls.Add("https://" + strings.TrimSuffix(d, "/") + "/")
-			return true
-		})
+		urls.Merge(list.MapList(ing.TLSAutocertDomainList(), func(_ int, d string) string {
+			return "https://" + strings.TrimSuffix(d, "/") + "/"
+		}))
 		urls.Merge(IngressURLListFromAddrList(ing.TLSListenAddrList()))
 	}
 	return uniqueStringList(urls)
@@ -77,10 +76,5 @@ func uniqueStringList(values *list.List[string]) *list.List[string] {
 		seen.Add(value)
 		return true
 	})
-	out := list.NewListWithCapacity[string](seen.Len())
-	seen.Range(func(value string) bool {
-		out.Add(value)
-		return true
-	})
-	return out
+	return list.NewList(seen.Values()...)
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/samber/lo"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
@@ -16,16 +17,13 @@ const (
 
 // Env returns Docker/OCI-style environment entries.
 func Env(vars *list.List[deployv1.EnvVar]) *list.List[string] {
-	out := list.NewListWithCapacity[string](vars.Len())
-	vars.Range(func(_ int, v deployv1.EnvVar) bool {
+	return list.FilterMapList(vars, func(_ int, v deployv1.EnvVar) (string, bool) {
 		name := strings.TrimSpace(v.Name)
 		if name == "" {
-			return true
+			return "", false
 		}
-		out.Add(name + "=" + v.Value)
-		return true
+		return name + "=" + v.Value, true
 	})
-	return out
 }
 
 // CommandArgs returns an explicit OCI process argv when run.exec.command is set.
@@ -60,18 +58,16 @@ func ProcessCommand(run deployv1.RunSpec) (string, *list.List[string], bool) {
 
 // ArtifactSummary returns a compact human-facing identifier for a workload artifact.
 func ArtifactSummary(run deployv1.RunSpec) string {
-	switch {
-	case strings.TrimSpace(run.Artifact.Image) != "":
-		return strings.TrimSpace(run.Artifact.Image)
-	case strings.TrimSpace(run.Artifact.Path) != "":
-		return strings.TrimSpace(run.Artifact.Path)
-	case strings.TrimSpace(run.Artifact.URL) != "":
-		return strings.TrimSpace(run.Artifact.URL)
-	case len(run.Exec.Command) > 0:
-		return strings.TrimSpace(run.Exec.Command[0])
-	default:
-		return ""
+	command := ""
+	if len(run.Exec.Command) > 0 {
+		command = strings.TrimSpace(run.Exec.Command[0])
 	}
+	return lo.CoalesceOrEmpty(
+		strings.TrimSpace(run.Artifact.Image),
+		strings.TrimSpace(run.Artifact.Path),
+		strings.TrimSpace(run.Artifact.URL),
+		command,
+	)
 }
 
 // NanoCPUs converts millicores to Docker NanoCPUs.

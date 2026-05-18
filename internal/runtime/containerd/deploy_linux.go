@@ -159,16 +159,13 @@ func criSandboxConfig(p *Provider, meta deployv1.Metadata, w deployv1.Workload) 
 }
 
 func criEnv(vars *list.List[deployv1.EnvVar]) []*runtimeapi.KeyValue {
-	out := list.NewListWithCapacity[*runtimeapi.KeyValue](vars.Len())
-	vars.Range(func(_ int, v deployv1.EnvVar) bool {
+	return list.FilterMapList(vars, func(_ int, v deployv1.EnvVar) (*runtimeapi.KeyValue, bool) {
 		name := strings.TrimSpace(v.Name)
 		if name == "" {
-			return true
+			return nil, false
 		}
-		out.Add(&runtimeapi.KeyValue{Key: name, Value: v.Value})
-		return true
-	})
-	return out.Values()
+		return &runtimeapi.KeyValue{Key: name, Value: v.Value}, true
+	}).Values()
 }
 
 func criLinuxResources(w deployv1.Workload) *runtimeapi.LinuxContainerResources {

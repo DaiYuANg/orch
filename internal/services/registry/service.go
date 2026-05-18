@@ -46,11 +46,7 @@ func (s *Service) Delete(name string) {
 }
 
 func (s *Service) List() *list.List[WorkloadRecord] {
-	out := list.NewListWithCapacity[WorkloadRecord](s.items.Len())
-	s.items.Range(func(_ string, record WorkloadRecord) bool {
-		out.Add(record)
-		return true
-	})
+	out := list.NewList(s.items.Values()...)
 	out.Sort(func(a, b WorkloadRecord) int {
 		return strings.Compare(a.Name, b.Name)
 	})

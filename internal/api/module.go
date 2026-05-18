@@ -20,18 +20,9 @@ func Module() dix.Module {
 			dix.Provider5(newRouteEndpoints),
 		),
 		dix.Invokes(
-			dix.RawInvoke(func(c *dix.Container) error {
-				server, err := dix.ResolveAs[*httpserver.Server](c)
-				if err != nil {
-					return err
-				}
-				endpoints, err := dix.ResolveAs[RouteEndpoints](c)
-				if err != nil {
-					return err
-				}
+			dix.Invoke2(func(server *httpserver.Server, endpoints RouteEndpoints) {
 				RegisterEndpoints(server.Runtime(), endpoints)
 				server.LogRegisteredRoutes()
-				return nil
 			}),
 		),
 	)

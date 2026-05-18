@@ -79,13 +79,8 @@ func missingWorkloadError(wanted *set.OrderedSet[string]) error {
 }
 
 func (s *Service) failedWorkloads(meta deployv1.Metadata, workloads *list.List[deployv1.Workload]) *list.List[deployv1.Workload] {
-	out := list.NewList[deployv1.Workload]()
-	workloads.Range(func(_ int, workload deployv1.Workload) bool {
+	return list.FilterList(workloads, func(_ int, workload deployv1.Workload) bool {
 		assignment, ok := s.raft.GetWorkloadAssignment(workloadmeta.AssignmentKey(meta, workload.Name))
-		if ok && assignment.Status == workloadmeta.AssignmentStatusFailed {
-			out.Add(workload)
-		}
-		return true
+		return ok && assignment.Status == workloadmeta.AssignmentStatusFailed
 	})
-	return out
 }

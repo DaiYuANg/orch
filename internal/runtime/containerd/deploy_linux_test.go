@@ -166,7 +166,7 @@ func TestCRISandboxConfigWithContainerdNamespace(t *testing.T) {
 	if got := cfg.GetAnnotations()["orch.io/namespace"]; got != "prod" {
 		t.Fatalf("orch annotation namespace = %q, want %q", got, "prod")
 	}
-	if !slices.Equal(cfg.GetDnsConfig().GetSearches(), []string{"prod.svc.orch.local", "svc.orch.local"}) {
+	if !slices.Equal(cfg.GetDnsConfig().GetSearches(), []string{"prod.svc.orch.local", "svc.orch.local", "orch.local"}) {
 		t.Fatalf("dns searches = %#v", cfg.GetDnsConfig().GetSearches())
 	}
 }

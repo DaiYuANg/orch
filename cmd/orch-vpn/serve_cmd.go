@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/dix"
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/lyonbrown4d/orch/internal/config"
@@ -35,9 +34,7 @@ func runServeCommand(ctx context.Context, listenUDP string) error {
 	stopCtx, cancelStop := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancelStop()
 	defer func() {
-		if stopErr := rt.Stop(stopCtx); stopErr != nil {
-			pterm.Warning.Printfln("orch-vpn serve stop: %v", stopErr)
-		}
+		warnRuntimeStop(stopCtx, rt, "orch-vpn serve stop")
 	}()
 
 	svc, err := dix.ResolveAsContext[*orchvpn.ServerDaemonService](ctx, rt.Container())

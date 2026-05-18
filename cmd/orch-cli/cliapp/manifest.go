@@ -48,8 +48,13 @@ func RunManifest(ctx context.Context, fn func(ctx context.Context, deploy *loade
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	defer func() {
-		if stopErr := rt.Stop(stopCtx); stopErr != nil {
+		report, stopErr := rt.StopWithReport(stopCtx)
+		if stopErr != nil {
 			pterm.Warning.Printfln("orch-cli manifest runtime stop: %v", stopErr)
+			return
+		}
+		if report != nil && report.HasErrors() {
+			pterm.Warning.Printfln("orch-cli manifest runtime stop: %v", report.Err())
 		}
 	}()
 

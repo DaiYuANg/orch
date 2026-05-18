@@ -2,10 +2,10 @@ package task
 
 import (
 	"context"
-	"sort"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/mapping"
 	"github.com/arcgolabs/collectionx/set"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
@@ -89,12 +89,9 @@ func addNodeCandidate(out *list.List[string], seen *set.Set[string], current str
 }
 
 func sortedConfiguredNodeIDs(nodes map[string]string) []string {
-	nodeIDs := make([]string, 0, len(nodes))
-	for nodeID := range nodes {
-		nodeIDs = append(nodeIDs, nodeID)
-	}
-	sort.Strings(nodeIDs)
-	return nodeIDs
+	nodeIDs := list.NewList(mapping.NewMapFrom(nodes).Keys()...)
+	nodeIDs.Sort(strings.Compare)
+	return nodeIDs.Values()
 }
 
 func (s *Service) runWorkloadOnNode(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload, nodeID string) (string, error) {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/arcgolabs/mapper"
 	"github.com/arcgolabs/plano/compiler"
+	"github.com/samber/lo"
 
 	v1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
@@ -36,10 +37,20 @@ func lowerFirecrackerOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.Firecrac
 }
 
 func firecrackerOptionsEmpty(fc v1.FirecrackerOptions) bool {
-	for _, value := range []string{fc.KernelImagePath, fc.RootfsPath, fc.BootArgs, fc.BinaryPath, fc.SocketPath, fc.NetworkInterfaceID, fc.TapDeviceName, fc.GuestMAC} {
-		if value != "" {
-			return false
-		}
+	stringFields := []string{
+		fc.KernelImagePath,
+		fc.RootfsPath,
+		fc.BootArgs,
+		fc.BinaryPath,
+		fc.SocketPath,
+		fc.NetworkInterfaceID,
+		fc.TapDeviceName,
+		fc.GuestMAC,
+	}
+	if lo.SomeBy(stringFields, func(value string) bool {
+		return value != ""
+	}) {
+		return false
 	}
 	if fc.RootfsReadOnly || fc.AllowMMDSRequests {
 		return false
@@ -72,12 +83,9 @@ func lowerWindowsServiceOptions(m *mapper.Mapper, f *compiler.HIRForm) *v1.Windo
 }
 
 func stringFieldsEmpty(values ...string) bool {
-	for _, value := range values {
-		if value != "" {
-			return false
-		}
-	}
-	return true
+	return lo.NoneBy(values, func(value string) bool {
+		return value != ""
+	})
 }
 
 func mergeDockerOptionsForRuntime(runtime v1.RuntimeKind, base, override *v1.DockerOptions) *v1.DockerOptions {

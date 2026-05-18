@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -173,16 +172,24 @@ func newEventsCmd() *cobra.Command {
 				if err != nil {
 					return oopsx.B("cli").Wrapf(err, "events")
 				}
-				items := out.Body.Items.Values()
-				sort.SliceStable(items, func(i, j int) bool {
-					return items[i].UpdatedAt.After(items[j].UpdatedAt)
+				items := out.Body.Items
+				items.Sort(func(a, b api.AssignmentItem) int {
+					switch {
+					case a.UpdatedAt.After(b.UpdatedAt):
+						return -1
+					case a.UpdatedAt.Before(b.UpdatedAt):
+						return 1
+					default:
+						return 0
+					}
 				})
+				values := items.Values()
 				if jsonOut {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
-					return enc.Encode(items)
+					return enc.Encode(values)
 				}
-				return writeEventsHuman(items)
+				return writeEventsHuman(values)
 			})
 		},
 	}

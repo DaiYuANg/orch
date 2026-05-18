@@ -20,7 +20,7 @@ func newHostDNSCmd() *cobra.Command {
 		Short: "Manage host OS resolver integration for orch DNS",
 		Long:  "Installer-facing commands that configure the host OS resolver to route the orch DNS zone to orch-server.",
 	}
-	cmd.PersistentFlags().String("config", "", "Path to YAML, JSON, or TOML config file")
+	cmd.PersistentFlags().String("config", "", "Path to YAML, JSON, TOML, or HCL config file")
 	config.BindOrchFlags(cmd.PersistentFlags(), config.Default())
 
 	cmd.AddCommand(newHostDNSActionCmd("install"))

@@ -32,7 +32,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	cmd.Flags().String("config", "", "Path to YAML, JSON, or TOML config file (log/sink only; optional)")
+	cmd.Flags().String("config", "", "Path to YAML, JSON, TOML, or HCL config file (log/sink only; optional)")
 	config.BindOrchFlags(cmd.Flags(), config.Default())
 
 	return cmd
@@ -70,8 +70,11 @@ func (r *lspRunner) run(cmd *cobra.Command, _ []string) error {
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()
-	if err := rt.Stop(shutdownCtx); err != nil {
+	report, err := rt.StopWithReport(shutdownCtx)
+	if err != nil {
 		rt.Logger().Warn("graceful stop error", "error", err)
+	} else if report != nil && report.HasErrors() {
+		rt.Logger().Warn("graceful stop error", "error", report.Err())
 	}
 	return nil
 }

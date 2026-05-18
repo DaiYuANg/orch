@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/arcgolabs/dix"
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/lyonbrown4d/orch/internal/buildmeta"
@@ -45,9 +44,7 @@ func newRootCmd() *cobra.Command {
 		stopCtx, cancelStop := context.WithTimeout(context.WithoutCancel(cmd.Context()), 10*time.Second)
 		defer cancelStop()
 		defer func() {
-			if stopErr := rt.Stop(stopCtx); stopErr != nil {
-				pterm.Warning.Printfln("orch-vpn workstation stop: %v", stopErr)
-			}
+			warnRuntimeStop(stopCtx, rt, "orch-vpn workstation stop")
 		}()
 
 		d, err := dix.ResolveAsContext[*orchvpn.WorkstationDaemon](cmd.Context(), rt.Container())

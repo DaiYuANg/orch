@@ -34,7 +34,8 @@ import (
 
 // serverRunner wires Cobra lifecycle: PreRun builds the dix graph; Run starts it and blocks until shutdown.
 type serverRunner struct {
-	app *dix.App
+	app        *dix.App
+	validation dix.ValidationReport
 }
 
 func newRootCmd() *cobra.Command {
@@ -50,7 +51,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	cmd.Flags().String("config", "", "Path to YAML, JSON, or TOML config file (merged before env; CLI flags override)")
+	cmd.Flags().String("config", "", "Path to YAML, JSON, TOML, or HCL config file (merged before env; CLI flags override)")
 	config.BindOrchFlags(cmd.Flags(), config.Default())
 	cmd.AddCommand(newHostDNSCmd())
 
@@ -91,6 +92,10 @@ func (srv *serverRunner) preRun(cmd *cobra.Command, _ []string) error {
 			startupinfo.Module(),
 		),
 	)
+	srv.validation = srv.app.ValidateReportContext(cmd.Context())
+	if err := srv.validation.Err(); err != nil {
+		return fmt.Errorf("validate orch-server graph: %w", err)
+	}
 	return nil
 }
 
@@ -105,7 +110,7 @@ func (srv *serverRunner) run(cmd *cobra.Command, _ []string) error {
 	} else {
 		diag.Attach(rt)
 	}
-	logDixRuntimeDiagnostics(rt)
+	logDixRuntimeDiagnostics(rt, srv.validation)
 	rt.Logger().Info("orch-server ready (control plane running; Ctrl+C to stop)")
 
 	<-ctx.Done()
@@ -113,13 +118,13 @@ func (srv *serverRunner) run(cmd *cobra.Command, _ []string) error {
 
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()
-	if err := rt.Stop(shutdownCtx); err != nil {
-		rt.Logger().Warn("orch-server graceful stop error", "error", err)
+	if report, err := rt.StopWithReport(shutdownCtx); err != nil {
+		logDixStopReport(rt, "orch-server graceful stop error", report, err)
 	}
 	return nil
 }
 
-func logDixRuntimeDiagnostics(rt *dix.Runtime) {
+func logDixRuntimeDiagnostics(rt *dix.Runtime, validation dix.ValidationReport) {
 	if rt == nil || rt.Logger() == nil {
 		return
 	}
@@ -146,5 +151,48 @@ func logDixRuntimeDiagnostics(rt *dix.Runtime) {
 		"recent_events", events.Len(),
 		"build_duration", buildDuration,
 		"start_duration", startDuration,
+		"validation_warnings", validationWarningCount(validation),
 	)
+	if validation.HasWarnings() {
+		rt.Logger().Warn("dix validation warnings",
+			"warnings", validationWarningCount(validation),
+			"summary", validation.WarningSummary(),
+		)
+	}
+}
+
+func validationWarningCount(report dix.ValidationReport) int {
+	if report.Warnings == nil {
+		return 0
+	}
+	return report.Warnings.Len()
+}
+
+func logDixStopReport(rt *dix.Runtime, message string, report *dix.StopReport, err error) {
+	if rt == nil || rt.Logger() == nil {
+		return
+	}
+	subAppError := ""
+	hookError := ""
+	containerErrors := 0
+	if report != nil {
+		subAppError = stopReportError(report.SubAppError)
+		hookError = stopReportError(report.HookError)
+		if report.ShutdownReport != nil {
+			containerErrors = len(report.ShutdownReport.Errors)
+		}
+	}
+	rt.Logger().Warn(message,
+		"error", err,
+		"subapp_error", subAppError,
+		"hook_error", hookError,
+		"container_errors", containerErrors,
+	)
+}
+
+func stopReportError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }

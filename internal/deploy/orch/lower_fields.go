@@ -2,7 +2,6 @@ package orch
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
@@ -140,9 +139,9 @@ func stringFromMapValue(value any) string {
 }
 
 func envVarsFromMap(m map[string]string) []v1.EnvVar {
-	keys := mapping.NewMapFrom(m).Keys()
-	sort.Strings(keys)
-	return list.MapList(list.NewList(keys...), func(_ int, k string) v1.EnvVar {
+	keys := list.NewList(mapping.NewMapFrom(m).Keys()...)
+	keys.Sort(strings.Compare)
+	return list.MapList(keys, func(_ int, k string) v1.EnvVar {
 		return v1.EnvVar{Name: k, Value: m[k]}
 	}).Values()
 }

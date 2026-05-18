@@ -11,6 +11,8 @@ import (
 // Keep this in DI so compiler-side conversion policy is explicit and reusable.
 func NewHIRMapper() *mapper.Mapper {
 	return mapper.New(
+		mapper.WithFallbackTags("json", "yaml"),
+		mapper.WithPlanCacheSize(2048),
 		mapper.Converter(strings.TrimSpace),
 		mapper.Converter(func(value []any) []string {
 			return stringList(value)
@@ -24,7 +26,7 @@ func mapHIRFields[D any](m *mapper.Mapper, f *compiler.HIRForm) D {
 	if m == nil {
 		return dst
 	}
-	if err := m.MapInto(&dst, hirFormValueMap(f), mapper.WithFallbackTags("json", "yaml")); err != nil {
+	if err := m.MapInto(&dst, hirFormValueMap(f)); err != nil {
 		return dst
 	}
 	return dst

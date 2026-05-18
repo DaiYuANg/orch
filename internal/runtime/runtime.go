@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
 	"github.com/arcgolabs/collectionx/mapping"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
@@ -38,12 +39,34 @@ type Manager struct {
 func NewManager(logger *slog.Logger, providers ...Provider) *Manager {
 	idx := mapping.NewConcurrentMapWithCapacity[deployv1.RuntimeKind, Provider](len(providers))
 	for _, p := range providers {
+		if p == nil {
+			continue
+		}
 		idx.Set(p.Kind(), p)
 	}
 	return &Manager{
 		logger:    logger,
 		providers: idx,
 	}
+}
+
+func (m *Manager) HasProvider(kind deployv1.RuntimeKind) bool {
+	if m == nil || m.providers == nil {
+		return false
+	}
+	_, ok := m.providers.Get(kind)
+	return ok
+}
+
+func (m *Manager) RegisteredKinds() *list.List[deployv1.RuntimeKind] {
+	if m == nil || m.providers == nil {
+		return list.NewList[deployv1.RuntimeKind]()
+	}
+	kinds := list.NewList(m.providers.Keys()...)
+	kinds.Sort(func(a, b deployv1.RuntimeKind) int {
+		return strings.Compare(string(a), string(b))
+	})
+	return kinds
 }
 
 func (m *Manager) Deploy(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload) error {

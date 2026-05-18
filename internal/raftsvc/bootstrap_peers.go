@@ -1,9 +1,10 @@
 package raftsvc
 
 import (
-	"sort"
 	"strings"
 
+	"github.com/arcgolabs/collectionx/list"
+	"github.com/arcgolabs/collectionx/mapping"
 	dragonboat "github.com/lni/dragonboat/v4"
 
 	"github.com/lyonbrown4d/orch/pkg/oopsx"
@@ -76,12 +77,9 @@ func (s *Service) replicaTargetsFromPeers(peers map[string]string) (map[uint64]d
 }
 
 func sortedPeerIDs(peers map[string]string) []string {
-	ids := make([]string, 0, len(peers))
-	for id := range peers {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids
+	ids := list.NewList(mapping.NewMapFrom(peers).Keys()...)
+	ids.Sort(strings.Compare)
+	return ids.Values()
 }
 
 func checkReplicaIDCollision(seenIDs map[uint64]string, replicaID uint64, id string) error {

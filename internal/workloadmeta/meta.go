@@ -6,16 +6,14 @@ import (
 	"unicode/utf8"
 
 	"github.com/arcgolabs/collectionx/mapping"
+	"github.com/samber/lo"
 
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 // NamespaceOrDefault returns a non-empty namespace for DNS and naming.
 func NamespaceOrDefault(ns string) string {
-	if strings.TrimSpace(ns) == "" {
-		return "default"
-	}
-	return strings.TrimSpace(ns)
+	return lo.CoalesceOrEmpty(strings.TrimSpace(ns), "default")
 }
 
 // SanitizeName maps arbitrary strings to container-friendly identifiers.

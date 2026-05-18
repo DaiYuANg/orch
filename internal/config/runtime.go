@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/arcgolabs/configx"
+	formathcl "github.com/arcgolabs/configx/format/hcl"
 )
 
 type SchedulerConfig struct {
@@ -76,9 +77,10 @@ type RaftConfig struct {
 
 // Load merges defaults, dotenv, optional files, env (ORCH_), then CLI flags when passed via [LoadFromCobra].
 func Load(opts ...configx.Option) (Config, error) {
-	base := make([]configx.Option, 0, 4+len(opts))
+	base := make([]configx.Option, 0, 5+len(opts))
 	base = append(base,
 		configx.WithTypedDefaults(Default()),
+		formathcl.WithHCLSupport(),
 		configx.WithEnvPrefix("ORCH"),
 		configx.WithPriority(
 			configx.SourceDotenv,

@@ -10,18 +10,18 @@ import (
 
 	"github.com/arcgolabs/clientx"
 	clientxhttp "github.com/arcgolabs/clientx/http"
+	"github.com/samber/lo"
 
 	"github.com/lyonbrown4d/orch/internal/api"
+	"github.com/lyonbrown4d/orch/internal/workloadmeta"
 	"github.com/lyonbrown4d/orch/pkg/oopsx"
 )
 
+const defaultBaseURL = "http://127.0.0.1:17443"
+
 // DefaultBaseURL returns ORCH_SERVER if set, else local dev default matching orch-server HTTP.Addr (:17443).
 func DefaultBaseURL() string {
-	v := strings.TrimSpace(os.Getenv("ORCH_SERVER"))
-	if v != "" {
-		return strings.TrimRight(v, "/")
-	}
-	return "http://127.0.0.1:17443"
+	return strings.TrimRight(lo.CoalesceOrEmpty(strings.TrimSpace(os.Getenv("ORCH_SERVER")), defaultBaseURL), "/")
 }
 
 // Client is the orch control-plane HTTP facade (github.com/arcgolabs/clientx/http → resty for transport).
@@ -131,10 +131,7 @@ func (c *Client) GetApp(ctx context.Context, namespace, name string) (*api.GetAp
 	if name == "" {
 		return nil, oopsx.B("cli", "apiclient").Errorf("empty app name")
 	}
-	namespace = strings.TrimSpace(namespace)
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace = workloadmeta.NamespaceOrDefault(namespace)
 	path := api.PathV1Apps + "/" + url.PathEscape(namespace) + "/" + url.PathEscape(name)
 	var out api.GetAppOutput
 	if err := c.get(ctx, path, &out.Body); err != nil {
@@ -189,10 +186,7 @@ func normalizeWorkloadPath(namespace, app, workload string) (string, string, str
 	if workload == "" {
 		return "", "", "", oopsx.B("cli", "apiclient").Errorf("empty workload name")
 	}
-	namespace = strings.TrimSpace(namespace)
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace = workloadmeta.NamespaceOrDefault(namespace)
 	return namespace, app, workload, nil
 }
 

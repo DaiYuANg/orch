@@ -1,7 +1,6 @@
 package task
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/arcgolabs/collectionx/list"
@@ -71,11 +70,9 @@ func selectedOperationWorkloads(ordered *list.List[deployv1.Workload], wanted *s
 }
 
 func missingWorkloadError(wanted *set.OrderedSet[string]) error {
-	missing := wanted.Values()
-	if len(missing) > 1 {
-		sort.Strings(missing)
-	}
-	return oopsx.B("task").Errorf("workload(s) not found: %s", strings.Join(missing, ", "))
+	missing := list.NewList(wanted.Values()...)
+	missing.Sort(strings.Compare)
+	return oopsx.B("task").Errorf("workload(s) not found: %s", missing.Join(", "))
 }
 
 func (s *Service) failedWorkloads(meta deployv1.Metadata, workloads *list.List[deployv1.Workload]) *list.List[deployv1.Workload] {

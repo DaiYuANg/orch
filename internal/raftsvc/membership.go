@@ -2,7 +2,6 @@ package raftsvc
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"time"
 
@@ -40,19 +39,19 @@ func (s *Service) ListMembers(ctx context.Context) (*list.List[Member], error) {
 }
 
 func (s *Service) sortedMembershipReplicaIDs(nodes, nonVotings, witnesses map[uint64]string) []uint64 {
-	replicaIDs := make([]uint64, 0, len(nodes)+len(nonVotings)+len(witnesses))
+	replicaIDs := list.NewListWithCapacity[uint64](len(nodes) + len(nonVotings) + len(witnesses))
 	replicaIDs = appendReplicaIDs(replicaIDs, nodes)
 	replicaIDs = appendReplicaIDs(replicaIDs, nonVotings)
 	replicaIDs = appendReplicaIDs(replicaIDs, witnesses)
-	sort.Slice(replicaIDs, func(i, j int) bool {
-		return s.nodeIDForMember(replicaIDs[i], "") < s.nodeIDForMember(replicaIDs[j], "")
+	replicaIDs.Sort(func(a, b uint64) int {
+		return strings.Compare(s.nodeIDForMember(a, ""), s.nodeIDForMember(b, ""))
 	})
-	return replicaIDs
+	return replicaIDs.Values()
 }
 
-func appendReplicaIDs(replicaIDs []uint64, targets map[uint64]string) []uint64 {
+func appendReplicaIDs(replicaIDs *list.List[uint64], targets map[uint64]string) *list.List[uint64] {
 	for replicaID := range targets {
-		replicaIDs = append(replicaIDs, replicaID)
+		replicaIDs.Add(replicaID)
 	}
 	return replicaIDs
 }

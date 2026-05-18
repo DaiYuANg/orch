@@ -1,8 +1,11 @@
 package config_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/arcgolabs/configx"
 	"github.com/spf13/cobra"
 
 	"github.com/lyonbrown4d/orch/internal/config"
@@ -23,6 +26,21 @@ func TestLoadFromCobraParsesClusterNodesFlag(t *testing.T) {
 	got, ok := cfg.Cluster.NodeURL("node-b")
 	if !ok || got != "http://127.0.0.1:17446" {
 		t.Fatalf("cluster node = %q, %v", got, ok)
+	}
+}
+
+func TestLoadSupportsHCLConfigFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "orch.hcl")
+	if err := os.WriteFile(path, []byte("env = \"hcl-test\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(configx.WithFiles(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Env != "hcl-test" {
+		t.Fatalf("env = %q", cfg.Env)
 	}
 }
 

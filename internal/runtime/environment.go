@@ -5,6 +5,10 @@ import (
 	"os/exec"
 	goruntime "runtime"
 	"strings"
+
+	"github.com/arcgolabs/collectionx/list"
+
+	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 )
 
 const (
@@ -25,8 +29,65 @@ type Environment struct {
 	WindowsService bool
 }
 
+func KnownProviderKinds() *list.List[deployv1.RuntimeKind] {
+	return list.NewList(
+		deployv1.RuntimeContainerd,
+		deployv1.RuntimeDocker,
+		deployv1.RuntimeFirecracker,
+		deployv1.RuntimePodman,
+		deployv1.RuntimeProcess,
+		deployv1.RuntimeSystemd,
+		deployv1.RuntimeWindowsService,
+	)
+}
+
 func DetectEnvironment() Environment {
 	return detectEnvironment(defaultEnvironmentProbe{})
+}
+
+func (e Environment) ProviderAvailable(kind deployv1.RuntimeKind) bool {
+	switch kind {
+	case deployv1.RuntimeDocker:
+		return e.Docker
+	case deployv1.RuntimePodman:
+		return e.Podman
+	case deployv1.RuntimeContainerd:
+		return e.Containerd
+	case deployv1.RuntimeFirecracker:
+		return e.Firecracker
+	case deployv1.RuntimeProcess:
+		return e.Process
+	case deployv1.RuntimeSystemd:
+		return e.Systemd
+	case deployv1.RuntimeWindowsService:
+		return e.WindowsService
+	default:
+		return false
+	}
+}
+
+func (e Environment) ProviderUnavailableReason(kind deployv1.RuntimeKind) string {
+	if e.ProviderAvailable(kind) {
+		return ""
+	}
+	switch kind {
+	case deployv1.RuntimeDocker:
+		return "docker CLI, DOCKER_HOST, or Docker socket was not detected"
+	case deployv1.RuntimePodman:
+		return "podman CLI, PODMAN_HOST, or Podman socket was not detected"
+	case deployv1.RuntimeContainerd:
+		return "containerd socket was not detected"
+	case deployv1.RuntimeFirecracker:
+		return "firecracker binary was not detected"
+	case deployv1.RuntimeProcess:
+		return "process runtime is not available"
+	case deployv1.RuntimeSystemd:
+		return "systemd runtime or systemctl was not detected"
+	case deployv1.RuntimeWindowsService:
+		return "windows service runtime is only available on Windows"
+	default:
+		return "unknown runtime provider"
+	}
 }
 
 type environmentProbe interface {

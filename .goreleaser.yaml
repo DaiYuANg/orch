@@ -30,9 +30,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.date={{ .Date }}
 
   - id: orch-server
     main: ./cmd/orch-server
@@ -49,9 +49,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.date={{ .Date }}
 
   - id: orch-lsp
     main: ./cmd/orch-lsp
@@ -68,9 +68,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.date={{ .Date }}
 
   - id: orch-vpn
     main: ./cmd/orch-vpn
@@ -87,9 +87,9 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X github.com/daiyuang/orch/internal/buildmeta.version={{ .Version }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.commit={{ .Commit }}
-      - -X github.com/daiyuang/orch/internal/buildmeta.date={{ .Date }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.version={{ .Version }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.commit={{ .Commit }}
+      - -X github.com/lyonbrown4d/orch/internal/buildmeta.date={{ .Date }}
 
 archives:
   - formats: [tar.gz]
@@ -110,7 +110,7 @@ nfpms:
   - package_name: orch
     file_name_template: "{{ .ConventionalFileName }}"
     vendor: orch
-    homepage: https://github.com/daiyuang/orch
+    homepage: https://github.com/lyonbrown4d/orch
     maintainer: orch maintainers <orch@users.noreply.github.com>
     description: orch control plane server and CLI (stateful workload runtime layer).
     license: MIT

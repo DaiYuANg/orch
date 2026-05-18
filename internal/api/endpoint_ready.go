@@ -10,17 +10,19 @@ import (
 	"github.com/lyonbrown4d/orch/internal/config"
 	"github.com/lyonbrown4d/orch/internal/dixdiag"
 	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	orchruntime "github.com/lyonbrown4d/orch/internal/runtime"
 )
 
 // ReadyEndpoint serves GET /api/ready.
 type ReadyEndpoint struct {
 	cfg  config.Config
 	raft *raftsvc.Service
+	rt   *orchruntime.Manager
 	diag *dixdiag.Service
 }
 
-func NewReadyEndpoint(cfg config.Config, raft *raftsvc.Service, diag *dixdiag.Service) *ReadyEndpoint {
-	return &ReadyEndpoint{cfg: cfg, raft: raft, diag: diag}
+func NewReadyEndpoint(cfg config.Config, raft *raftsvc.Service, rt *orchruntime.Manager, diag *dixdiag.Service) *ReadyEndpoint {
+	return &ReadyEndpoint{cfg: cfg, raft: raft, rt: rt, diag: diag}
 }
 
 func (e *ReadyEndpoint) EndpointSpec() httpx.EndpointSpec {
@@ -41,8 +43,9 @@ func (e *ReadyEndpoint) handle(ctx context.Context, _ *EmptyInput) (*ReadyOutput
 	checks.Add(ReadyCheckItem{Name: "http", Ready: true, Status: "ok"})
 
 	raftReady, writeReady := e.addRaftReadiness(ctx, checks)
+	runtimeReady := e.addRuntimeReadiness(checks)
 	dixReady := e.addDixReadiness(ctx, checks)
-	ready := raftReady && writeReady && dixReady
+	ready := raftReady && writeReady && runtimeReady && dixReady
 
 	out := &ReadyOutput{}
 	out.Body.Ready = ready
@@ -83,6 +86,12 @@ func (e *ReadyEndpoint) writeReadiness(status raftsvc.Status) (bool, string) {
 		return true, "writes forward to " + leaderURL
 	}
 	return false, "configure cluster.nodes." + status.LeaderID + " or target the leader API"
+}
+
+func (e *ReadyEndpoint) addRuntimeReadiness(checks *list.List[ReadyCheckItem]) bool {
+	check := runtimeReadiness(e.rt)
+	checks.Add(check)
+	return check.Ready
 }
 
 func (e *ReadyEndpoint) addDixReadiness(ctx context.Context, checks *list.List[ReadyCheckItem]) bool {

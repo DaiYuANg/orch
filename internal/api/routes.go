@@ -8,6 +8,7 @@ import (
 	"github.com/lyonbrown4d/orch/internal/dixdiag"
 	"github.com/lyonbrown4d/orch/internal/dnssvc"
 	"github.com/lyonbrown4d/orch/internal/raftsvc"
+	orchruntime "github.com/lyonbrown4d/orch/internal/runtime"
 	"github.com/lyonbrown4d/orch/internal/services/registry"
 	"github.com/lyonbrown4d/orch/internal/services/task"
 )
@@ -40,7 +41,7 @@ type workerEndpointGroup struct {
 
 // Register wires all HTTP [httpx.Endpoint] modules in one place. Each module owns its Prefix and handlers;
 // route paths use "" to bind to that prefix root (see per-type EndpointSpec).
-func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.Service, taskSvc *task.Service, loaderSvc *loader.Loader, dnsSvc *dnssvc.Service, raftSvc *raftsvc.Service, dixdiagSvcs ...*dixdiag.Service) {
+func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.Service, taskSvc *task.Service, loaderSvc *loader.Loader, runtimeSvc *orchruntime.Manager, dnsSvc *dnssvc.Service, raftSvc *raftsvc.Service, dixdiagSvcs ...*dixdiag.Service) {
 	var dixdiagSvc *dixdiag.Service
 	if len(dixdiagSvcs) > 0 {
 		dixdiagSvc = dixdiagSvcs[0]
@@ -48,7 +49,7 @@ func Register(rt httpx.ServerRuntime, cfg config.Config, registrySvc *registry.S
 	leader := NewLeaderForwarder(cfg, raftSvc)
 	auth := openAPIAuthApply(cfg.Auth.Enabled)
 	RegisterEndpoints(rt, newRouteEndpoints(
-		newSystemEndpoints(cfg, raftSvc, dnsSvc, dixdiagSvc),
+		newSystemEndpoints(cfg, raftSvc, runtimeSvc, dnsSvc, dixdiagSvc),
 		newWorkloadEndpoints(registrySvc, taskSvc),
 		newRaftEndpoints(cfg, raftSvc, leader, auth),
 		newDeployEndpoints(taskSvc, loaderSvc, leader, auth),
@@ -78,12 +79,13 @@ func newRouteEndpoints(system systemEndpointGroup, workloads workloadEndpointGro
 	return RouteEndpoints{items: items}
 }
 
-func newSystemEndpoints(cfg config.Config, raftSvc *raftsvc.Service, dnsSvc *dnssvc.Service, dixdiagSvc *dixdiag.Service) systemEndpointGroup {
+func newSystemEndpoints(cfg config.Config, raftSvc *raftsvc.Service, runtimeSvc *orchruntime.Manager, dnsSvc *dnssvc.Service, dixdiagSvc *dixdiag.Service) systemEndpointGroup {
 	return systemEndpointGroup{items: []any{
 		NewHealthEndpoint(dixdiagSvc),
-		NewReadyEndpoint(cfg, raftSvc, dixdiagSvc),
-		NewDiagnosticsEndpoint(dixdiagSvc),
+		NewReadyEndpoint(cfg, raftSvc, runtimeSvc, dixdiagSvc),
+		NewDiagnosticsEndpoint(dixdiagSvc, runtimeSvc),
 		NewHostinfoEndpoint(),
+		NewRuntimeProvidersEndpoint(runtimeSvc),
 		NewOrchVPNBootstrapEndpoint(cfg, dnsSvc),
 	}}
 }

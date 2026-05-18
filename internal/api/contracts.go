@@ -8,6 +8,7 @@ import (
 	deployv1 "github.com/lyonbrown4d/orch/internal/deploy/v1alpha1"
 	"github.com/lyonbrown4d/orch/internal/dixdiag"
 	"github.com/lyonbrown4d/orch/internal/hostinfo"
+	orchruntime "github.com/lyonbrown4d/orch/internal/runtime"
 	"github.com/lyonbrown4d/orch/internal/runtime/runtimeinfo"
 )
 
@@ -47,7 +48,33 @@ type HostinfoOutput struct {
 }
 
 type DiagnosticsOutput struct {
-	Body dixdiag.Snapshot `json:"body"`
+	Body DiagnosticsBody `json:"body"`
+}
+
+type DiagnosticsBody struct {
+	dixdiag.Snapshot
+	Runtime RuntimeDiagnostics `json:"runtime"`
+}
+
+type RuntimeDiagnostics struct {
+	Registered int                             `json:"registered"`
+	Available  int                             `json:"available"`
+	Providers  *list.List[RuntimeProviderItem] `json:"providers"`
+}
+
+type RuntimeProviderItem struct {
+	Kind       deployv1.RuntimeKind       `json:"kind"`
+	Policy     orchruntime.ProviderPolicy `json:"policy"`
+	Available  bool                       `json:"available"`
+	Registered bool                       `json:"registered"`
+	Status     string                     `json:"status"`
+	Reason     string                     `json:"reason,omitempty"`
+}
+
+type ListRuntimeProvidersOutput struct {
+	Body struct {
+		Items *list.List[RuntimeProviderItem] `json:"items"`
+	} `json:"body"`
 }
 
 // WorkloadItem is the public API representation of a runtime registry record.

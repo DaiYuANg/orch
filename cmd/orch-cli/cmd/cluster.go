@@ -96,6 +96,10 @@ func newAssignmentsCmd() *cobra.Command {
 	return newAssignmentsListCmd("assignments", []string{"assignment"})
 }
 
+func newRuntimesCmd() *cobra.Command {
+	return newRuntimesListCmd("runtimes", []string{"runtime", "providers"})
+}
+
 func newAppsCmd() *cobra.Command {
 	return newAppsListCmd("apps", []string{"app"})
 }
@@ -134,6 +138,23 @@ func newAssignmentsListCmd(use string, aliases []string) *cobra.Command {
 	return cmd
 }
 
+func newRuntimesListCmd(use string, aliases []string) *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:     use,
+		Aliases: aliases,
+		Short:   "List runtime providers on the server node",
+		Long:    `Shows runtime provider policy, host availability, and registration status for the current control plane node.`,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := contextFromCmd(cmd)
+			return runListRuntimeProviders(ctx, jsonOut)
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Print JSON array")
+	return cmd
+}
+
 func newGetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
@@ -144,6 +165,7 @@ func newGetCmd() *cobra.Command {
 	cmd.AddCommand(newAppsListCmd("apps", []string{"app"}))
 	cmd.AddCommand(newWorkloadsListCmd("workloads", []string{"workload", "wl", "ps"}))
 	cmd.AddCommand(newAssignmentsListCmd("assignments", []string{"assignment", "assign"}))
+	cmd.AddCommand(newRuntimesListCmd("runtimes", []string{"runtime", "providers"}))
 	return cmd
 }
 

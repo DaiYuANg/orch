@@ -10,6 +10,7 @@ type Config struct {
 	Ingress       IngressConfig       `json:"ingress"`
 	DNS           DNSConfig           `json:"dns"`
 	OrchVPN       OrchVPNConfig       `json:"orch_vpn"`
+	Runtime       RuntimeConfig       `json:"runtime"`
 	Scheduler     SchedulerConfig     `json:"scheduler"`
 	Cluster       ClusterConfig       `json:"cluster"`
 	Gossip        GossipConfig        `json:"gossip"`

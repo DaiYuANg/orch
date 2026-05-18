@@ -64,6 +64,9 @@ func writeDiagnosticsHuman(out *api.DiagnosticsOutput) error {
 	if err := writeLine(""); err != nil {
 		return err
 	}
+	if err := writeDiagnosticsRuntime(body.Runtime); err != nil {
+		return err
+	}
 	if err := writeDiagnosticsLifecycle(body.Lifecycle); err != nil {
 		return err
 	}
@@ -71,6 +74,16 @@ func writeDiagnosticsHuman(out *api.DiagnosticsOutput) error {
 		return err
 	}
 	return writeDiagnosticsEvents(body.Events.Recent)
+}
+
+func writeDiagnosticsRuntime(runtime api.RuntimeDiagnostics) error {
+	if runtime.Providers == nil || runtime.Providers.IsEmpty() {
+		return nil
+	}
+	if err := writeRuntimesHuman(runtime.Providers); err != nil {
+		return err
+	}
+	return writeLine("")
 }
 
 func writeDiagnosticsLifecycle(lc dixdiag.LifecycleSnapshot) error {

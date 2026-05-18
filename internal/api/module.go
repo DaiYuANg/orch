@@ -12,7 +12,7 @@ func Module() dix.Module {
 		dix.Providers(
 			dix.Provider1(newOpenAPIAuthApply),
 			dix.Provider2(newLeaderForwarderProvider),
-			dix.Provider4(newSystemEndpoints),
+			dix.Provider5(newSystemEndpoints),
 			dix.Provider2(newWorkloadEndpoints),
 			dix.Provider4(newRaftEndpoints),
 			dix.Provider4(newDeployEndpoints),

@@ -8,6 +8,34 @@ import (
 	formathcl "github.com/arcgolabs/configx/format/hcl"
 )
 
+const (
+	RuntimeProviderPolicyAuto     = "auto"
+	RuntimeProviderPolicyRequired = "required"
+	RuntimeProviderPolicyDisabled = "disabled"
+)
+
+type RuntimeConfig struct {
+	Providers map[string]RuntimeProviderConfig `json:"providers,omitempty"`
+}
+
+type RuntimeProviderConfig struct {
+	Policy string `json:"policy,omitempty"`
+}
+
+func (c RuntimeConfig) ProviderPolicy(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" || len(c.Providers) == 0 {
+		return RuntimeProviderPolicyAuto
+	}
+	policy := strings.ToLower(strings.TrimSpace(c.Providers[name].Policy))
+	switch policy {
+	case RuntimeProviderPolicyRequired, RuntimeProviderPolicyDisabled:
+		return policy
+	default:
+		return RuntimeProviderPolicyAuto
+	}
+}
+
 type SchedulerConfig struct {
 	HeartbeatInterval       string `json:"heartbeat_interval,omitempty"`
 	ResourceRefreshInterval string `json:"resource_refresh_interval,omitempty"` // cadence for leader to apply local host metrics into Raft
@@ -129,6 +157,10 @@ func Default() Config {
 	gossip.AutoJoinRaft = true
 	gossip.ReconcileInterval = "5s"
 
+	runtimeCfg := RuntimeConfig{
+		Providers: map[string]RuntimeProviderConfig{},
+	}
+
 	return Config{
 		App: AppConfig{
 			Name: "orch",
@@ -150,6 +182,7 @@ func Default() Config {
 			Enabled:         false,
 			TunnelListenUDP: ":15888",
 		},
+		Runtime: runtimeCfg,
 		Scheduler: SchedulerConfig{
 			HeartbeatInterval:       "2m",
 			ResourceRefreshInterval: "30s",

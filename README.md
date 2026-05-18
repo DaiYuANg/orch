@@ -220,6 +220,19 @@ Environment variables use the **`ORCH`** prefix (see `internal/config`, loaded v
 - `ORCH_INGRESS_ENABLED` (default: `true`)
 - Default listeners: `:80` and `:443`. Set `ORCH_INGRESS_ADDR` to use a single port instead (for example `:8088` on machines where binding low ports requires elevated privileges).
 
+## Runtime Provider Discovery
+
+orch-server detects host runtime providers at startup and exposes the snapshot
+through `orch get runtimes` / `GET /api/v1/system/runtimes`. Provider policy can
+be set in config with `runtime.providers.<name>.policy`:
+
+```yaml
+runtime:
+  providers:
+    docker:
+      policy: required # auto | required | disabled
+```
+
 ## License
 
 MIT

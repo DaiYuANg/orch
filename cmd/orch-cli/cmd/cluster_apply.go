@@ -129,6 +129,25 @@ func runListApps(ctx context.Context, jsonOut bool) error {
 	return nil
 }
 
+func runListRuntimeProviders(ctx context.Context, jsonOut bool) error {
+	conn := cliapp.ConnFromGlobals(serverURL, authToken)
+	if err := cliapp.RunCluster(ctx, conn, func(ctx context.Context, c *apiclient.Client, _ *loader.Loader) error {
+		out, err := c.ListRuntimeProviders(ctx)
+		if err != nil {
+			return oopsx.B("cli").Wrapf(err, "list runtime providers")
+		}
+		if jsonOut {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(out.Body.Items)
+		}
+		return writeRuntimesHuman(out.Body.Items)
+	}); err != nil {
+		return oopsx.B("cli").Wrapf(err, "list runtime providers")
+	}
+	return nil
+}
+
 type applyWatchOutput struct {
 	Accepted    bool                           `json:"accepted"`
 	App         string                         `json:"app"`

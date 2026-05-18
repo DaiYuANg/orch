@@ -31,12 +31,40 @@ type LogsProvider interface {
 	Logs(ctx context.Context, meta deployv1.Metadata, workloadName string, opts LogOptions) (LogResult, error)
 }
 
+type ProviderPolicy string
+
+const (
+	ProviderPolicyAuto     ProviderPolicy = "auto"
+	ProviderPolicyRequired ProviderPolicy = "required"
+	ProviderPolicyDisabled ProviderPolicy = "disabled"
+)
+
+const (
+	ProviderStatusRegistered = "registered"
+	ProviderStatusDisabled   = "disabled"
+	ProviderStatusMissing    = "missing"
+)
+
+type ProviderStatus struct {
+	Kind       deployv1.RuntimeKind `json:"kind"`
+	Policy     ProviderPolicy       `json:"policy"`
+	Available  bool                 `json:"available"`
+	Registered bool                 `json:"registered"`
+	Status     string               `json:"status"`
+	Reason     string               `json:"reason,omitempty"`
+}
+
 type Manager struct {
-	logger    *slog.Logger
-	providers *mapping.ConcurrentMap[deployv1.RuntimeKind, Provider]
+	logger           *slog.Logger
+	providers        *mapping.ConcurrentMap[deployv1.RuntimeKind, Provider]
+	providerStatuses *list.List[ProviderStatus]
 }
 
 func NewManager(logger *slog.Logger, providers ...Provider) *Manager {
+	return NewManagerWithStatus(logger, list.NewList[ProviderStatus](), providers...)
+}
+
+func NewManagerWithStatus(logger *slog.Logger, statuses *list.List[ProviderStatus], providers ...Provider) *Manager {
 	idx := mapping.NewConcurrentMapWithCapacity[deployv1.RuntimeKind, Provider](len(providers))
 	for _, p := range providers {
 		if p == nil {
@@ -45,8 +73,9 @@ func NewManager(logger *slog.Logger, providers ...Provider) *Manager {
 		idx.Set(p.Kind(), p)
 	}
 	return &Manager{
-		logger:    logger,
-		providers: idx,
+		logger:           logger,
+		providers:        idx,
+		providerStatuses: statuses,
 	}
 }
 
@@ -67,6 +96,38 @@ func (m *Manager) RegisteredKinds() *list.List[deployv1.RuntimeKind] {
 		return strings.Compare(string(a), string(b))
 	})
 	return kinds
+}
+
+func (m *Manager) ProviderStatuses() *list.List[ProviderStatus] {
+	if m == nil {
+		return list.NewList[ProviderStatus]()
+	}
+	if m.providerStatuses != nil && !m.providerStatuses.IsEmpty() {
+		return sortProviderStatuses(m.providerStatuses.Clone())
+	}
+	out := list.NewList[ProviderStatus]()
+	if m.providers == nil {
+		return out
+	}
+	kinds := m.RegisteredKinds()
+	kinds.Range(func(_ int, kind deployv1.RuntimeKind) bool {
+		out.Add(ProviderStatus{
+			Kind:       kind,
+			Policy:     ProviderPolicyAuto,
+			Available:  true,
+			Registered: true,
+			Status:     ProviderStatusRegistered,
+		})
+		return true
+	})
+	return out
+}
+
+func sortProviderStatuses(statuses *list.List[ProviderStatus]) *list.List[ProviderStatus] {
+	statuses.Sort(func(a, b ProviderStatus) int {
+		return strings.Compare(string(a.Kind), string(b.Kind))
+	})
+	return statuses
 }
 
 func (m *Manager) Deploy(ctx context.Context, meta deployv1.Metadata, workload deployv1.Workload) error {

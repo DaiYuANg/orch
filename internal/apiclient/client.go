@@ -100,6 +100,15 @@ func (c *Client) Diagnostics(ctx context.Context) (*api.DiagnosticsOutput, error
 	return &out, nil
 }
 
+// ListRuntimeProviders calls GET /api/v1/system/runtimes.
+func (c *Client) ListRuntimeProviders(ctx context.Context) (*api.ListRuntimeProvidersOutput, error) {
+	var out api.ListRuntimeProvidersOutput
+	if err := c.get(ctx, api.PathV1RuntimeProviders, &out.Body); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListWorkloads calls GET /api/v1/workloads.
 func (c *Client) ListWorkloads(ctx context.Context) (*api.ListWorkloadsOutput, error) {
 	var out api.ListWorkloadsOutput

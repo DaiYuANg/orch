@@ -167,7 +167,7 @@ func startDeployFlowAPI(
 	taskSvc.StartDeployReconcile(t.Context())
 
 	fiberApp, rt := newE2EServerRuntime(logger)
-	api.Register(rt, cfg, registrySvc, taskSvc, newE2ELoader(t), nil, raft)
+	api.Register(rt, cfg, registrySvc, taskSvc, newE2ELoader(t), runtimeManager, nil, raft)
 	client, err := apiclient.New(startTestFiberServer(t, fiberApp), "")
 	requireNoError(t, err, "new api client")
 	t.Cleanup(func() {

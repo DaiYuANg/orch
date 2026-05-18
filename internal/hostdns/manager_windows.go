@@ -11,10 +11,21 @@ import (
 	"strings"
 )
 
-type windowsManager struct{}
+type powershellRunner func(context.Context, string) (string, error)
+
+type windowsManager struct {
+	runner powershellRunner
+}
 
 func DefaultManager() Manager {
-	return &windowsManager{}
+	return newWindowsManager(runPowerShellOutput)
+}
+
+func newWindowsManager(runner powershellRunner) *windowsManager {
+	if runner == nil {
+		runner = runPowerShellOutput
+	}
+	return &windowsManager{runner: runner}
 }
 
 func (m *windowsManager) Install(ctx context.Context, cfg Config) error {
@@ -25,7 +36,7 @@ func (m *windowsManager) Install(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	return runPowerShell(ctx, script)
+	return m.runPowerShell(ctx, script)
 }
 
 func (m *windowsManager) Uninstall(ctx context.Context, cfg Config) error {
@@ -33,7 +44,7 @@ func (m *windowsManager) Uninstall(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	return runPowerShell(ctx, script)
+	return m.runPowerShell(ctx, script)
 }
 
 func (m *windowsManager) Status(ctx context.Context, cfg Config) (Status, error) {
@@ -47,7 +58,7 @@ func (m *windowsManager) Status(ctx context.Context, cfg Config) (Status, error)
 	if err != nil {
 		return st, err
 	}
-	out, err := runPowerShellOutput(ctx, script)
+	out, err := m.runPowerShellOutput(ctx, script)
 	if err != nil {
 		return st, err
 	}
@@ -74,9 +85,16 @@ func renderWindowsScript(name string, cfg Config) (string, error) {
 	})
 }
 
-func runPowerShell(ctx context.Context, script string) error {
-	_, err := runPowerShellOutput(ctx, script)
+func (m *windowsManager) runPowerShell(ctx context.Context, script string) error {
+	_, err := m.runPowerShellOutput(ctx, script)
 	return err
+}
+
+func (m *windowsManager) runPowerShellOutput(ctx context.Context, script string) (string, error) {
+	if m.runner == nil {
+		m.runner = runPowerShellOutput
+	}
+	return m.runner(ctx, script)
 }
 
 func runPowerShellOutput(ctx context.Context, script string) (string, error) {

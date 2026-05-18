@@ -14,12 +14,31 @@ import (
 
 const linuxResolvedDropInPath = "/etc/systemd/resolved.conf.d/orch.conf"
 
+type resolvedConnection interface {
+	Close()
+	RestartUnitContext(context.Context, string, string, chan<- string) (int, error)
+}
+
+type resolvedConnector func(context.Context) (resolvedConnection, error)
+
 type linuxManager struct {
-	path string
+	path    string
+	connect resolvedConnector
 }
 
 func DefaultManager() Manager {
-	return &linuxManager{path: linuxResolvedDropInPath}
+	return newLinuxManager(linuxResolvedDropInPath, newResolvedConnector())
+}
+
+func newLinuxManager(path string, connect resolvedConnector) *linuxManager {
+	if connect == nil {
+		connect = newResolvedConnector()
+	}
+	return &linuxManager{path: path, connect: connect}
+}
+
+func newResolvedConnector() resolvedConnector {
+	return newResolvedSystemConnection
 }
 
 func (m *linuxManager) Install(ctx context.Context, cfg Config) error {
@@ -33,7 +52,7 @@ func (m *linuxManager) Install(ctx context.Context, cfg Config) error {
 	if err := os.WriteFile(m.path, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", m.path, err)
 	}
-	if err := restartSystemdResolved(ctx); err != nil {
+	if err := m.restartSystemdResolved(ctx); err != nil {
 		return fmt.Errorf("restart systemd-resolved: %w", err)
 	}
 	return nil
@@ -43,7 +62,7 @@ func (m *linuxManager) Uninstall(ctx context.Context, _ Config) error {
 	if err := os.Remove(m.path); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove %s: %w", m.path, err)
 	}
-	if err := restartSystemdResolved(ctx); err != nil {
+	if err := m.restartSystemdResolved(ctx); err != nil {
 		return fmt.Errorf("restart systemd-resolved: %w", err)
 	}
 	return nil
@@ -82,10 +101,21 @@ func linuxResolvedDropIn(cfg Config) (string, error) {
 	})
 }
 
-func restartSystemdResolved(ctx context.Context) error {
+func newResolvedSystemConnection(ctx context.Context) (resolvedConnection, error) {
 	conn, err := dbus.NewSystemConnectionContext(ctx)
 	if err != nil {
-		return fmt.Errorf("connect systemd dbus: %w", err)
+		return nil, fmt.Errorf("connect systemd dbus: %w", err)
+	}
+	return conn, nil
+}
+
+func (m *linuxManager) restartSystemdResolved(ctx context.Context) error {
+	if m.connect == nil {
+		m.connect = newResolvedConnector()
+	}
+	conn, err := m.connect(ctx)
+	if err != nil {
+		return err
 	}
 	defer conn.Close()
 
